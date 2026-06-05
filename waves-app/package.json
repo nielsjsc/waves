@@ -1,11 +1,11 @@
 {
-	"name": "vitamin",
+	"name": "waves-app",
 	"type": "module",
-	"license": "MIT",
+	"license": "LGPL-3.0-or-later",
 	"private": true,
 	"version": "0.0.0",
 	"scripts": {
-		"dev": "vite --open",
+		"dev": "vite",
 		"test": "vitest",
 		"test:e2e": "playwright test --ui",
 		"test:ci": "vitest run",

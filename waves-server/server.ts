@@ -1,6 +1,8 @@
 // adapted from https://rxdb.info/replication-mongodb.html and
 //  https://rxdb.info/rx-storage-mongodb.html
 
+// MONGODB CONFIGURATION
+
 import { MongoClient } from 'mongodb';
 const mongoClient = new MongoClient(
     'mongodb://localhost:27017/?directConnection=true'
@@ -18,7 +20,7 @@ console.log('added collections to wavesmongodb')
 
 import { createRxDatabase } from 'rxdb';
 import { getRxStorageMongoDB } from 'rxdb/plugins/storage-mongodb';
- 
+
 const serverRxDb = await createRxDatabase({
     name: 'wavesServerDb',
     storage: getRxStorageMongoDB({
@@ -106,29 +108,35 @@ await replicationStateParticipants.awaitInSync();
 
 console.log('established replication from rxdb to mongodb')
 
+// RX-SERVER CONFIGURATION
+const RX_SERVER_HOST = 'localhost'
+const RX_SERVER_PORT = 3000
+const RX_SERVER_ALLOW_REMOTE = 'https://app.waves.local'
+
 import { createRxServer } from 'rxdb-server/plugins/server';
 import { RxServerAdapterExpress } from 'rxdb-server/plugins/adapter-express';
  
 const server = await createRxServer({
   database: serverRxDb,
   adapter: RxServerAdapterExpress,
-  port: 8080,
-  cors: '*'
+  hostname: RX_SERVER_HOST,
+  port: RX_SERVER_PORT,
+  cors: RX_SERVER_ALLOW_REMOTE
 });
 
 console.log('created rx-server')
  
 const slotsEndpoint = server.addReplicationEndpoint({
     name: 'slots',
-    collection: serverRxDb.slots
+    collection: serverRxDb.slots,
 });
-console.log('Replication endpoint:', `http://localhost:8080/${slotsEndpoint.urlPath}`);
+console.log('Replication endpoint:', `${RX_SERVER_HOST}:${RX_SERVER_PORT}/${slotsEndpoint.urlPath}`);
 
 const participantsEndpoint = server.addReplicationEndpoint({
     name: 'participants',
-    collection: serverRxDb.participants
+    collection: serverRxDb.participants,
 });
-console.log('Replication endpoint:', `http://localhost:8080/${participantsEndpoint.urlPath}`);
+console.log('Replication endpoint:', `${RX_SERVER_HOST}:${RX_SERVER_PORT}/${participantsEndpoint.urlPath}`);
 
 console.log('added replication endpoints to rx-server')
  

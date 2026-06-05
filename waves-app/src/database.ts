@@ -16,6 +16,11 @@ import { replicateServer } from 'rxdb-server/plugins/replication-server';
 
 addRxPlugin(RxDBDevModePlugin);
 
+// Replication location is actually nginx which terminates SSL and forwards to the server.
+const RX_REPLICATION_SERVER_PROTOCOL = 'https'
+const RX_REPLICATION_SERVER_HOST = 'server.waves.local'
+const RX_REPLICATION_SERVER_PORT = '5443'
+
 console.log('rxdb: Creating database...')
 const db = await createRxDatabase<WavesDbCollections>({
     name: 'wavesdb',
@@ -58,7 +63,7 @@ function replicateRxCollectionsWithServer() {
     replicateServer({
         collection: db.slots,
         replicationIdentifier: 'slots-replication-client-to-local-server',
-        url: 'http://localhost:8080/slots/0', //server url
+        url: `${RX_REPLICATION_SERVER_PROTOCOL}://${RX_REPLICATION_SERVER_HOST}:${RX_REPLICATION_SERVER_PORT}/slots/0`, //server url
         live: true,
         pull: { batchSize: 50 },
         push: { batchSize: 50 }
@@ -66,7 +71,7 @@ function replicateRxCollectionsWithServer() {
     replicateServer({
         collection: db.participants,
         replicationIdentifier: 'participants-replication-client-to-local-server',
-        url: 'http://localhost:8080/participants/0', //server url
+        url: `${RX_REPLICATION_SERVER_PROTOCOL}://${RX_REPLICATION_SERVER_HOST}:${RX_REPLICATION_SERVER_PORT}/participants/0`, //server url
         live: true,
         pull: { batchSize: 50 },
         push: { batchSize: 50 }
