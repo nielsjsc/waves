@@ -2,7 +2,7 @@ import {type Slot as SlotType} from '@/api/slots'
 import {Head} from '@/components/Head'
 import { Header } from '@/components/Header'
 import { useLiveQuery } from '@tanstack/react-db'
-import { participantsCollection, slotsCollection } from '@/database'
+import { participantsTanCollection, slotsTanCollection } from '@/database'
 import type { ParticipantDocType, SlotDocType } from '@/Schema'
 import { Participant } from '@/api/participants'
 import { StartGrid } from '@/components/StartGrid'
@@ -39,11 +39,11 @@ function populate(slots:SlotDocType[], participants:ParticipantDocType[]):SlotTy
 export function Callup() {
 
 	const {data: allSlots} = useLiveQuery((q) =>
-		q.from({slot: slotsCollection})
+		q.from({slot: slotsTanCollection})
 	)
 
 	const {data: allParticipants} = useLiveQuery((q) =>
-		q.from({participant: participantsCollection})
+		q.from({participant: participantsTanCollection})
 	)
 
 	const data = populate(allSlots, allParticipants)
@@ -52,7 +52,7 @@ export function Callup() {
 	<>
 		<Head title='Tent 1: Call-up' />
 		<Header/>
-		<div className='grid'>
+		<div className='flex flex-col'>
 			<h1 className='title-font text-2xl font-medium p-2'>Tent 1: Call-up. Wave: 10:02 <span className='text-base'>next in 29s</span></h1>
 			<div className='text-base p-2'>
 				<a className='text-sm px-2' href="">Prev</a>

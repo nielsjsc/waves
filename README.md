@@ -34,7 +34,7 @@ In the waves-server folder, run `npx ts-node server.ts`
 This should display output with the last line being `started rx-server`
 
 4. Start nginx 
-In an *administrator* cmd, `start nginx`
+In an *administrator* cmd (or maybe not???), `start nginx`
 (and then can use `nginx -s reload` and `nginx -s quit`)
 
 5. Start waves-app

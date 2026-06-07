@@ -11,6 +11,7 @@ function renderError({error}: FallbackProps) {
 
 export function App() {
 	return (
+		<div className='flex flex-col max-h-screen'>
 		<ErrorBoundary fallbackRender={renderError}>
 			<Suspense fallback={<LoadingOrError />}>
 				<Routes>
@@ -18,5 +19,6 @@ export function App() {
 				</Routes>
 			</Suspense>
 		</ErrorBoundary>
+		</div>
 	)
 }
