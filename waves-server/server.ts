@@ -1,14 +1,14 @@
 // adapted from https://rxdb.info/replication-mongodb.html and
 //  https://rxdb.info/rx-storage-mongodb.html
 
-// MONGODB CONFIGURATION
+// ESTABLISH MONGODB
 
 import { MongoClient } from 'mongodb';
 const mongoClient = new MongoClient(
     'mongodb://localhost:27017/?directConnection=true'
 );
 const mongoDatabase = mongoClient.db('wavesmongodb');
-console.log('created Mongodb: wavesmongodb')
+console.log('using Mongodb: wavesmongodb')
 await mongoDatabase.createCollection('slots', {
   changeStreamPreAndPostImages: { enabled: true },
 });
@@ -17,6 +17,7 @@ await mongoDatabase.createCollection('participants', {
 });
 console.log('added collections to wavesmongodb')
 
+// ESTABLISH THE RX-SERVER INSTANCE
 
 import { createRxDatabase } from 'rxdb';
 import { getRxStorageMongoDB } from 'rxdb/plugins/storage-mongodb';
@@ -33,7 +34,7 @@ const serverRxDb = await createRxDatabase({
     })
 });
 
-console.log('created rxdb with connection to mongo storage')
+console.log('created rxdb')
 
 // Add your collection schema
 await serverRxDb.addCollections({
@@ -72,7 +73,9 @@ await serverRxDb.addCollections({
 console.log('added collections to rxdb')
 
 import { replicateMongoDB } from 'rxdb/plugins/replication-mongodb';
- 
+
+// CONNECT RX-SERVER TO THE MONGODB STORAGE VIA RX REPLICATION
+
 const replicationStateParticipants = replicateMongoDB({
   mongodb: {
     collectionName: 'participants',
@@ -85,6 +88,13 @@ const replicationStateParticipants = replicateMongoDB({
   push: { batchSize: 50 },
   live: true
 });
+
+replicationStateParticipants.error$.subscribe(err => {
+    console.log('replication error:')
+    console.dir(err);
+    console.error(err);
+})
+await replicationStateParticipants.awaitInSync();
 
 const replicationStateSlots = replicateMongoDB({
   mongodb: {
@@ -99,16 +109,18 @@ const replicationStateSlots = replicateMongoDB({
   live: true
 });
 
-replicationStateParticipants.error$.subscribe(err => {
+replicationStateSlots.error$.subscribe(err => {
     console.log('replication error:')
     console.dir(err);
     console.error(err);
 })
-await replicationStateParticipants.awaitInSync();
+await replicationStateSlots.awaitInSync();
 
-console.log('established replication from rxdb to mongodb')
 
-// RX-SERVER CONFIGURATION
+console.log('server rxdb synced with mongodb')
+
+// SET UP RX SERVER AS A REPLICATION ENDPOINT FOR REMOTE CLIENTS
+
 const RX_SERVER_HOST = 'localhost'
 const RX_SERVER_PORT = 3000
 const RX_SERVER_ALLOW_REMOTE = 'https://app.waves.local'
@@ -137,8 +149,6 @@ const participantsEndpoint = server.addReplicationEndpoint({
     collection: serverRxDb.participants,
 });
 console.log('Replication endpoint:', `${RX_SERVER_HOST}:${RX_SERVER_PORT}/${participantsEndpoint.urlPath}`);
-
-console.log('added replication endpoints to rx-server')
  
 // do not forget to start the server!
 await server.start();

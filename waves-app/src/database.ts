@@ -1,20 +1,22 @@
 
-import { createRxDatabase, addRxPlugin, type RxDatabase } from 'rxdb/plugins/core';
-
+import { createRxDatabase, addRxPlugin } from 'rxdb/plugins/core';
 import { getRxStorageLocalstorage } from 'rxdb/plugins/storage-localstorage';
 
 import { RxDBDevModePlugin } from 'rxdb/plugins/dev-mode';
 import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv';
 
+import { RxDBCleanupPlugin } from 'rxdb/plugins/cleanup';
+
 import { participantSchema, slotSchema, type ParticipantCollection, type ParticipantCollectionMethods, type SlotCollection, type SlotCollectionMethods, type WavesDbCollections } from './Schema';
 
-import { createCollection } from '@tanstack/react-db'
+import { createCollection as createTanDbCollection } from '@tanstack/react-db'
 import { rxdbCollectionOptions } from '@tanstack/rxdb-db-collection';
 
 import { replicateServer } from 'rxdb-server/plugins/replication-server';
 
 
 addRxPlugin(RxDBDevModePlugin);
+addRxPlugin(RxDBCleanupPlugin)
 
 // Replication location is actually nginx which terminates SSL and forwards to the server.
 const RX_REPLICATION_SERVER_PROTOCOL = 'https'
@@ -23,7 +25,7 @@ const RX_REPLICATION_SERVER_PORT = '5443'
 
 console.log('rxdb: Creating database...')
 const db = await createRxDatabase<WavesDbCollections>({
-    name: 'wavesdb',
+    name: 'wavesAppDb',
     storage: wrappedValidateAjvStorage({ storage: getRxStorageLocalstorage() })
 });
 console.log('rxdb: Created database.')
@@ -31,13 +33,17 @@ console.log('rxdb: Created database.')
 
 const slotCollectionMethods: SlotCollectionMethods = {
     dropAllDocs: async function(this: SlotCollection) {
-        return await this.find().remove()
+        await this.find().remove()
+        await this.cleanup(0)
+        return
     }
 }
 
 const participantCollectionMethods: ParticipantCollectionMethods  = {
     dropAllDocs: async function(this: ParticipantCollection) {
-        return await this.find().remove()
+        await this.find().remove()
+        await this.cleanup(0)
+        return
     }
 }
 
@@ -62,7 +68,7 @@ function replicateRxCollectionsWithServer() {
     // start replication with server
     replicateServer({
         collection: db.slots,
-        replicationIdentifier: 'slots-replication-client-to-local-server',
+        replicationIdentifier: 'slots-replication-app-to-rxserver',
         url: `${RX_REPLICATION_SERVER_PROTOCOL}://${RX_REPLICATION_SERVER_HOST}:${RX_REPLICATION_SERVER_PORT}/slots/0`, //server url
         live: true,
         pull: { batchSize: 50 },
@@ -70,39 +76,30 @@ function replicateRxCollectionsWithServer() {
     });
     replicateServer({
         collection: db.participants,
-        replicationIdentifier: 'participants-replication-client-to-local-server',
+        replicationIdentifier: 'participants-replication-app-to-rxserver',
         url: `${RX_REPLICATION_SERVER_PROTOCOL}://${RX_REPLICATION_SERVER_HOST}:${RX_REPLICATION_SERVER_PORT}/participants/0`, //server url
         live: true,
         pull: { batchSize: 50 },
         push: { batchSize: 50 }
     });
-    console.log('Server replication started')
+    console.log(`rxdb: RxServer replication started to ${RX_REPLICATION_SERVER_HOST}`)
 }
 
 replicateRxCollectionsWithServer()
 
-function createTanSlotsCollection() {
-    console.log('db: create tanstack Slots collection')
-    return createCollection(
-        rxdbCollectionOptions({
+
+
+export const slotsTanCollection = createTanDbCollection(rxdbCollectionOptions({
             rxCollection: db.slots,
             startSync: true,
         })
     )
-}
 
-function createTanParticipantsCollection() {
-    console.log('db: create tanstack Participants collection')
-    return createCollection(
-        rxdbCollectionOptions({
+export const participantsTanCollection = createTanDbCollection(rxdbCollectionOptions({
             rxCollection: db.participants,
             startSync: true,
         })
     )
-}
-
-export const slotsCollection = createTanSlotsCollection()
-export const participantsCollection  = createTanParticipantsCollection()
 
 export async function dropAllSlots() {
     return db.slots.dropAllDocs()
@@ -110,6 +107,7 @@ export async function dropAllSlots() {
 export async function dropAllParticipants() {
     return db.participants.dropAllDocs()
 }
+
 
 export async function insertMockData() {
     const MRid = crypto.randomUUID()
@@ -129,7 +127,7 @@ export async function insertMockData() {
     const MFid = crypto.randomUUID()
     const LTid = crypto.randomUUID()
 
-    const tx1 = participantsCollection.insert([
+    const tx1 = participantsTanCollection.insert([
         {id: MRid, name: 'Marissa Roecks Group(4)', club: 'Cascade OC', state: 'waiting'},
         {id: NJid, name: 'Nate Jergensen', club: 'Summit Trails Middle', state: 'waiting'},
         {id: TWid, name: 'Traci Weygandt', club: 'Cascade OC', state: 'waiting'},
@@ -151,7 +149,7 @@ export async function insertMockData() {
     ])
     await tx1.isPersisted.promise
 
-    const tx2 = slotsCollection.insert([
+    const tx2 = slotsTanCollection.insert([
         {id: crypto.randomUUID(), time: '10:02', course: 'c1', participants: [MRid]},
         {id: crypto.randomUUID(), time: '10:02', course: 'c2', participants: [NJid]},
         {id: crypto.randomUUID(), time: '10:02', course: 'c3', participants: [TWid]},

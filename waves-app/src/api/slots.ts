@@ -1,7 +1,6 @@
 import * as v from 'valibot'
 import { fromParticipantRecord, Participant } from '@/api/participants'
-
-import { participantsCollection, slotsCollection } from '@/database'
+import { participantsTanCollection, slotsTanCollection } from '@/database'
 
 const Slot = v.object({
     time: v.string(),
@@ -15,7 +14,7 @@ const Slots = v.array(Slot)
 
 export async function getSlots3() {
     let results:Slot[] = []
-    for (const doc of slotsCollection.values()) {
+    for (const doc of slotsTanCollection.values()) {
         if (doc.participants === undefined) {
             doc.participants = []
         }
@@ -23,7 +22,7 @@ export async function getSlots3() {
             time: doc.time,
             course: doc.course,
             participants: doc.participants.map((pid) => {
-                return fromParticipantRecord(participantsCollection.get(pid)!)}),
+                return fromParticipantRecord(participantsTanCollection.get(pid)!)}),
             isUsable: true
         })
     }

@@ -3,7 +3,7 @@ import type {Participant as ParticipantType} from '@/api/participants'
 import type { JSX } from 'react'
 import { ParticipantStateIcon } from './ParticipantStateIcon'
 import { SvgIcon } from './SvgIcon'
-import { participantsCollection } from '@/database'
+import { participantsTanCollection } from '@/database'
 import { SlotStateTag } from './SlotStateTag'
 
 interface Properties {
@@ -36,7 +36,7 @@ function displayAvailable():JSX.Element {
 function displayParticipant(p:ParticipantType):JSX.Element {
     const notAttendingStyle:string = p.state === "notAttending" ? 'opacity-60 line-through' : ''
     return (
-        <div className='border-2 border-solid rounded-md flex flex-row'>
+        <div className='border-2 border-solid rounded-md flex flex-row min-w-2xs'>
             <SlotStateTag state={p.state}/>
             <div className={`flex flex-col p-1 ${notAttendingStyle}`}>
                 <span className='flex flex-row items-center'>
@@ -76,11 +76,11 @@ async function handleSetPresent2(e:React.MouseEvent<HTMLButtonElement,MouseEvent
     if (participantId === null) {
         return;
     }
-    const p = participantsCollection.get(participantId)
+    const p = participantsTanCollection.get(participantId)
     if (p?.state === "waiting") {
-        participantsCollection.update(participantId, (p) => {p.state = "present"})
+        participantsTanCollection.update(participantId, (p) => {p.state = "present"})
     } else if (p?.state === "present") {
-        participantsCollection.update(participantId, (p) => {p.state = "waiting"})
+        participantsTanCollection.update(participantId, (p) => {p.state = "waiting"})
     }
     return
 }

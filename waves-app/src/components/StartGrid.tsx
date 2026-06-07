@@ -65,50 +65,36 @@ function renderSlotsInRow(rowData:SlotType[]): JSX.Element[] {
 
 }
 
-function renderCourseRow(rowData:SlotType[]): JSX.Element {
-    if (rowData.length < 1) {
+function renderRow(rowData:SlotType[], rowType:'time'|'course'): JSX.Element {
+    if (rowData.length === 0) {
         return <tr></tr>
-    } else {
-        const firstSlot = rowData[0]!
-        const courseName = firstSlot.course
-        return (
-            <tr key={`CourseRow-${courseName}`}>
-                <td key={`CourseTd-${courseName}`} className='font-bold text-center'>{courseName}</td>
-                {renderSlotsInRow(rowData)}
-            </tr>
-        )
     }
+    const firstSlot = rowData[0]!
+    const rowKeyIdentifier = rowType === 'time' ? firstSlot.time : firstSlot.course
+    const rowKey = `${rowType}Row-${rowKeyIdentifier}`
+    const rowNameKey = `${rowType}RowName-${rowKeyIdentifier}`
+    return (
+        <tr key={rowKey}>
+            <td key={rowNameKey} className='font-bold text-center'>{rowKeyIdentifier}</td>
+            {renderSlotsInRow(rowData)}
+        </tr>
+    )
 }
-
-function renderTimeRow(rowData:SlotType[]): JSX.Element {
-    if (rowData.length < 1) {
-        return <tr></tr>
-    } else {
-        const firstSlot = rowData[0]!
-        const time = firstSlot.time
-        return (
-            <tr key={`CourseRow-${time}`}>
-                <td key={`CourseTd-${time}`} className='font-bold text-center'>{time}</td>
-                {renderSlotsInRow(rowData)}
-            </tr>
-        )
-    }
-}
-
 
 function renderTimeColsTable(tableData:SlotType[][], times:string[]):JSX.Element {
     return (
-        <div className='overflow-x-auto'>
+        <div className='grow'>
             <table className="table-fixed">
                 <thead>
                     <tr key='gridHeaderRow'>
                         <th>Course</th>
+                        {/* START TIMES */}
                         {times.map((time) => <th key={`wave-${time}`}>{time}</th>)}
                     </tr>
                 </thead>
                 <tbody>
                     {tableData.map((row) => {
-                        return renderCourseRow(row);
+                        return renderRow(row, 'course');
                     })}
                 </tbody>
             </table>
@@ -118,17 +104,18 @@ function renderTimeColsTable(tableData:SlotType[][], times:string[]):JSX.Element
 
 function renderCourseColsTable(tableData:SlotType[][], courses:string[]):JSX.Element {
     return (
-<div className='overflow-x-auto'>
+<div className='grow'>
     <table className="table-fixed">
         <thead>
             <tr key='gridHeaderRow'>
                 <th>Time</th>
+                {/* COURSE NAMES */}
                 {courses.map((course) => <th key={`wave-${course}`}>{course}</th>)}
             </tr>
         </thead>
         <tbody>
             {tableData.map((row) => {
-                return renderTimeRow(row);
+                return renderRow(row, 'time');
             })}
         </tbody>
     </table>

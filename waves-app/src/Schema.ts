@@ -26,7 +26,7 @@ export type SlotDocType = ExtractDocumentTypeFromTypedRxJsonSchema<typeof slotSc
 export const slotSchema:RxJsonSchema<SlotDocType> = slotSchemaLiteral
 
 export type ParticipantCollectionMethods = {
-    dropAllDocs: (this:ParticipantCollection) => Promise<ParticipantDocType[]>
+    dropAllDocs: (this:ParticipantCollection) => void
 }
 
 
@@ -50,7 +50,7 @@ export type ParticipantDocType = ExtractDocumentTypeFromTypedRxJsonSchema<typeof
 export const participantSchema:RxJsonSchema<ParticipantDocType> = participantSchemaLiteral
 
 export type SlotCollectionMethods = {
-    dropAllDocs: (this:SlotCollection) => Promise<SlotDocType[]>
+    dropAllDocs: (this:SlotCollection) => void
 }
 
 
