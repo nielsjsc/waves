@@ -38,6 +38,7 @@ console.log('created rxdb')
 
 // Add your collection schema
 await serverRxDb.addCollections({
+    // UPDATE IN APP>Schema.ts TO MATCH!!
     slots: {
         schema: {
             version: 0,
@@ -63,7 +64,10 @@ await serverRxDb.addCollections({
                 name: { type: 'string' },
                 state: { type: 'string' },
                 club: { type: 'string' },
-                // epunch: { type: 'string' },
+                epunch: { type: 'string' },
+                isRental: { type: 'boolean' },
+                isNonCompete: { type: 'boolean' },
+                groupSize: {type: 'number' },
                 // race_class: { type: 'string' },
             }
         }

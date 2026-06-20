@@ -6,6 +6,7 @@ import {
 } from 'rxdb';
 
 export const slotSchemaLiteral = {
+    // UPDATE IN SERVER.TS TO MATCH!!
     title: 'slot schema',
     description: 'a slot is a possible start time on a course',
     version: 0,
@@ -31,17 +32,21 @@ export type ParticipantCollectionMethods = {
 
 
 export const participantSchemaLiteral = {
+    // UPDATE IN SERVER.TS TO MATCH!!
     title: 'participant schema',
     version: 0,
     primaryKey: 'id',
     type: 'object',
-    required: ['id', 'name', 'state' ],
+    required: ['id', 'name', 'state', 'isRental', 'isNonCompete', 'groupSize' ],
     properties: {
         id: { type: 'string', maxLength: 64},
         name: { type: 'string' },
         state: { type: 'string' },
         club: { type: 'string' },
-        // epunch: { type: 'string' },
+        epunch: { type: 'string' },
+        isRental: { type: 'boolean' },
+        isNonCompete: { type: 'boolean' },
+        groupSize: {type: 'number' },
         // race_class: { type: 'string' },
     }
 } as const;

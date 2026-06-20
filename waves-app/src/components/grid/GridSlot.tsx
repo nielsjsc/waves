@@ -1,10 +1,11 @@
 import type {Slot as SlotType} from '@/api/slots'
 import type {Participant as ParticipantType} from '@/api/participants'
 import type { JSX } from 'react'
-import { ParticipantStateIcon } from './ParticipantStateIcon'
-import { SvgIcon } from './SvgIcon'
+import { ParticipantStateIcon } from '../ParticipantStateIcon'
+import { SvgIcon } from '../SvgIcon'
 import { participantsTanCollection } from '@/database'
-import { SlotStateTag } from './SlotStateTag'
+import { SlotStateTag } from '../SlotStateTag'
+import { groupTag, ncTag } from '../Tags'
 
 interface Properties {
     slot: SlotType
@@ -40,7 +41,7 @@ function displayParticipant(p:ParticipantType):JSX.Element {
             <SlotStateTag state={p.state}/>
             <div className={`flex flex-col p-1 ${notAttendingStyle}`}>
                 <span className='flex flex-row items-center'>
-                    <span>{p.name}</span>
+                    <span>{p.name} {groupTag(p)} {ncTag(p)}</span>
                 </span>
                 <span className='text-sm'>{p.club}</span>
             </div>

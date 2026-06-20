@@ -1,6 +1,6 @@
 import {type Slot as SlotType} from '@/api/slots'
 import type { JSX } from 'react'
-import { Slot } from './Slot'
+import { Slot } from './GridSlot'
 
 interface Properties {
     data: SlotType[]

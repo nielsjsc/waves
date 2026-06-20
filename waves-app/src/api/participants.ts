@@ -6,9 +6,13 @@ import * as v from 'valibot'
 export const Participant = v.object({
     id:v.string(),
     name:v.string(),
-    club:v.optional(v.string(), 'None'),
-    // epunch:v.optional(v.string()),
     state:v.picklist(["waiting", "present", "validated", "noShow", "notAttending", "needsAssignment", "started"]),
+    club:v.optional(v.string(), 'None'),
+    epunch:v.optional(v.string(), ''),
+    isRental:v.boolean(),
+    isNonCompete:v.boolean(),
+    groupSize:v.number()
+    
     
 })
 export type Participant = v.InferOutput<typeof Participant>
@@ -26,8 +30,13 @@ export function fromParticipantDoc(doc:RxDocument<ParticipantDocType>):Participa
     return {
         id: doc.id,
         name: doc.name,
-        state: doc.state as ParticipantState,
         club: doc.club ?? 'None',
+        epunch: doc.epunch ?? '',
+        isRental: doc.isRental,
+        isNonCompete: doc.isNonCompete,
+        state: doc.state as ParticipantState,
+        groupSize: doc.groupSize,
+        
     }
 }
 
@@ -35,7 +44,12 @@ export function fromParticipantRecord(item:WithVirtualProps<ParticipantDocType>)
     return {
         id: item.id,
         name: item.name,
-        state: item.state as ParticipantState,
         club: item.club ?? 'None',
+        epunch: item.epunch ?? '',
+        isRental: item.isRental,
+        isNonCompete: item.isNonCompete,
+        state: item.state as ParticipantState,
+        groupSize: item.groupSize,
+        
     }
 }

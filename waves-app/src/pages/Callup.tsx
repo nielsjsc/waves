@@ -1,40 +1,10 @@
-import {type Slot as SlotType} from '@/api/slots'
 import {Head} from '@/components/Head'
 import { Header } from '@/components/Header'
 import { useLiveQuery } from '@tanstack/react-db'
 import { participantsTanCollection, slotsTanCollection } from '@/database'
-import type { ParticipantDocType, SlotDocType } from '@/Schema'
-import { Participant } from '@/api/participants'
-import { StartGrid } from '@/components/StartGrid'
+import { StartGrid } from '@/components/grid/StartGrid'
+import { populateSlotData } from '@/utils/populateSlotData'
 
-function populate(slots:SlotDocType[], participants:ParticipantDocType[]):SlotType[] {
-	let res:SlotType[] = []
-	slots.forEach(s => {
-		if (s.participants === undefined) {
-			res.push({
-				time: s.time,
-				course: s.course,
-				participants: [] as Participant[],
-				isUsable: true
-			})
-		} else {
-			let filledParticipants:Participant[] = []
-			s.participants.forEach(pid => {
-				const p:Participant|undefined = participants.find((x) => x.id === pid) as Participant
-				if (p) {
-					filledParticipants.push(p)
-				}
-			})
-			res.push({
-				time: s.time,
-				course: s.course,
-				participants: filledParticipants,
-				isUsable: true
-			})
-		}
-	});
-	return res
-}
 
 export function Callup() {
 
@@ -46,7 +16,7 @@ export function Callup() {
 		q.from({participant: participantsTanCollection})
 	)
 
-	const data = populate(allSlots, allParticipants)
+	const data = populateSlotData(allSlots, allParticipants)
 
 	return (
 	<>

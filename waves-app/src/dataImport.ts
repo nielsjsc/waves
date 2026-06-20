@@ -5,39 +5,39 @@ import { participantsTanCollection, slotsTanCollection } from "./database"
 // adapted from
 // https://dev.to/mahdi_falamarzi/how-to-read-csv-file-in-typescript-react-app-106h
 
-type PublicRegistrationRecord = {
-    FirstName: string
-    LastName: string
-    Email: string
-    Club: string | undefined
-    Class: string
-    Sex: "M" | "F" | undefined
-    EPunch: string | undefined
-    Rental: boolean
-    StartTime: string | undefined
-    Phone: string | undefined
-    EmergencyPhone: string | undefined
-    CarLicense: string | undefined
-    BirthYear: number
-    Newcomer: boolean | undefined
-    Group: number | undefined
-    Paid: boolean
-    Owed: number | undefined
-    Waiver: boolean
-}
+// type PublicRegistrationRecord = {
+//     FirstName: string
+//     LastName: string
+//     Email: string
+//     Club: string | undefined
+//     Class: string
+//     Sex: "M" | "F" | undefined
+//     EPunch: string | undefined
+//     Rental: boolean
+//     StartTime: string | undefined
+//     Phone: string | undefined
+//     EmergencyPhone: string | undefined
+//     CarLicense: string | undefined
+//     BirthYear: number
+//     Newcomer: boolean | undefined
+//     Group: number | undefined
+//     Paid: boolean
+//     Owed: number | undefined
+//     Waiver: boolean
+// }
 
-export function readPublicCSV():void {
-    Papa.parse("/2025-12-20_WL04_UW_PublicReg.csv", {
-        header: true,
-        download: true,
-        skipEmptyLines: true,
-        delimiter: ',',
-        complete: (parsed:ParseResult<PublicRegistrationRecord>) => {
-            insertPublicCsv(parsed.data)
-        },
-    })
-    return
-}
+// export function readPublicCSV():void {
+//     Papa.parse("/2025-12-20_WL04_UW_PublicReg.csv", {
+//         header: true,
+//         download: true,
+//         skipEmptyLines: true,
+//         delimiter: ',',
+//         complete: (parsed:ParseResult<PublicRegistrationRecord>) => {
+//             insertPublicCsv(parsed.data)
+//         },
+//     })
+//     return
+// }
 
 export function getCourseForClass(className:string):string {
     switch (className) {
@@ -89,39 +89,40 @@ function formatStartTime(timeString:string):string {
     return res;
 }
 
-async function insertPublicCsv(data:PublicRegistrationRecord[]) {
-    const participants:ParticipantDocType[] = []
-    const slots:SlotDocType[] = []
-    console.log(`Data length: ${data.length}`)
-    data?.forEach((record) => {
-        if (record.StartTime === undefined || record.StartTime === "") {
-            return;
-        }
-        const participantId = crypto.randomUUID();
-        participants.push({
-            id: participantId, 
-            name:`${record.FirstName} ${record.LastName}`,
-            club: record.Club ?? 'None',
-            state: 'waiting'
-        }),
-        slots.push({
-            id: crypto.randomUUID(),
-            time: formatStartTime(record.StartTime),
-            course: getCourseForClass(record.Class),
-            participants: [participantId]
-        })
-    })
+// async function insertPublicCsv(data:PublicRegistrationRecord[]) {
+//     const participants:ParticipantDocType[] = []
+//     const slots:SlotDocType[] = []
+//     console.log(`Data length: ${data.length}`)
+//     data?.forEach((record) => {
+//         if (record.StartTime === undefined || record.StartTime === "") {
+//             return;
+//         }
+//         const participantId = crypto.randomUUID();
+//         participants.push({
+//             id: participantId, 
+//             name:`${record.FirstName} ${record.LastName}`,
+//             club: record.Club ?? 'None',
+//             isRental: record.
+//             state: 'waiting'
+//         }),
+//         slots.push({
+//             id: crypto.randomUUID(),
+//             time: formatStartTime(record.StartTime),
+//             course: getCourseForClass(record.Class),
+//             participants: [participantId]
+//         })
+//     })
 
-    const tx1 = participantsTanCollection.insert(participants)
-    await tx1.isPersisted.promise
+//     const tx1 = participantsTanCollection.insert(participants)
+//     await tx1.isPersisted.promise
 
-    const tx2 = slotsTanCollection.insert(slots)
-    await tx2.isPersisted.promise
+//     const tx2 = slotsTanCollection.insert(slots)
+//     await tx2.isPersisted.promise
 
-    Promise.all([tx1, tx2]).then(() => {
-        console.log("Mock Data Loaded")
-    })   
-}
+//     Promise.all([tx1, tx2]).then(() => {
+//         console.log("Mock Data Loaded")
+//     })   
+// }
 
 
 type PdfStartListRecord = {
@@ -176,19 +177,26 @@ function participantFromStartListData(col1:string,col2:string,col3:string):Parti
         col3 = col2;
         col2 = "";
     }
-    const isGroup = col2.toLocaleLowerCase().startsWith("group")
+    const isGroup = col2.toLocaleLowerCase().includes("group")
+    const groupSize = isGroup ? parseInt(/\(([0-9])\)/.exec(col2)?.[1]!) : 1
+
     const hasClub = !(col2 === "" || isGroup)
     const club = hasClub ? col2 : "unknown"
     const isRental = col3.toLocaleLowerCase().includes("r")
     const isNonCompete = col3.toLocaleLowerCase().includes("nc")
     const startsNumbers = /^[0-9]+/.test(col3)
-    const epunch = startsNumbers ? /^[0-9]+/.exec(col3)?.[0] : ""
+    const epunch = startsNumbers ? /^[0-9]+/.exec(col3)?.[0]! : ""
 
     return {
         id: participantId,
         name: name,
         club: club,
-        state: "waiting"
+        epunch: epunch,
+        isRental: isRental,
+        isNonCompete: isNonCompete,
+        state: "waiting",
+        groupSize: groupSize,
+
     }
 
 }

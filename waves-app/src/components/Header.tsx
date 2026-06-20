@@ -1,7 +1,7 @@
 // adapted from https://github.com/mertJF/tailblocks
 
 import { dropAllParticipants, dropAllSlots, insertMockData } from "@/database";
-import { readPublicCSV, readStartListCsv } from "@/dataImport";
+import { readStartListCsv } from "@/dataImport";
 import type { JSX } from "react";
 
 const LOGO = <svg
@@ -65,16 +65,16 @@ async function handleDataLoadClick() {
     })
 }
 
-async function handlePublicLoadClick() {
-    const p1 = await dropAllSlots()
-    const p2 = await dropAllParticipants()
+// async function handlePublicLoadClick() {
+//     const p1 = await dropAllSlots()
+//     const p2 = await dropAllParticipants()
 
-    Promise.all([p1, p2])
-    .then(() => {
-        console.log('rxdb: re-created collections')
-        readPublicCSV()
-    })
-}
+//     Promise.all([p1, p2])
+//     .then(() => {
+//         console.log('rxdb: re-created collections')
+//         readPublicCSV()
+//     })
+// }
 
 async function handleUWLoadClick() {
     const p1 = await dropAllSlots()
@@ -101,19 +101,19 @@ export function Header():JSX.Element {
                 onClick={handleDataLoadClick}>
                 Reset 1
             </button>
-            <button 
+            {/* <button 
                 className="inline-flex items-center bg-gray-800 border-0 ml-2 py-1 px-3 focus:outline-none hover:bg-gray-700 rounded text-base mt-4 md:mt-0"
                 onClick={handlePublicLoadClick}>
                 Reset 2
-            </button>
+            </button> */}
             <button 
                 className="inline-flex items-center bg-gray-800 border-0 ml-2 py-1 px-3 focus:outline-none hover:bg-gray-700 rounded text-base mt-4 md:mt-0"
                 onClick={handleUWLoadClick}>
                 Reset 3
             </button>
             <nav className="md:ml-auto flex flex-wrap items-center text-base justify-center">
-                <a className="mr-5 hover:text-white">Start Manager</a>
-                <a className="mr-5 hover:text-white">Call-up</a>
+                <a className="mr-5 hover:text-white" href="/manager">Start Manager</a>
+                <a className="mr-5 hover:text-white" href="/">Call-up</a>
                 <a className="mr-5 hover:text-white">Epunch Check</a>
             </nav>
         </div>

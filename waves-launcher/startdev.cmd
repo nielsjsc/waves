@@ -5,14 +5,14 @@ cd mongo
 start start.cmd
 cd ..
 
-timeout /t 3 /nobreak
+timeout /t 5 /nobreak
 
 ECHO "Starting Rx-Server"
 cd rxserver
 start start.cmd
 cd ..
 
-timeout /t 7 /nobreak
+timeout /t 20 /nobreak
 
 ECHO "Starting nginx"
 cd nginx
@@ -24,7 +24,7 @@ cd app
 start start.cmd
 cd ..
 
-timeout /t 1 /nobreak
+timeout /t 3 /nobreak
 
 ECHO "Ready"
 

@@ -3,6 +3,7 @@ import {ErrorBoundary, type FallbackProps} from 'react-error-boundary'
 import {Route, Routes} from 'react-router'
 import {LoadingOrError} from '@/components/LoadingOrError'
 import { Callup } from './pages/Callup'
+import { Manager } from './pages/Manager'
 
 
 function renderError({error}: FallbackProps) {
@@ -16,6 +17,7 @@ export function App() {
 			<Suspense fallback={<LoadingOrError />}>
 				<Routes>
 					<Route element={<Callup />} index={true} path='/' />
+					<Route element={<Manager />} index={true} path='/manager' />
 				</Routes>
 			</Suspense>
 		</ErrorBoundary>

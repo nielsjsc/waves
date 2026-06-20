@@ -1,6 +1,7 @@
 
 import { createRxDatabase, addRxPlugin } from 'rxdb/plugins/core';
-import { getRxStorageLocalstorage } from 'rxdb/plugins/storage-localstorage';
+// import { getRxStorageLocalstorage } from 'rxdb/plugins/storage-localstorage';
+import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 
 import { RxDBDevModePlugin } from 'rxdb/plugins/dev-mode';
 import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv';
@@ -13,10 +14,12 @@ import { createCollection as createTanDbCollection } from '@tanstack/react-db'
 import { rxdbCollectionOptions } from '@tanstack/rxdb-db-collection';
 
 import { replicateServer } from 'rxdb-server/plugins/replication-server';
+import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
 
 
 addRxPlugin(RxDBDevModePlugin);
 addRxPlugin(RxDBCleanupPlugin)
+addRxPlugin(RxDBMigrationSchemaPlugin)
 
 // Replication location is actually nginx which terminates SSL and forwards to the server.
 const RX_REPLICATION_SERVER_PROTOCOL = 'https'
@@ -26,7 +29,7 @@ const RX_REPLICATION_SERVER_PORT = '5443'
 console.log('rxdb: Creating database...')
 const db = await createRxDatabase<WavesDbCollections>({
     name: 'wavesAppDb',
-    storage: wrappedValidateAjvStorage({ storage: getRxStorageLocalstorage() })
+    storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie() })
 });
 console.log('rxdb: Created database.')
 
@@ -57,7 +60,7 @@ async function createRxCollections() {
         },
         participants: {
             schema: participantSchema,
-            statics: participantCollectionMethods
+            statics: participantCollectionMethods,
         }
     });
 }
@@ -108,7 +111,6 @@ export async function dropAllParticipants() {
     return db.participants.dropAllDocs()
 }
 
-
 export async function insertMockData() {
     const MRid = crypto.randomUUID()
     const NJid = crypto.randomUUID()
@@ -128,24 +130,24 @@ export async function insertMockData() {
     const LTid = crypto.randomUUID()
 
     const tx1 = participantsTanCollection.insert([
-        {id: MRid, name: 'Marissa Roecks Group(4)', club: 'Cascade OC', state: 'waiting'},
-        {id: NJid, name: 'Nate Jergensen', club: 'Summit Trails Middle', state: 'waiting'},
-        {id: TWid, name: 'Traci Weygandt', club: 'Cascade OC', state: 'waiting'},
-        {id: TKid, name: 'Thomas Kornelis', club: 'Bremerton', state: 'waiting'},
-        {id: VMid, name: 'Venna Menzie', club: 'Tahoma', state: 'waiting'},
-        {id: GWid, name: 'Graham Winters', club: 'Tahoma', state: 'waiting'},
-        {id: DBid, name: 'Danny Buchholz', club: 'Shorewood', state: 'waiting'},
-        {id: IUid, name: 'Ing Uhlin', club: "Cascade OC", state: 'waiting'},
-        {id: EJid, name: 'Eric Jones', club: "Cascade OC", state: 'waiting'},
+        // {id: MRid, name: 'Marissa Roecks Group(4)', club: 'Cascade OC', state: 'waiting'},
+        // {id: NJid, name: 'Nate Jergensen', club: 'Summit Trails Middle', state: 'waiting'},
+        // {id: TWid, name: 'Traci Weygandt', club: 'Cascade OC', state: 'waiting'},
+        // {id: TKid, name: 'Thomas Kornelis', club: 'Bremerton', state: 'waiting'},
+        // {id: VMid, name: 'Venna Menzie', club: 'Tahoma', state: 'waiting'},
+        // {id: GWid, name: 'Graham Winters', club: 'Tahoma', state: 'waiting'},
+        // {id: DBid, name: 'Danny Buchholz', club: 'Shorewood', state: 'waiting'},
+        // {id: IUid, name: 'Ing Uhlin', club: "Cascade OC", state: 'waiting'},
+        // {id: EJid, name: 'Eric Jones', club: "Cascade OC", state: 'waiting'},
 
-        {id: MBid, name: 'Millie Rebbeck', club: 'Seattle Country Day', state: 'waiting'},
-        {id: LBid, name: 'Logan Burdette', club: 'Northwood Middle', state: 'present'},
-        {id: MFid, name: 'Maria Franzie Ventolero', club: 'Oak Harbor', state: 'validated'},
-        {id: LTid, name: 'Logan Taylor', club: 'Arlington', state: 'noShow'},
+        // {id: MBid, name: 'Millie Rebbeck', club: 'Seattle Country Day', state: 'waiting'},
+        // {id: LBid, name: 'Logan Burdette', club: 'Northwood Middle', state: 'present'},
+        // {id: MFid, name: 'Maria Franzie Ventolero', club: 'Oak Harbor', state: 'validated'},
+        // {id: LTid, name: 'Logan Taylor', club: 'Arlington', state: 'noShow'},
         
-        {id: BFid, name: 'Bob Forgrave', club: "Cascade OC", state: 'notAttending'},
-        {id: GNid, name: 'Gina Nuss', club: "Orienteer Kansas", state: 'needsAssignment'},
-        {id: WEid, name: 'Will Enger', club: "Sammamish River", state: 'waiting'},
+        // {id: BFid, name: 'Bob Forgrave', club: "Cascade OC", state: 'notAttending'},
+        // {id: GNid, name: 'Gina Nuss', club: "Orienteer Kansas", state: 'needsAssignment'},
+        // {id: WEid, name: 'Will Enger', club: "Sammamish River", state: 'waiting'},
     ])
     await tx1.isPersisted.promise
 
