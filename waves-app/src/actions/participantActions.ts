@@ -50,6 +50,45 @@ export async function setStateNotAttending(participantId:string, slotId:string, 
     }]);
 }
 
+export async function setNewStartTime(participantId:string, oldSlotId:string, newSlotId:string) {
+
+    if (participantId === '' || oldSlotId === '' || newSlotId === '' || 
+        participantId === undefined || oldSlotId === undefined || newSlotId === undefined) {
+        console.log("Missing some information, no action taken")
+        return
+    }
+
+    // Remove from current Slot
+    const oldSlot = slotsTanCollection.get(oldSlotId)
+    if (oldSlot !== undefined) {
+        const updatedParticipants = oldSlot.participants.filter(x => x !== participantId)
+        slotsTanCollection.update(oldSlotId, (s) => {s.participants = updatedParticipants})
+    }
+
+    // Add to new Slot
+    const newSlot = slotsTanCollection.get(newSlotId)
+    if (newSlot !== undefined) {
+        const updatedParticipants = newSlot.participants.concat(participantId)
+        slotsTanCollection.update(newSlotId, (s) => {s.participants = updatedParticipants})
+        console.log("assigned to new slot")
+    }
+
+    // TODO Set the participant state to waiting?
+    // may need some logic here, check the transitions.
+
+    // Record the change for stats
+    changesTanCollection.insert([{
+        id: crypto.randomUUID(),
+        participantId: participantId,
+        changedAt: Date.now(),
+        changeType: 'newTime',
+        old: oldSlot?.time ?? '',
+        new: newSlot?.time ?? '',
+        needsProcessing: false,
+        isProcessed: false
+    }]);
+}
+
 export function setNonCompetitive(participantId:string) {
     // Make the change
     participantsTanCollection.update(participantId, (p) => {p.isNonCompete = true});

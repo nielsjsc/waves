@@ -178,7 +178,7 @@ export function Search({setParticipant, closeSearch}:Properties) {
                     <div className="flex flex-wrap">
                         {entries.map(e => 
                             <div onClick={handleEntryClick} data-participant-id={e.participant.id} className="hover:bg-blue-500/50 rounded-lg">
-                                <Entry entry={e} key={e.participant.id} actions={[]}/>
+                                <Entry entry={e} highlight={false} key={e.participant.id} actions={[]}/>
                             </div>
                         )}
                     </div> 

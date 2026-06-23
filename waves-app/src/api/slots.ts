@@ -1,8 +1,7 @@
 import * as v from 'valibot'
 import { fromParticipantRecord, Participant } from '@/api/participants'
-import { participantsTanCollection, slotsTanCollection } from '@/database'
 
-const Slot = v.object({
+export const Slot = v.object({
     id: v.string(),
     time: v.string(),
     course: v.string(),
@@ -11,7 +10,7 @@ const Slot = v.object({
 })
 export type Slot = v.InferOutput<typeof Slot>
 
-const Slots = v.array(Slot)
+// const Slots = v.array(Slot)
 
 // export async function getSlots3() {
 //     let results:Slot[] = []

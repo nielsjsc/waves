@@ -5,7 +5,8 @@ import { GridSlot } from './GridSlot'
 interface Properties {
     data: SlotType[]
     columns: "time" | "course"
-    highlightParticipant: string
+    selectedParticipantId: string
+    selectedParticipantSlotId: string
 }
 
 function getCourses(data:SlotType[]):string[] {
@@ -17,7 +18,7 @@ function getCourses(data:SlotType[]):string[] {
 function getTimes(data:SlotType[]):string[] {
     return data.reduce<string[]>((previous, slot) =>
 		previous.some( x => x === slot.time) ? previous : [...previous, slot.time]
-	, []).sort()
+	, []).sort().filter(x => x.startsWith('_') === false)
 }
 
 function buildTableArray(data:SlotType[], columns:"time"|"course"):SlotType[][] {
@@ -53,20 +54,20 @@ function buildTableArray(data:SlotType[], columns:"time"|"course"):SlotType[][] 
 }
 
 
-function renderSlotsInRow(rowData:SlotType[], highlightParticipant:string): JSX.Element[] {
+function renderSlotsInRow(rowData:SlotType[], selectedParticipantId:string, selectedParticipantSlotId:string): JSX.Element[] {
     if (rowData.length < 1) {
 		return ([])
 	} else {
 		return (rowData.map((slot,) =>
 		<td className='px-2 py-1' key={`SlotTd-${slot.time}-${slot.course}`}>
-			<GridSlot slot={slot} highlightParticipant={highlightParticipant} key={`SlotCard-${slot.time}-${slot.course}`} />
+			<GridSlot slot={slot} selectedParticipantId={selectedParticipantId} selectedParticipantSlotId={selectedParticipantSlotId} key={`SlotCard-${slot.time}-${slot.course}`} />
 		</td>
 	))
 	}
 
 }
 
-function renderRow(rowData:SlotType[], rowType:'time'|'course', highlightParticipant:string): JSX.Element {
+function renderRow(rowData:SlotType[], rowType:'time'|'course', selectedParticipantId:string, selectedParticipantSlotId:string): JSX.Element {
     if (rowData.length === 0) {
         return <tr></tr>
     }
@@ -77,12 +78,12 @@ function renderRow(rowData:SlotType[], rowType:'time'|'course', highlightPartici
     return (
         <tr key={rowKey}>
             <td key={rowNameKey} className='font-bold text-center'>{rowKeyIdentifier}</td>
-            {renderSlotsInRow(rowData, highlightParticipant)}
+            {renderSlotsInRow(rowData, selectedParticipantId, selectedParticipantSlotId)}
         </tr>
     )
 }
 
-function renderTimeColsTable(tableData:SlotType[][], times:string[], highlightParticipant:string):JSX.Element {
+function renderTimeColsTable(tableData:SlotType[][], times:string[], selectedParticipantId:string, selectedParticipantSlotId:string):JSX.Element {
     return (
         <div className=''>
             <table className="table-fixed">
@@ -95,7 +96,7 @@ function renderTimeColsTable(tableData:SlotType[][], times:string[], highlightPa
                 </thead>
                 <tbody>
                     {tableData.map((row) => {
-                        return renderRow(row, 'course', highlightParticipant);
+                        return renderRow(row, 'course', selectedParticipantId, selectedParticipantSlotId);
                     })}
                 </tbody>
             </table>
@@ -103,7 +104,7 @@ function renderTimeColsTable(tableData:SlotType[][], times:string[], highlightPa
     )
 }
 
-function renderCourseColsTable(tableData:SlotType[][], courses:string[], highlightParticipant:string):JSX.Element {
+function renderCourseColsTable(tableData:SlotType[][], courses:string[], selectedParticipantId:string, selectedParticipantSlotId:string):JSX.Element {
     return (
 <div className=''>
     <table className="table-fixed">
@@ -116,7 +117,7 @@ function renderCourseColsTable(tableData:SlotType[][], courses:string[], highlig
         </thead>
         <tbody>
             {tableData.map((row) => {
-                return renderRow(row, 'time', highlightParticipant);
+                return renderRow(row, 'time', selectedParticipantId, selectedParticipantSlotId);
             })}
         </tbody>
     </table>
@@ -124,14 +125,12 @@ function renderCourseColsTable(tableData:SlotType[][], courses:string[], highlig
     )
 }
 
-export function StartGrid({data, columns, highlightParticipant}: Properties) {
-
+export function StartGrid({data, columns, selectedParticipantId, selectedParticipantSlotId}: Properties) {
     const tableData = buildTableArray(data, columns)
-
     if (columns === "time") {
-        return renderTimeColsTable(tableData, getTimes(data), highlightParticipant)
+        return renderTimeColsTable(tableData, getTimes(data), selectedParticipantId, selectedParticipantSlotId)
     } else if (columns === "course") {
-        return renderCourseColsTable(tableData, getCourses(data), highlightParticipant)
+        return renderCourseColsTable(tableData, getCourses(data), selectedParticipantId, selectedParticipantSlotId)
     } else {
         throw new Error("Unknown table column type")
     }

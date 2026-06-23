@@ -41,7 +41,7 @@ export function Manager() {
 
 
     const searchOverlay = isSearchOpen ? 
-            <div className="fixed top-0 left-0 h-screen m-8 border z-50 px-8 py-4 bg-gray-700 overflow-y-auto"
+            <div className="fixed top-0 left-0 h-[95vh] w-[95vw] m-8 border z-50 px-8 py-4 bg-gray-700 overflow-y-auto"
             >
                 <Search setParticipant={setSelectedParticipantId} closeSearch={()=>setSearchOpen(false)}/>
             </div> :
@@ -49,7 +49,7 @@ export function Manager() {
 
     const selectedParticipantCard = 
         (selectedParticipantId === '' || selectedParticipantEntry === undefined) ? <div className="italic">Search for a participant to edit</div> :
-        <Entry entry={selectedParticipantEntry} highlight={true}/>
+        <Entry entry={selectedParticipantEntry} highlight={true} actions={[]}/>
 
     const competitiveToggle = selectedParticipantEntry === undefined ? <></> :
     selectedParticipantEntry!.participant.isNonCompete ? 
@@ -117,13 +117,21 @@ export function Manager() {
                         <div className="flex flex-col min-w-md">
                             <h3 className="text-2xl text-center">All starts at {selectedParticipantEntry?.time}</h3>
                             <div className="max-h-155 overflow-scroll">
-                            <StartGrid data={slotsAtThisTime} highlightParticipant={selectedParticipantId} columns="time" />
+                            <StartGrid 
+                                data={slotsAtThisTime} 
+                                selectedParticipantId={selectedParticipantId}
+                                selectedParticipantSlotId={selectedParticipantEntry?.slotId ?? ''}
+                                columns="time" />
                             </div>
                         </div>
                         <div className="flex flex-col min-w-md">
                             <h3 className="text-2xl text-center">All starts on course {selectedParticipantEntry?.course}</h3>
                             <div className="max-h-155 overflow-scroll">
-                            <StartGrid data={slotsOnThisCourse} highlightParticipant={selectedParticipantId} columns="course" />
+                            <StartGrid 
+                                data={slotsOnThisCourse} 
+                                selectedParticipantId={selectedParticipantId} 
+                                selectedParticipantSlotId={selectedParticipantEntry?.slotId ?? ''}
+                                columns="course" />
                             </div>
                         </div>
                     </div> {/*Slot Lists*/}

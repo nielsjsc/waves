@@ -7,6 +7,7 @@ export function populateSlotData(slots:SlotDocType[], participants:ParticipantDo
     slots.forEach(s => {
         if (s.participants === undefined) {
             res.push({
+                id: s.id,
                 time: s.time,
                 course: s.course,
                 participants: [] as Participant[],
@@ -21,6 +22,7 @@ export function populateSlotData(slots:SlotDocType[], participants:ParticipantDo
                 }
             })
             res.push({
+                id: s.id,
                 time: s.time,
                 course: s.course,
                 participants: filledParticipants,
