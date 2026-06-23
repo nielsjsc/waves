@@ -18,6 +18,8 @@ export function ManagerActionButton({text, action, icon}: Properties) {
                 return "border-indigo-900 bg-indigo-600 text-white hover:bg-indigo-700"
             case "group":
                 return "border-emerald-900 bg-emerald-600 text-white hover:bg-emerald-700"
+            case "search":
+                return "border-pink-900 bg-pink-600 text-white hover:bg-pink-700"
         }
         return "hover:bg-black"
     }

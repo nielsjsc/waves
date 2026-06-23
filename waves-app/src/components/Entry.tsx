@@ -5,10 +5,11 @@ import { groupTag, ncTag, rentTag } from "./Tags"
 
 interface Properties {
     entry: PopulatedEntry
+    highlight: boolean
     actions: string[]
 }
 
-export function Entry({entry, actions=[]}: Properties) {
+export function Entry({entry, highlight=false, actions=[]}: Properties) {
     const notAttendingStyle:string = entry.participant.state === "notAttending" ? 'opacity-60 line-through' : ''
     const actionsMenu = (actions.length === 0) ? <></> : 
         <div className='flex flex-row p-1 items-center ml-auto'>
@@ -19,10 +20,12 @@ export function Entry({entry, actions=[]}: Properties) {
             </button>
         </div>
 
+    const borderColor = highlight ? 'border-4 border-pink-600' : ''
+
     return(
     <div 
         key={`entry-${entry.participant.id}`}
-        className='m-2 border-2 border-solid rounded-md flex flex-row min-w-2xs max-w-md'
+        className={`m-2 border-2 border-solid ${borderColor} rounded-md flex flex-row min-w-2xs max-w-md`}
         >
         <SlotStateTag state={entry.participant.state}/>
         <table className={`m-1 table-auto grow ${notAttendingStyle}`}>
@@ -41,13 +44,6 @@ export function Entry({entry, actions=[]}: Properties) {
             </tbody>
         </table>
         {actionsMenu}
-        {/* <div className='flex flex-row p-1 items-center ml-auto'>
-            <button 
-                className='rounded-sm p-1 bg-slate-600 ml-1'
-                >
-                <SvgIcon icon="dots-vertical"/>
-            </button>
-        </div> */}
     </div>
     )
 }

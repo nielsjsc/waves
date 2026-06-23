@@ -3,7 +3,7 @@ import { useLiveQuery } from "@tanstack/react-db";
 
 import { Head } from "@/components/Head";
 import { Header } from "@/components/Header";
-import { useState, type JSX } from "react";
+import { useState } from "react";
 import { Search } from "@/components/Search";
 import { populateEntryForParticipantId } from "@/utils/populateEntryForParticipantId";
 import { Entry } from "@/components/Entry";
@@ -49,7 +49,7 @@ export function Manager() {
 
     const selectedParticipantCard = 
         (selectedParticipantId === '' || selectedParticipantEntry === undefined) ? <div className="italic">Search for a participant to edit</div> :
-        <Entry entry={selectedParticipantEntry} />
+        <Entry entry={selectedParticipantEntry} highlight={true}/>
 
     const competitiveToggle = selectedParticipantEntry === undefined ? <></> :
     selectedParticipantEntry!.participant.isNonCompete ? 
@@ -103,10 +103,11 @@ export function Manager() {
                     <div className="flex flex-row p-1 items-center gap-2">
                         <div>
                             {selectedParticipantCard}
-                        </div>  
-                        <div>
-                            <p onClick={toggleSearch} className="bg-blue-700 px-4 py-2 rounded-md border-2 border-blue-900 hover:bg-blue-800">Search</p>
-                        </div>          
+                        </div>
+                        <ManagerActionButton
+                            action={toggleSearch}
+                            text="&nbsp;Search"
+                            icon="search" />
                     </div>
 
                     <h3 className="text-2xl mt-2">Actions</h3>
@@ -116,13 +117,13 @@ export function Manager() {
                         <div className="flex flex-col min-w-md">
                             <h3 className="text-2xl text-center">All starts at {selectedParticipantEntry?.time}</h3>
                             <div className="max-h-155 overflow-scroll">
-                            <StartGrid data={slotsAtThisTime} columns="time" />
+                            <StartGrid data={slotsAtThisTime} highlightParticipant={selectedParticipantId} columns="time" />
                             </div>
                         </div>
                         <div className="flex flex-col min-w-md">
                             <h3 className="text-2xl text-center">All starts on course {selectedParticipantEntry?.course}</h3>
                             <div className="max-h-155 overflow-scroll">
-                            <StartGrid data={slotsOnThisCourse} columns="course" />
+                            <StartGrid data={slotsOnThisCourse} highlightParticipant={selectedParticipantId} columns="course" />
                             </div>
                         </div>
                     </div> {/*Slot Lists*/}

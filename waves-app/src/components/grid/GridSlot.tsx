@@ -10,6 +10,7 @@ import { setStatePresent, setStateWaiting } from '@/actions/participantActions'
 
 interface Properties {
     slot: SlotType
+    highlightParticipant: string
 }
 
 function displayNotAvailable():JSX.Element {
@@ -35,10 +36,11 @@ function displayAvailable():JSX.Element {
     )
 }
 
-function displayParticipant(p:ParticipantType):JSX.Element {
+function displayParticipant(p:ParticipantType, highlightParticipant:string):JSX.Element {
     const notAttendingStyle:string = p.state === "notAttending" ? 'opacity-60 line-through' : ''
+    const borderColor:string = p.id === highlightParticipant ? 'border-4 border-pink-600 bg-pink-800 text-white' : ''
     return (
-        <div className='border-2 border-solid rounded-md flex flex-row min-w-2xs'>
+        <div className={`border-2 border-solid ${borderColor} rounded-md flex flex-row min-w-2xs`}>
             <SlotStateTag state={p.state}/>
             <div className={`flex flex-col p-1 ${notAttendingStyle}`}>
                 <span className='flex flex-row items-center'>
@@ -64,8 +66,8 @@ function displayParticipant(p:ParticipantType):JSX.Element {
     )
 }
 
-function displayParticipants(participants:ParticipantType[]):JSX.Element {
-    const cards = participants.map((p) => displayParticipant(p))
+function displayParticipants(participants:ParticipantType[], highlightParticipant:string):JSX.Element {
+    const cards = participants.map((p) => displayParticipant(p, highlightParticipant))
     return (
         <div>
             {cards}
@@ -87,15 +89,15 @@ async function handleSetPresent2(e:React.MouseEvent<HTMLButtonElement,MouseEvent
     return
 }
 
-export function GridSlot({slot}: Properties) {
+export function GridSlot({slot, highlightParticipant}: Properties) {
 
     if (slot.isUsable === false) {
         return displayNotAvailable()
     } else if (slot.participants.length === 0) {
         return displayAvailable()
     } else if (slot.participants.length === 1) {
-        return displayParticipant(slot.participants[0]!)
+        return displayParticipant(slot.participants[0]!, highlightParticipant)
     } else {
-        return displayParticipants(slot.participants)
+        return displayParticipants(slot.participants, highlightParticipant)
     }
 }
