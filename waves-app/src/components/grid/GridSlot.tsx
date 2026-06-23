@@ -6,6 +6,7 @@ import { SvgIcon } from '../SvgIcon'
 import { participantsTanCollection } from '@/database'
 import { SlotStateTag } from '../SlotStateTag'
 import { groupTag, ncTag } from '../Tags'
+import { setStatePresent, setStateWaiting } from '@/actions/participantActions'
 
 interface Properties {
     slot: SlotType
@@ -79,14 +80,14 @@ async function handleSetPresent2(e:React.MouseEvent<HTMLButtonElement,MouseEvent
     }
     const p = participantsTanCollection.get(participantId)
     if (p?.state === "waiting") {
-        participantsTanCollection.update(participantId, (p) => {p.state = "present"})
+        setStatePresent(participantId);
     } else if (p?.state === "present") {
-        participantsTanCollection.update(participantId, (p) => {p.state = "waiting"})
+        setStateWaiting(participantId);
     }
     return
 }
 
-export function Slot({slot}: Properties) {
+export function GridSlot({slot}: Properties) {
 
     if (slot.isUsable === false) {
         return displayNotAvailable()

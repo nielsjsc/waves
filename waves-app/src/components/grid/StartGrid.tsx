@@ -1,6 +1,6 @@
 import {type Slot as SlotType} from '@/api/slots'
 import type { JSX } from 'react'
-import { Slot } from './GridSlot'
+import { GridSlot } from './GridSlot'
 
 interface Properties {
     data: SlotType[]
@@ -29,7 +29,7 @@ function buildTableArray(data:SlotType[], columns:"time"|"course"):SlotType[][] 
                 if (thisSlot) {
                     rowData.push(thisSlot);
                 } else {
-                    rowData.push({course: c, time: t, participants: [], isUsable:false});
+                    rowData.push({id: crypto.randomUUID(), course: c, time: t, participants: [], isUsable:false});
                 }
             })
             tableData.push(rowData);
@@ -42,7 +42,7 @@ function buildTableArray(data:SlotType[], columns:"time"|"course"):SlotType[][] 
                 if (thisSlot) {
                     rowData.push(thisSlot);
                 } else {
-                    rowData.push({course: c, time: t, participants: [], isUsable:false});
+                    rowData.push({id: crypto.randomUUID(), course: c, time: t, participants: [], isUsable:false});
                 }
             })
             tableData.push(rowData);
@@ -58,7 +58,7 @@ function renderSlotsInRow(rowData:SlotType[]): JSX.Element[] {
 	} else {
 		return (rowData.map((slot,) =>
 		<td className='px-2 py-1' key={`SlotTd-${slot.time}-${slot.course}`}>
-			<Slot slot={slot} key={`SlotCard-${slot.time}-${slot.course}`} />
+			<GridSlot slot={slot} key={`SlotCard-${slot.time}-${slot.course}`} />
 		</td>
 	))
 	}
@@ -83,7 +83,7 @@ function renderRow(rowData:SlotType[], rowType:'time'|'course'): JSX.Element {
 
 function renderTimeColsTable(tableData:SlotType[][], times:string[]):JSX.Element {
     return (
-        <div className='grow'>
+        <div className=''>
             <table className="table-fixed">
                 <thead>
                     <tr key='gridHeaderRow'>
@@ -104,7 +104,7 @@ function renderTimeColsTable(tableData:SlotType[][], times:string[]):JSX.Element
 
 function renderCourseColsTable(tableData:SlotType[][], courses:string[]):JSX.Element {
     return (
-<div className='grow'>
+<div className=''>
     <table className="table-fixed">
         <thead>
             <tr key='gridHeaderRow'>

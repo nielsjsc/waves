@@ -1,122 +1,136 @@
+import { participantsTanCollection, slotsTanCollection } from "@/database";
+import { useLiveQuery } from "@tanstack/react-db";
+
 import { Head } from "@/components/Head";
 import { Header } from "@/components/Header";
-import { participantsTanCollection, slotsTanCollection } from "@/database";
-import type { ParticipantDocType } from "@/Schema";
-import { populateSlotData } from "@/utils/populateSlotData";
-import { useLiveQuery } from "@tanstack/react-db";
-import { useEffect, useState, type JSX } from "react";
-import { pivotSlotsToEntries, } from "@/utils/pivotSlotsToEntries";
+import { useState, type JSX } from "react";
+import { Search } from "@/components/Search";
+import { populateEntryForParticipantId } from "@/utils/populateEntryForParticipantId";
 import { Entry } from "@/components/Entry";
+import { setNonCompetitive, setCompetitive, setStateNotAttending } from "@/actions/participantActions";
+import { populateSlotData } from "@/utils/populateSlotData";
+import { StartGrid } from "@/components/grid/StartGrid";
+import { ManagerActionButton } from "@/components/ManagerActionButton";
 
 
 export function Manager() {
 
-    const [nameQuery, setNameQuery] = useState('');
-    const [nameQueryDebounced, setNameQueryDebounced] = useState('');
-    const [clubQuery, setClubQuery] = useState('');
-    const [clubQueryDebounced, setClubQueryDebounced] = useState('');
+    const [isSearchOpen, setSearchOpen] = useState(false)
+    const [selectedParticipantId, setSelectedParticipantId] = useState('')
 
     const {data: allParticipants} = useLiveQuery((q) =>
         q.from({participant: participantsTanCollection})
     )
-
     const {data: allSlots} = useLiveQuery((q) =>
         q.from({slot: slotsTanCollection})
-    )
+        )
 
-    function searchByName(q:string):ParticipantDocType[] {
-        if (q.length < 2) {
-            return []
+    const selectedParticipantEntry = populateEntryForParticipantId(selectedParticipantId, allParticipants, allSlots)
+ 
+    const slotsAtThisTime = selectedParticipantEntry?.time.startsWith('_') ? [] : populateSlotData(allSlots.filter(x => x.time === selectedParticipantEntry?.time), allParticipants)
+    const slotsOnThisCourse = selectedParticipantEntry?.course === '' ? [] : populateSlotData(allSlots.filter(x => x.course === selectedParticipantEntry?.course), allParticipants)
+
+    function toggleSearch() {
+        if (isSearchOpen) {
+            setSearchOpen(false);
+        } else {
+            setSearchOpen(true);
         }
-        return (allParticipants.filter(x => x.name.toLocaleLowerCase().includes(q.toLocaleLowerCase()))) 
     }
 
-    function searchByClub(q:string):ParticipantDocType[] {
-        if (q.length < 2) {
-            return []
-        }
-        return(allParticipants.filter(x => x.club?.toLocaleLowerCase().includes(q.toLocaleLowerCase())))
-    }
 
-    function commonSearchResults(a:ParticipantDocType[], b:ParticipantDocType[]):ParticipantDocType[] {
-        if (a.length === 0 && b.length === 0) {
-            return(allParticipants)
-        }
-        if (a.length === 0 || b.length === 0) {
-            return(a.concat(b))
-        }
-        return(a.filter(x => b.includes(x)))
-    }
 
-    function getParticipantSlots(participants:ParticipantDocType[]) {
-        const pids:string[] = participants.map(x => x.id)
-        return (allSlots.filter(x => x.participants?.some(x => pids.includes(x))))
-    }
+    const searchOverlay = isSearchOpen ? 
+            <div className="fixed top-0 left-0 h-screen m-8 border z-50 px-8 py-4 bg-gray-700 overflow-y-auto"
+            >
+                <Search setParticipant={setSelectedParticipantId} closeSearch={()=>setSearchOpen(false)}/>
+            </div> :
+            <div></div>
 
-    const handleNameQueryChange = (event:React.ChangeEvent<HTMLInputElement>) => {
-        event.preventDefault();
-        setNameQuery(event.target.value);
-    }
-    useEffect(() => {
-        const nameDebouncer = setTimeout(() => setNameQueryDebounced(nameQuery), 500);
-        return () => clearTimeout(nameDebouncer)
-        }, 
-        [nameQuery, 500]
-    )
+    const selectedParticipantCard = 
+        (selectedParticipantId === '' || selectedParticipantEntry === undefined) ? <div className="italic">Search for a participant to edit</div> :
+        <Entry entry={selectedParticipantEntry} />
 
-    const handleClubQueryChange = (event:React.ChangeEvent<HTMLInputElement>) => {
-        event.preventDefault();
-        setClubQuery(event.target.value);
-    }
-    useEffect(() => {
-        const clubDebouncer = setTimeout(() => setClubQueryDebounced(clubQuery), 500);
-        return () => clearTimeout(clubDebouncer)
-        }, 
-        [clubQuery, 500]
-    )
+    const competitiveToggle = selectedParticipantEntry === undefined ? <></> :
+    selectedParticipantEntry!.participant.isNonCompete ? 
+        <ManagerActionButton
+            text="Set Competitive"
+            action={()=>setCompetitive(selectedParticipantId)}
+            icon="medal" /> 
+        : <ManagerActionButton
+            text="Set Non-Competitive"
+            action={()=>setNonCompetitive(selectedParticipantId)}
+            icon="medal" />  
 
-    const nameQueryResults = searchByName(nameQueryDebounced)
-    const clubQueryResults = searchByClub(clubQueryDebounced)
-    const combinedResults = commonSearchResults(nameQueryResults, clubQueryResults)
-    const populatedSlots = populateSlotData(getParticipantSlots(combinedResults), combinedResults)
-    const entries = pivotSlotsToEntries(populatedSlots).sort((a,b) => (a.participant.name.localeCompare(b.participant.name)))
-
+    const actionsOrSearchPrompt = selectedParticipantEntry === undefined ? 
+        <div className="">Select a participant to populate actions</div> :
+        <div className="flex flex-wrap flex-row p-1 gap-2">
+            <ManagerActionButton 
+                action={()=>{}}
+                text="Edit Name"
+                icon="pencil" />
+            <ManagerActionButton 
+                action={()=>{}}
+                text="Edit Epunch"
+                icon="pencil" />
+            <ManagerActionButton 
+                action={()=>{}}
+                text="Change Class/Course"
+                icon="pencil" />
+            {competitiveToggle}
+            <ManagerActionButton 
+                action={()=>setStateNotAttending(selectedParticipantId, selectedParticipantEntry!.slotId, selectedParticipantEntry!.course)}
+                text="Mark as Not Attending"
+                icon="x" />
+            <ManagerActionButton 
+                action={()=>{}}
+                text="&nbsp;Change Group"
+                icon="group" />
+        </div>
+        
+        
+    
     return (
         <>
-            <Head title='Tent 1: Call-up' />
-            <Header/>
-            <div className='flex flex-col'>
-                <h1 className='title-font text-2xl font-medium p-2'>Start Manager. Wave: 10:02 <span className='text-base'>next in 29s</span></h1>
-                <div className='text-base p-2'>
-                    <div>
-                        <form>
-                            <label htmlFor='search-name' className="text-lg">Search by Name: </label>
-                            <input 
-                                id='search-name'
-                                type="text"
-                                className="border border-solid border-2 p-1 rounded text-lg"
-                                placeholder="name"
-                                onChange={handleNameQueryChange}
-                                value={nameQuery}
-                            />
-                        </form>
-                        <form>
-                            <label htmlFor='search-club' className="text-lg">Search by School/Club: </label>
-                            <input 
-                                id='search-club'
-                                type="text"
-                                className="border border-solid border-2 p-1 rounded text-lg"
-                                placeholder="school / club"
-                                onChange={handleClubQueryChange}
-                                value={clubQuery}
-                            />
-                        </form>
+            <Head title='Start Manager' />
+            <div className="flex flex-col">
+                <Header/>
+
+                <div className="container mx-auto flex flex-col items-center">
+
+                    {searchOverlay}
+
+                    <div className="flex flex-row p-1 items-center gap-2">
+                        <div>
+                            {selectedParticipantCard}
+                        </div>  
+                        <div>
+                            <p onClick={toggleSearch} className="bg-blue-700 px-4 py-2 rounded-md border-2 border-blue-900 hover:bg-blue-800">Search</p>
+                        </div>          
                     </div>
-                    <div className="flex flex-wrap">
-                        {entries.map(e => <Entry entry={e} key={e.participant.id} />)}
-                    </div> 
-                </div>  
-            </div>
+
+                    <h3 className="text-2xl mt-2">Actions</h3>
+                    {actionsOrSearchPrompt}
+
+                    <div className="flex flex-row flex-wrap mt-4"> {/*Slot Lists*/}
+                        <div className="flex flex-col min-w-md">
+                            <h3 className="text-2xl text-center">All starts at {selectedParticipantEntry?.time}</h3>
+                            <div className="max-h-155 overflow-scroll">
+                            <StartGrid data={slotsAtThisTime} columns="time" />
+                            </div>
+                        </div>
+                        <div className="flex flex-col min-w-md">
+                            <h3 className="text-2xl text-center">All starts on course {selectedParticipantEntry?.course}</h3>
+                            <div className="max-h-155 overflow-scroll">
+                            <StartGrid data={slotsOnThisCourse} columns="course" />
+                            </div>
+                        </div>
+                    </div> {/*Slot Lists*/}
+
+                </div> {/*body area*/}
+            </div> {/*page*/}
+            
+            
         </>
     )
 }

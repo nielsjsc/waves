@@ -4,6 +4,7 @@ import {
     type RxCollection,
     type RxJsonSchema
 } from 'rxdb';
+import { maxLength } from 'valibot';
 
 export const slotSchemaLiteral = {
     // UPDATE IN SERVER.TS TO MATCH!!
@@ -12,24 +13,21 @@ export const slotSchemaLiteral = {
     version: 0,
     primaryKey: 'id',
     type: 'object',
-    required: ['id', 'time', 'course'],
+    required: ['id', 'time', 'course', 'participants'],
     properties: {
         id: { type: 'string', maxLength: 64},
         time: { type: 'string' },
         course: { type: 'string' },
-        // participant_ids: { type: 'array', items: { type: 'string' } }
         participants: { type: 'array', ref: 'participants', items: { type: 'string' } }
     },
-    // indexes: ['participant_ids']
 } as const;
 const slotSchemaTyped = toTypedRxJsonSchema(slotSchemaLiteral);
 export type SlotDocType = ExtractDocumentTypeFromTypedRxJsonSchema<typeof slotSchemaTyped>;
 export const slotSchema:RxJsonSchema<SlotDocType> = slotSchemaLiteral
 
-export type ParticipantCollectionMethods = {
-    dropAllDocs: (this:ParticipantCollection) => void
+export type SlotCollectionMethods = {
+    dropAllDocs: (this:SlotCollection) => void
 }
-
 
 export const participantSchemaLiteral = {
     // UPDATE IN SERVER.TS TO MATCH!!
@@ -48,21 +46,52 @@ export const participantSchemaLiteral = {
         isNonCompete: { type: 'boolean' },
         groupSize: {type: 'number' },
         // race_class: { type: 'string' },
+        originalStartTime: {type: 'string'},
+        startChanged: {type: 'boolean'}
     }
 } as const;
 const participantSchemaTyped = toTypedRxJsonSchema(participantSchemaLiteral);
 export type ParticipantDocType = ExtractDocumentTypeFromTypedRxJsonSchema<typeof participantSchemaTyped>;
 export const participantSchema:RxJsonSchema<ParticipantDocType> = participantSchemaLiteral
 
-export type SlotCollectionMethods = {
-    dropAllDocs: (this:SlotCollection) => void
+export type ParticipantCollectionMethods = {
+    dropAllDocs: (this:ParticipantCollection) => void
 }
+
+export const changesSchemaLiteral = {
+    // UPDATE IN SERVER.TS TO MATCH!!
+    title: 'changes schema',
+    version: 0,
+    primaryKey: 'id',
+    type: 'object',
+    required: ['id', 'participantId', 'changedAt', 'changeType', 'old', 'new', 'needsProcessing', 'isProcessed'],
+    properties: {
+        id: { type: 'string', maxLength: 64},
+        participantId: { type: 'string', maxLength: 64},
+        changedAt: { type: 'number'}, //ms since unix epoch UTC
+        changeType: { type: 'string' },
+        old: { type: 'string' },
+        new: { type: 'string' },
+        needsProcessing: { type: 'boolean' },
+        isProcessed: { type: 'boolean' },
+    }
+} as const;
+const changesSchemaTyped = toTypedRxJsonSchema(changesSchemaLiteral);
+export type ChangesDocType = ExtractDocumentTypeFromTypedRxJsonSchema<typeof changesSchemaTyped>;
+export const changesSchema:RxJsonSchema<ChangesDocType> = changesSchemaLiteral;
+
+export type ChangesCollectionMethods = {
+    dropAllDocs: (this:ChangesCollection) => void
+}
+
 
 
 export type SlotCollection = RxCollection<SlotDocType,{},SlotCollectionMethods>
 export type ParticipantCollection = RxCollection<ParticipantDocType,{},ParticipantCollectionMethods>
+export type ChangesCollection = RxCollection<ChangesDocType,{},ChangesCollectionMethods>
 
 export type WavesDbCollections = {
     slots: SlotCollection
     participants: ParticipantCollection
+    changes: ChangesCollection
 }

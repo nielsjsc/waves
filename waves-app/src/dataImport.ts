@@ -300,6 +300,18 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
         }
     }
 
+    // add magic slots
+    for (var course of ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9']) {
+        for (var specialTime of ['_notAttending', '_needsAssignment']) {
+            slots.push({
+                id: crypto.randomUUID(),
+                time: specialTime,
+                course: course,
+                participants: []
+            })
+        }
+    }
+
     const tx1 = participantsTanCollection.insert(participants)
     await tx1.isPersisted.promise
 

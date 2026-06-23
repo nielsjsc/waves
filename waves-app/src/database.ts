@@ -8,7 +8,7 @@ import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv';
 
 import { RxDBCleanupPlugin } from 'rxdb/plugins/cleanup';
 
-import { participantSchema, slotSchema, type ParticipantCollection, type ParticipantCollectionMethods, type SlotCollection, type SlotCollectionMethods, type WavesDbCollections } from './Schema';
+import { changesSchema, participantSchema, slotSchema, type ChangesCollection, type ChangesCollectionMethods, type ParticipantCollection, type ParticipantCollectionMethods, type SlotCollection, type SlotCollectionMethods, type WavesDbCollections } from './Schema';
 
 import { createCollection as createTanDbCollection } from '@tanstack/react-db'
 import { rxdbCollectionOptions } from '@tanstack/rxdb-db-collection';
@@ -50,6 +50,14 @@ const participantCollectionMethods: ParticipantCollectionMethods  = {
     }
 }
 
+const changesCollectionMethods: ChangesCollectionMethods  = {
+    dropAllDocs: async function(this: ChangesCollection) {
+        await this.find().remove()
+        await this.cleanup(0)
+        return
+    }
+}
+
 async function createRxCollections() {
     // create collections
     console.log('rxdb: create collections');
@@ -61,6 +69,10 @@ async function createRxCollections() {
         participants: {
             schema: participantSchema,
             statics: participantCollectionMethods,
+        },
+        changes: {
+            schema: changesSchema,
+            statics: changesCollectionMethods
         }
     });
 }
@@ -85,6 +97,14 @@ function replicateRxCollectionsWithServer() {
         pull: { batchSize: 50 },
         push: { batchSize: 50 }
     });
+    replicateServer({
+        collection: db.changes,
+        replicationIdentifier: 'changes-replication-app-to-rxserver',
+        url: `${RX_REPLICATION_SERVER_PROTOCOL}://${RX_REPLICATION_SERVER_HOST}:${RX_REPLICATION_SERVER_PORT}/changes/0`, //server url
+        live: true,
+        pull: { batchSize: 50 },
+        push: { batchSize: 50 }
+    });
     console.log(`rxdb: RxServer replication started to ${RX_REPLICATION_SERVER_HOST}`)
 }
 
@@ -104,11 +124,21 @@ export const participantsTanCollection = createTanDbCollection(rxdbCollectionOpt
         })
     )
 
+export const changesTanCollection = createTanDbCollection(rxdbCollectionOptions({
+            rxCollection: db.changes,
+            startSync: true,
+        })
+    )
+
 export async function dropAllSlots() {
     return db.slots.dropAllDocs()
 }
 export async function dropAllParticipants() {
     return db.participants.dropAllDocs()
+}
+
+export async function dropAllChanges() {
+    return db.changes.dropAllDocs()
 }
 
 export async function insertMockData() {

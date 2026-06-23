@@ -1,21 +1,31 @@
-import { type Entry as EntryType } from "@/utils/pivotSlotsToEntries"
+import { type PopulatedEntry } from "@/utils/PopulatedEntry"
 import { SlotStateTag } from "./SlotStateTag"
 import { SvgIcon } from "./SvgIcon"
 import { groupTag, ncTag, rentTag } from "./Tags"
 
 interface Properties {
-    entry: EntryType
+    entry: PopulatedEntry
+    actions: string[]
 }
 
-export function Entry({entry}: Properties) {
+export function Entry({entry, actions=[]}: Properties) {
     const notAttendingStyle:string = entry.participant.state === "notAttending" ? 'opacity-60 line-through' : ''
+    const actionsMenu = (actions.length === 0) ? <></> : 
+        <div className='flex flex-row p-1 items-center ml-auto'>
+            <button 
+                className='rounded-sm p-1 bg-slate-600 ml-1'
+                >
+                <SvgIcon icon="dots-vertical"/>
+            </button>
+        </div>
+
     return(
     <div 
         key={`entry-${entry.participant.id}`}
         className='m-2 border-2 border-solid rounded-md flex flex-row min-w-2xs max-w-md'
         >
         <SlotStateTag state={entry.participant.state}/>
-        <table className='m-1 table-auto grow'>
+        <table className={`m-1 table-auto grow ${notAttendingStyle}`}>
             <tbody>
             <tr>
                 <td>{entry.participant.name} {groupTag(entry.participant)} {ncTag(entry.participant)} {rentTag(entry.participant)}</td>
@@ -30,13 +40,14 @@ export function Entry({entry}: Properties) {
             </tr>
             </tbody>
         </table>
-        <div className='flex flex-row p-1 items-center ml-auto'>
+        {actionsMenu}
+        {/* <div className='flex flex-row p-1 items-center ml-auto'>
             <button 
                 className='rounded-sm p-1 bg-slate-600 ml-1'
                 >
                 <SvgIcon icon="dots-vertical"/>
             </button>
-        </div>
+        </div> */}
     </div>
     )
 }

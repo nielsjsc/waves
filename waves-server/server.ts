@@ -15,6 +15,9 @@ await mongoDatabase.createCollection('slots', {
 await mongoDatabase.createCollection('participants', {
   changeStreamPreAndPostImages: { enabled: true }
 });
+await mongoDatabase.createCollection('changes', {
+    changeStreamPreAndPostImages: {enabled: true }
+})
 console.log('added collections to wavesmongodb')
 
 // ESTABLISH THE RX-SERVER INSTANCE
@@ -44,7 +47,7 @@ await serverRxDb.addCollections({
             version: 0,
             primaryKey: 'id',
             type: 'object',
-            required: ['id', 'time', 'course'],
+            required: ['id', 'time', 'course', 'participants'],
             properties: {
                 id: { type: 'string', maxLength: 64},
                 time: { type: 'string' },
@@ -71,6 +74,24 @@ await serverRxDb.addCollections({
                 // race_class: { type: 'string' },
             }
         }
+    },
+    changes: {
+        schema: {
+            version: 0,
+            primaryKey: 'id',
+            type: 'object',
+            required: ['id', 'participantId', 'changedAt', 'changeType', 'old', 'new', 'needsProcessing', 'isProcessed'],
+            properties: {
+                id: { type: 'string', maxLength: 64},
+                participantId: { type: 'string', maxLength: 64},
+                changedAt: { type: 'number'}, //ms since unix epoch UTC
+                changeType: { type: 'string' },
+                old: { type: 'string' },
+                new: { type: 'string' },
+                needsProcessing: { type: 'boolean' },
+                isProcessed: { type: 'boolean' },
+            }
+        }   
     }
 });
 
@@ -120,6 +141,26 @@ replicationStateSlots.error$.subscribe(err => {
 })
 await replicationStateSlots.awaitInSync();
 
+const replicationStateChanges = replicateMongoDB({
+    mongodb: {
+        collectionName: 'changes',
+        connection: 'mongodb://localhost:27017',
+        databaseName: 'wavesmongodb'
+    },
+    collection: serverRxDb.changes,
+    replicationIdentifier: 'changes-mongodb-replication-localhost',
+    pull: { batchSize: 50 },
+    push: { batchSize: 50 },
+    live: true
+});
+
+replicationStateChanges.error$.subscribe(err => {
+    console.log('replication error:')
+    console.dir(err);
+    console.error(err);
+})
+await replicationStateChanges.awaitInSync();
+
 
 console.log('server rxdb synced with mongodb')
 
@@ -154,6 +195,14 @@ const participantsEndpoint = server.addReplicationEndpoint({
 });
 console.log('Replication endpoint:', `${RX_SERVER_HOST}:${RX_SERVER_PORT}/${participantsEndpoint.urlPath}`);
  
+
+const changesEndpoint = server.addReplicationEndpoint({
+    name: 'changes',
+    collection: serverRxDb.changes,
+});
+console.log('Replication endpoint:', `${RX_SERVER_HOST}:${RX_SERVER_PORT}/${changesEndpoint.urlPath}`);
+
+
 // do not forget to start the server!
 await server.start();
 

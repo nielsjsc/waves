@@ -96,11 +96,16 @@ export function Header():JSX.Element {
             {LOGO}
             <span className="ml-3 text-xl">Waves</span>
             </a>
-            <button 
+            <div className='title-font text-xl px-2'>
+                10:02
+                <span className='text-base px-2'>next in 29s</span>
+                <span className='text-base px-2'>Clock Time: 9:55:31. Waves are 8 minutes ahead.</span>
+            </div>
+            {/* <button 
                 className="inline-flex items-center bg-gray-800 border-0 ml-2 py-1 px-3 focus:outline-none hover:bg-gray-700 rounded text-base mt-4 md:mt-0"
                 onClick={handleDataLoadClick}>
                 Reset 1
-            </button>
+            </button> */}
             {/* <button 
                 className="inline-flex items-center bg-gray-800 border-0 ml-2 py-1 px-3 focus:outline-none hover:bg-gray-700 rounded text-base mt-4 md:mt-0"
                 onClick={handlePublicLoadClick}>

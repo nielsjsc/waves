@@ -48,3 +48,21 @@ app.waves.local and server.waves.local should resolve to the IP where both vite 
 Make sure you've added trust for the CA certificate on this machine.
 
 7. Open a browser to `https://app.waves.local`
+
+
+### Data Model
+
+Every Participant should be present in exactly one slot at all times.
+A slot can have multiple participants, but a participant should only ever be in one slot.
+Becuase a slot is for a specific time and specific course, there are also "special" slots to handle states where a start time is not yet assigned. Special times use the same value as participant states, preceded by an underscore.
+"_notAttending"
+"_needsAssignment"
+
+### Update Schema without Migration
+To update the schema without a migration:
+after updating in BOTH App>{Collection}.ts and Server>Server.ts
+stop the web app and the server
+in MongoDB Compass UI, delete both `wavesServerDb-v0` and `wavesmongodb`
+***in every browser, delete IndexedDB storage***
+restart everything, reload the browser page.
+
