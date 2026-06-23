@@ -1,6 +1,6 @@
 // adapted from https://github.com/mertJF/tailblocks
 
-import { dropAllParticipants, dropAllSlots, insertMockData } from "@/database";
+import { dropAllChanges, dropAllParticipants, dropAllSlots, insertMockData } from "@/database";
 import { readStartListCsv } from "@/dataImport";
 import type { JSX } from "react";
 
@@ -79,8 +79,9 @@ async function handleDataLoadClick() {
 async function handleUWLoadClick() {
     const p1 = await dropAllSlots()
     const p2 = await dropAllParticipants()
+    const p3 = await dropAllChanges()
 
-    Promise.all([p1, p2])
+    Promise.all([p1, p2, p3])
     .then(() => {
         console.log('rxdb: re-created collections')
         readStartListCsv()

@@ -169,7 +169,10 @@ export function readStartListCsv():void {
     return
 }
 
-function participantFromStartListData(col1:string,col2:string,col3:string):ParticipantDocType {
+function participantFromStartListData(col1:string,col2:string,col3:string):ParticipantDocType|undefined {
+    if (col1 === '') {
+        return undefined
+    }
     const participantId = crypto.randomUUID();
     const name = col1;
     if (/^[0-9]+.*/.test(col2)) {
@@ -208,96 +211,104 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
     for (const wave of data) {
         const waveTime = formatStartTime(wave.Time)
         
-        if (wave["ELEMENTARYBEGINNER.1"] !== "") {
-            const p = participantFromStartListData(wave["ELEMENTARYBEGINNER.1"], wave["ELEMENTARYBEGINNER.2"], wave["ELEMENTARYBEGINNER.3"])
-            participants.push(p)
-            slots.push({
-                id: crypto.randomUUID(), 
-                time:waveTime, 
-                course: 'c1',
-                participants: [p.id]                
-            })
+        const c1p = participantFromStartListData(wave["ELEMENTARYBEGINNER.1"], wave["ELEMENTARYBEGINNER.2"], wave["ELEMENTARYBEGINNER.3"])
+        if (c1p !== undefined) {
+            participants.push(c1p)
+        }       
+        slots.push({
+            id: crypto.randomUUID(), 
+            time: waveTime, 
+            course: 'c1',
+            participants: c1p !==undefined ? [c1p.id] : []
+        })
+
+        const c2p = participantFromStartListData(wave["MIDDLE SCHOOL.1"], wave["MIDDLE SCHOOL.2"], wave["MIDDLE SCHOOL.3"])
+        if (c2p !== undefined) {
+            participants.push(c2p)
         }
-        if (wave["MIDDLE SCHOOL.1"] !== "") {
-            const p = participantFromStartListData(wave["MIDDLE SCHOOL.1"], wave["MIDDLE SCHOOL.2"], wave["MIDDLE SCHOOL.3"])
-            participants.push(p)
-            slots.push({
-                id: crypto.randomUUID(), 
-                time:waveTime, 
-                course: 'c2',
-                participants: [p.id]                
-            })
+        slots.push({
+            id: crypto.randomUUID(), 
+            time: waveTime, 
+            course: 'c2',
+            participants: c2p !== undefined ? [c2p.id] : []
+        })
+        
+        const c3p = participantFromStartListData(wave["ROOKIE FEMALEADV BEGINNER.1"], wave["ROOKIE FEMALEADV BEGINNER.2"], wave["ROOKIE FEMALEADV BEGINNER.3"])
+        if (c3p !== undefined) {
+            participants.push(c3p)
         }
-        if (wave["ROOKIE FEMALEADV BEGINNER.1"] !== "") {
-            const p = participantFromStartListData(wave["ROOKIE FEMALEADV BEGINNER.1"], wave["ROOKIE FEMALEADV BEGINNER.2"], wave["ROOKIE FEMALEADV BEGINNER.3"])
-            participants.push(p)
-            slots.push({
-                id: crypto.randomUUID(), 
-                time:waveTime, 
-                course: 'c3',
-                participants: [p.id]                
-            })
+        slots.push({
+            id: crypto.randomUUID(), 
+            time: waveTime, 
+            course: 'c3',
+            participants: c3p !== undefined ? [c3p.id] : []
+        })
+        
+        const c4p = participantFromStartListData(wave["ROOKIE MALE.1"], wave["ROOKIE MALE.2"], wave["ROOKIE MALE.3"])
+        if (c4p !== undefined) {
+            participants.push(c4p)
         }
-        if (wave["ROOKIE MALE.1"] !== "") {
-            const p = participantFromStartListData(wave["ROOKIE MALE.1"], wave["ROOKIE MALE.2"], wave["ROOKIE MALE.3"])
-            participants.push(p)
-            slots.push({
-                id: crypto.randomUUID(), 
-                time:waveTime, 
-                course: 'c4',
-                participants: [p.id]                
-            })
+        slots.push({
+            id: crypto.randomUUID(), 
+            time: waveTime, 
+            course: 'c4',
+            participants: c4p !== undefined ? [c4p.id] : []
+        })
+        
+        const c5p = participantFromStartListData(wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.1"], wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.2"], wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.3"])
+        if (c5p !== undefined) {
+            participants.push(c5p)
         }
-        if (wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.1"] !== "") {
-            const p = participantFromStartListData(wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.1"], wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.2"], wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.3"])
-            participants.push(p)
-            slots.push({
-                id: crypto.randomUUID(), 
-                time:waveTime, 
-                course: 'c5',
-                participants: [p.id]                
-            })
+        slots.push({
+            id: crypto.randomUUID(), 
+            time: waveTime, 
+            course: 'c5',
+            participants: c5p !== undefined ? [c5p.id] : []
+        })
+        
+        const c6p = participantFromStartListData(wave["JV MALE.1"], wave["JV MALE.2"], wave["JV MALE.3"])
+        if (c6p !== undefined) {
+            participants.push(c6p)
         }
-        if (wave["JV MALE.1"] !== "") {
-            const p = participantFromStartListData(wave["JV MALE.1"], wave["JV MALE.2"], wave["JV MALE.3"])
-            participants.push(p)
-            slots.push({
-                id: crypto.randomUUID(), 
-                time:waveTime, 
-                course: 'c6',
-                participants: [p.id]                
-            })
+        slots.push({
+            id: crypto.randomUUID(), 
+            time: waveTime, 
+            course: 'c6',
+            participants: c6p !== undefined ? [c6p.id] : []
+        })
+        
+        const c7p = participantFromStartListData(wave["VARSITY.1"], wave["VARSITY.2"], wave["VARSITY.3"])
+        if (c7p !== undefined) {
+            participants.push(c7p)
         }
-        if (wave["VARSITY.1"] !== "") {
-            const p = participantFromStartListData(wave["VARSITY.1"], wave["VARSITY.2"], wave["VARSITY.3"])
-            participants.push(p)
-            slots.push({
-                id: crypto.randomUUID(), 
-                time:waveTime, 
-                course: 'c7',
-                participants: [p.id]                
-            })
+        slots.push({
+            id: crypto.randomUUID(), 
+            time: waveTime, 
+            course: 'c7',
+            participants: c7p !== undefined ? [c7p.id] : []
+        })
+        
+        const c8p = participantFromStartListData(wave["SHORT ADVANCED.1"], wave["SHORT ADVANCED.2"], wave["SHORT ADVANCED.3"])
+        if (c8p !== undefined) {
+            participants.push(c8p)
         }
-        if (wave["SHORT ADVANCED.1"] !== "") {
-            const p = participantFromStartListData(wave["SHORT ADVANCED.1"], wave["SHORT ADVANCED.2"], wave["SHORT ADVANCED.3"])
-            participants.push(p)
-            slots.push({
-                id: crypto.randomUUID(), 
-                time:waveTime, 
-                course: 'c8',
-                participants: [p.id]                
-            })
+        slots.push({
+            id: crypto.randomUUID(), 
+            time: waveTime, 
+            course: 'c8',
+            participants: c8p !== undefined ? [c8p.id] : []
+        })
+        
+        const c9p = participantFromStartListData(wave["COLLEGE VARSITYLONG ADVANCED.1"], wave["COLLEGE VARSITYLONG ADVANCED.2"], wave["COLLEGE VARSITYLONG ADVANCED.3"])
+        if (c9p !== undefined) {
+            participants.push(c9p)
         }
-        if (wave["COLLEGE VARSITYLONG ADVANCED.1"] !== "") {
-            const p = participantFromStartListData(wave["COLLEGE VARSITYLONG ADVANCED.1"], wave["COLLEGE VARSITYLONG ADVANCED.2"], wave["COLLEGE VARSITYLONG ADVANCED.3"])
-            participants.push(p)
-            slots.push({
-                id: crypto.randomUUID(), 
-                time:waveTime, 
-                course: 'c9',
-                participants: [p.id]                
-            })
-        }
+        slots.push({
+            id: crypto.randomUUID(), 
+            time: waveTime, 
+            course: 'c9',
+            participants: c9p !== undefined ? [c9p.id] : []
+        })
     }
 
     // add magic slots
