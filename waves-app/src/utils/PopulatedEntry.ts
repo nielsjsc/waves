@@ -5,4 +5,5 @@ export type PopulatedEntry = {
     participant: Participant;
     time: string;
     course: string;
+    slotParticipantIds: string[];
 };

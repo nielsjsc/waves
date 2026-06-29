@@ -1,17 +1,17 @@
 import { type Slot as SlotType } from '@/api/slots'
 import type {Participant as ParticipantType} from '@/api/participants'
-import type { JSX } from 'react'
-import { ParticipantStateIcon } from '../ParticipantStateIcon'
+import { type JSX } from 'react'
 import { SvgIcon } from '../SvgIcon'
-import { participantsTanCollection } from '@/database'
 import { SlotStateTag } from '../SlotStateTag'
 import { groupTag, ncTag } from '../Tags'
-import { setNewStartTime, setStatePresent, setStateWaiting } from '@/actions/participantActions'
+import { setNewStartTime, } from '@/actions/participantActions'
+import type { PopulatedEntry } from '@/utils/PopulatedEntry'
 
 interface Properties {
     slot: SlotType
-    selectedParticipantId: string
-    selectedParticipantSlotId: string
+    selectedParticipantHydrated:PopulatedEntry|undefined,
+    itemOnClick: Function|undefined
+    itemButtons: {icon:string, text:string, onClick:Function}[]|undefined
 }
 
 function displayNotAvailable():JSX.Element {
@@ -25,42 +25,47 @@ function displayNotAvailable():JSX.Element {
     )
 }
 
-function displayAvailable(slotId:string, selectedParticipantId:string, selectedParticipantSlotId:string):JSX.Element {
+function displayAvailable(slot:SlotType, selectedParticipantHydrated:PopulatedEntry|undefined):JSX.Element {
     // TODO
-    // if someone is selected already on this course, allow direct assignment
     // if someone is selected NOT on this course, then need to prompt for a new class before assigning to this time/slot
 
-    function slotContent():JSX.Element {
-        // if no one is selected, don't show the assign button at all
-        if (selectedParticipantId === '' || selectedParticipantId === undefined) {
-            return <span className='p-1 italic place-self-center'>Available</span>
-        } else {
-            return(
-            <button 
-                className={`rounded m-1 px-2 py-1 bg-amber-600 hover:bg-amber-800`}
-                onClick={()=>setNewStartTime(selectedParticipantId, selectedParticipantSlotId, slotId)} >
-                <span className="flex flex-column">
-                    <SvgIcon icon="arrow-box"/>
-                    Assign
-                </span>
-            </button>
-            )
+    function assignButton():JSX.Element {
+        if (selectedParticipantHydrated === undefined){
+            return <></>
+        }
+
+        if (selectedParticipantHydrated.course === slot.course) {
+            return (
+            <div className='flex flex-row p-1 items-center ml-auto'>
+                <button 
+                    className={`rounded m-1 px-2 py-1 border border-2 border-amber-600/80 text-amber-300/60 hover:bg-amber-600/80 hover:text-white`}
+                    onClick={()=>setNewStartTime(selectedParticipantHydrated.participant.id, selectedParticipantHydrated.slotId, slot.id)} >
+                    <span className="flex flex-column">
+                        <SvgIcon icon="arrow-box"/>
+                        <span className='text-sm place-self-center'>Assign</span>
+                    </span>
+                </button>
+            </div>
+        )} else {
+            return <></>
         }
     }
 
     return (
         <div className='border-2 border-solid rounded-md flex flex-row items-stretch'>
             <SlotStateTag state="available"/>
-            {slotContent()}
+            <span className='p-1 italic place-self-center text-amber-100/60'>Available</span>
+            {/* {button} */}
+            {assignButton()}
         </div>
     )
 }
 
-function displayParticipant(p:ParticipantType, selectedParticipantId:string):JSX.Element {
+function displayParticipant(p:ParticipantType, highlightEntry:PopulatedEntry|undefined):JSX.Element {
     const notAttendingStyle:string = p.state === "notAttending" ? 'opacity-60 line-through' : ''
-    const borderColor:string = p.id === selectedParticipantId ? 'border-4 border-pink-600 bg-pink-800 text-white' : ''
+    const borderColor:string = p.id === highlightEntry?.participant.id ? 'border-4 border-pink-600 bg-pink-800 text-white' : ''
     return (
-        <div className={`border-2 border-solid ${borderColor} rounded-md flex flex-row min-w-2xs`}>
+        <div className={`border-2 border-solid ${borderColor} rounded-md flex flex-row min-w-2xs`} key={p.id} data-participant-id={p.id}>
             <SlotStateTag state={p.state}/>
             <div className={`flex flex-col p-1 ${notAttendingStyle}`}>
                 <span className='flex flex-row items-center'>
@@ -69,7 +74,7 @@ function displayParticipant(p:ParticipantType, selectedParticipantId:string):JSX
                 <span className='text-sm'>{p.club}</span>
             </div>
             <div className='flex flex-row p-1 items-center ml-auto'>
-                <button 
+                {/* <button 
                     className='bg-sky-200 rounded-sm p-1'
                     onClick={(e) => handleSetPresent2(e)}
                     data-participant-id={p.id}
@@ -80,14 +85,14 @@ function displayParticipant(p:ParticipantType, selectedParticipantId:string):JSX
                     className='rounded-sm p-1 bg-slate-600 ml-1'
                     >
                     <SvgIcon icon="dots-vertical"/>
-                </button>
+                </button> */}
             </div>
         </div>
     )
 }
 
-function displayParticipants(participants:ParticipantType[], highlightParticipant:string):JSX.Element {
-    const cards = participants.map((p) => displayParticipant(p, highlightParticipant))
+function displayParticipants(participants:ParticipantType[], highlightEntry:PopulatedEntry|undefined):JSX.Element {
+    const cards = participants.map((p) => displayParticipant(p, highlightEntry))
     return (
         <div>
             {cards}
@@ -95,28 +100,13 @@ function displayParticipants(participants:ParticipantType[], highlightParticipan
     )
 }
 
-async function handleSetPresent2(e:React.MouseEvent<HTMLButtonElement,MouseEvent>) {
-    const participantId = e.currentTarget.getAttribute('data-participant-id');
-    if (participantId === null) {
-        return;
-    }
-    const p = participantsTanCollection.get(participantId)
-    if (p?.state === "waiting") {
-        setStatePresent(participantId);
-    } else if (p?.state === "present") {
-        setStateWaiting(participantId);
-    }
-    return
-}
+export function GridSlot({slot, selectedParticipantHydrated, itemOnClick, itemButtons}: Properties) {
 
-export function GridSlot({slot, selectedParticipantId, selectedParticipantSlotId}: Properties) {
     if (slot.isUsable === false) {
         return displayNotAvailable()
     } else if (slot.participants.length === 0) {        
-        return displayAvailable(slot.id, selectedParticipantId, selectedParticipantSlotId)
-    } else if (slot.participants.length === 1) {
-        return displayParticipant(slot.participants[0]!, selectedParticipantId)
+        return displayAvailable(slot, selectedParticipantHydrated)
     } else {
-        return displayParticipants(slot.participants, selectedParticipantId)
+        return displayParticipants(slot.participants, selectedParticipantHydrated)
     }
 }

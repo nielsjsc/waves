@@ -1,26 +1,20 @@
 import { type PopulatedEntry } from "@/utils/PopulatedEntry"
 import { SlotStateTag } from "./SlotStateTag"
-import { SvgIcon } from "./SvgIcon"
 import { groupTag, ncTag, rentTag } from "./Tags"
 
 interface Properties {
     entry: PopulatedEntry
     highlight: boolean
-    actions: string[]
 }
 
-export function Entry({entry, highlight=false, actions=[]}: Properties) {
+export function SearchResultCard({entry, highlight=false}: Properties) {
     const notAttendingStyle:string = entry.participant.state === "notAttending" ? 'opacity-60 line-through' : ''
-    const actionsMenu = (actions.length === 0) ? <></> : 
-        <div className='flex flex-row p-1 items-center ml-auto'>
-            <button 
-                className='rounded-sm p-1 bg-slate-600 ml-1'
-                >
-                <SvgIcon icon="dots-vertical"/>
-            </button>
-        </div>
 
     const borderColor = highlight ? 'border-4 border-pink-600' : ''
+
+    const originalStartRow = entry.participant.startChanged ? 
+        <tr><td colSpan={2}>Original Start: {entry.participant.originalStartTime}</td></tr> :
+        <></>
 
     return(
     <div 
@@ -41,9 +35,9 @@ export function Entry({entry, highlight=false, actions=[]}: Properties) {
             <tr>
                 <td colSpan={2}>{entry.time}&nbsp;&nbsp;&nbsp;&nbsp;{entry.course}-(class)</td>
             </tr>
+            {originalStartRow}
             </tbody>
         </table>
-        {actionsMenu}
     </div>
     )
 }

@@ -11,9 +11,9 @@ export const Participant = v.object({
     epunch:v.optional(v.string(), ''),
     isRental:v.boolean(),
     isNonCompete:v.boolean(),
-    groupSize:v.number()
-    
-    
+    groupSize:v.number(),
+    originalStartTime:v.string(),
+    startChanged:v.boolean()
 })
 export type Participant = v.InferOutput<typeof Participant>
 
@@ -36,7 +36,8 @@ export function fromParticipantDoc(doc:RxDocument<ParticipantDocType>):Participa
         isNonCompete: doc.isNonCompete,
         state: doc.state as ParticipantState,
         groupSize: doc.groupSize,
-        
+        originalStartTime: doc.originalStartTime ?? '',
+        startChanged: doc.startChanged ?? false
     }
 }
 
@@ -50,6 +51,8 @@ export function fromParticipantRecord(item:WithVirtualProps<ParticipantDocType>)
         isNonCompete: item.isNonCompete,
         state: item.state as ParticipantState,
         groupSize: item.groupSize,
+        originalStartTime: item.originalStartTime ?? '',
+        startChanged: item.startChanged ?? false
         
     }
 }

@@ -199,7 +199,6 @@ function participantFromStartListData(col1:string,col2:string,col3:string):Parti
         isNonCompete: isNonCompete,
         state: "waiting",
         groupSize: groupSize,
-
     }
 
 }
@@ -213,7 +212,7 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
         
         const c1p = participantFromStartListData(wave["ELEMENTARYBEGINNER.1"], wave["ELEMENTARYBEGINNER.2"], wave["ELEMENTARYBEGINNER.3"])
         if (c1p !== undefined) {
-            participants.push(c1p)
+            participants.push({...c1p, originalStartTime:waveTime, startChanged:false})
         }       
         slots.push({
             id: crypto.randomUUID(), 
@@ -224,7 +223,7 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
 
         const c2p = participantFromStartListData(wave["MIDDLE SCHOOL.1"], wave["MIDDLE SCHOOL.2"], wave["MIDDLE SCHOOL.3"])
         if (c2p !== undefined) {
-            participants.push(c2p)
+            participants.push({...c2p, originalStartTime:waveTime, startChanged:false})
         }
         slots.push({
             id: crypto.randomUUID(), 
@@ -235,7 +234,7 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
         
         const c3p = participantFromStartListData(wave["ROOKIE FEMALEADV BEGINNER.1"], wave["ROOKIE FEMALEADV BEGINNER.2"], wave["ROOKIE FEMALEADV BEGINNER.3"])
         if (c3p !== undefined) {
-            participants.push(c3p)
+            participants.push({...c3p, originalStartTime:waveTime, startChanged:false})
         }
         slots.push({
             id: crypto.randomUUID(), 
@@ -246,7 +245,7 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
         
         const c4p = participantFromStartListData(wave["ROOKIE MALE.1"], wave["ROOKIE MALE.2"], wave["ROOKIE MALE.3"])
         if (c4p !== undefined) {
-            participants.push(c4p)
+            participants.push({...c4p, originalStartTime:waveTime, startChanged:false})
         }
         slots.push({
             id: crypto.randomUUID(), 
@@ -257,7 +256,7 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
         
         const c5p = participantFromStartListData(wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.1"], wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.2"], wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.3"])
         if (c5p !== undefined) {
-            participants.push(c5p)
+            participants.push({...c5p, originalStartTime:waveTime, startChanged:false})
         }
         slots.push({
             id: crypto.randomUUID(), 
@@ -268,7 +267,7 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
         
         const c6p = participantFromStartListData(wave["JV MALE.1"], wave["JV MALE.2"], wave["JV MALE.3"])
         if (c6p !== undefined) {
-            participants.push(c6p)
+            participants.push({...c6p, originalStartTime:waveTime, startChanged:false})
         }
         slots.push({
             id: crypto.randomUUID(), 
@@ -279,7 +278,7 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
         
         const c7p = participantFromStartListData(wave["VARSITY.1"], wave["VARSITY.2"], wave["VARSITY.3"])
         if (c7p !== undefined) {
-            participants.push(c7p)
+            participants.push({...c7p, originalStartTime:waveTime, startChanged:false})
         }
         slots.push({
             id: crypto.randomUUID(), 
@@ -290,7 +289,7 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
         
         const c8p = participantFromStartListData(wave["SHORT ADVANCED.1"], wave["SHORT ADVANCED.2"], wave["SHORT ADVANCED.3"])
         if (c8p !== undefined) {
-            participants.push(c8p)
+            participants.push({...c8p, originalStartTime:waveTime, startChanged:false})
         }
         slots.push({
             id: crypto.randomUUID(), 
@@ -301,7 +300,7 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
         
         const c9p = participantFromStartListData(wave["COLLEGE VARSITYLONG ADVANCED.1"], wave["COLLEGE VARSITYLONG ADVANCED.2"], wave["COLLEGE VARSITYLONG ADVANCED.3"])
         if (c9p !== undefined) {
-            participants.push(c9p)
+            participants.push({...c9p, originalStartTime:waveTime, startChanged:false})
         }
         slots.push({
             id: crypto.randomUUID(), 

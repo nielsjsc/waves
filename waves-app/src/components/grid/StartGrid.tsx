@@ -1,12 +1,15 @@
 import {type Slot as SlotType} from '@/api/slots'
-import type { JSX } from 'react'
+import type { JSX, Ref } from 'react'
 import { GridSlot } from './GridSlot'
+import type { PopulatedEntry } from '@/utils/PopulatedEntry'
 
 interface Properties {
     data: SlotType[]
     columns: "time" | "course"
-    selectedParticipantId: string
-    selectedParticipantSlotId: string
+    selectedParticipantHydrated:PopulatedEntry|undefined
+    scrollTo?:Ref<HTMLTableRowElement>
+    itemOnClick?: Function
+    itemButtons?: {icon:string, text:string, onClick:Function}[]
 }
 
 function getCourses(data:SlotType[]):string[] {
@@ -54,20 +57,36 @@ function buildTableArray(data:SlotType[], columns:"time"|"course"):SlotType[][] 
 }
 
 
-function renderSlotsInRow(rowData:SlotType[], selectedParticipantId:string, selectedParticipantSlotId:string): JSX.Element[] {
+function renderSlotsInRow(
+        rowData:SlotType[], 
+        selectedParticipantHydrated:PopulatedEntry|undefined,
+        itemOnClick:Function|undefined, 
+        itemButtons:{icon:string, text:string, onClick:Function}[]|undefined
+    ): JSX.Element[] {
     if (rowData.length < 1) {
 		return ([])
 	} else {
 		return (rowData.map((slot,) =>
 		<td className='px-2 py-1' key={`SlotTd-${slot.time}-${slot.course}`}>
-			<GridSlot slot={slot} selectedParticipantId={selectedParticipantId} selectedParticipantSlotId={selectedParticipantSlotId} key={`SlotCard-${slot.time}-${slot.course}`} />
+			<GridSlot 
+                slot={slot} 
+                selectedParticipantHydrated={selectedParticipantHydrated}
+                itemOnClick={itemOnClick}
+                itemButtons={itemButtons}
+                key={`SlotCard-${slot.time}-${slot.course}`} />
 		</td>
 	))
 	}
-
 }
 
-function renderRow(rowData:SlotType[], rowType:'time'|'course', selectedParticipantId:string, selectedParticipantSlotId:string): JSX.Element {
+function renderRow(
+        rowData:SlotType[], 
+        rowType:'time'|'course', 
+        selectedParticipantHydrated:PopulatedEntry|undefined,
+        scrollTo:Ref<HTMLTableRowElement>|undefined,
+        itemOnClick:Function|undefined,
+        itemButtons:{icon:string, text:string, onClick:Function}[]|undefined
+    ): JSX.Element {
     if (rowData.length === 0) {
         return <tr></tr>
     }
@@ -75,64 +94,42 @@ function renderRow(rowData:SlotType[], rowType:'time'|'course', selectedParticip
     const rowKeyIdentifier = rowType === 'time' ? firstSlot.time : firstSlot.course
     const rowKey = `${rowType}Row-${rowKeyIdentifier}`
     const rowNameKey = `${rowType}RowName-${rowKeyIdentifier}`
+    const containsSelected = selectedParticipantHydrated ? rowData.flatMap(x => x.participants.map(p=>p.id)).includes(selectedParticipantHydrated.participant.id) : false
+    const ref = containsSelected ? scrollTo : undefined
     return (
-        <tr key={rowKey}>
+        <tr key={rowKey} data-contains-selected-participant={containsSelected} ref={ref}>
             <td key={rowNameKey} className='font-bold text-center'>{rowKeyIdentifier}</td>
-            {renderSlotsInRow(rowData, selectedParticipantId, selectedParticipantSlotId)}
+            {renderSlotsInRow(rowData, selectedParticipantHydrated, itemOnClick, itemButtons)}
         </tr>
     )
 }
 
-function renderTimeColsTable(tableData:SlotType[][], times:string[], selectedParticipantId:string, selectedParticipantSlotId:string):JSX.Element {
-    return (
+
+export function StartGrid({data, columns, selectedParticipantHydrated, scrollTo, itemOnClick, itemButtons}: Properties) {
+    const tableData = buildTableArray(data, columns)
+
+    const firstHeader = columns === 'time' ? 'Course' : 'Time'
+    const otherHeaders = columns === 'time' ? 
+        getTimes(data).map((time) => <th key={`wave-${time}`}>{time}</th>) :
+        getCourses(data).map((course) => <th key={`wave-${course}`}>{course}</th>)
+    
+    const rowType = columns === 'time' ? 'course' : 'time'
+    const rows = tableData.map((row) => 
+        renderRow(row, rowType, selectedParticipantHydrated, scrollTo, itemOnClick, itemButtons))
+
+    return(
         <div className=''>
             <table className="table-fixed">
                 <thead>
                     <tr key='gridHeaderRow'>
-                        <th>Course</th>
-                        {/* START TIMES */}
-                        {times.map((time) => <th key={`wave-${time}`}>{time}</th>)}
+                        <th>{firstHeader}</th>
+                        {otherHeaders}
                     </tr>
                 </thead>
                 <tbody>
-                    {tableData.map((row) => {
-                        return renderRow(row, 'course', selectedParticipantId, selectedParticipantSlotId);
-                    })}
+                    {rows}
                 </tbody>
             </table>
         </div>
     )
 }
-
-function renderCourseColsTable(tableData:SlotType[][], courses:string[], selectedParticipantId:string, selectedParticipantSlotId:string):JSX.Element {
-    return (
-<div className=''>
-    <table className="table-fixed">
-        <thead>
-            <tr key='gridHeaderRow'>
-                <th>Time</th>
-                {/* COURSE NAMES */}
-                {courses.map((course) => <th key={`wave-${course}`}>{course}</th>)}
-            </tr>
-        </thead>
-        <tbody>
-            {tableData.map((row) => {
-                return renderRow(row, 'time', selectedParticipantId, selectedParticipantSlotId);
-            })}
-        </tbody>
-    </table>
-</div>
-    )
-}
-
-export function StartGrid({data, columns, selectedParticipantId, selectedParticipantSlotId}: Properties) {
-    const tableData = buildTableArray(data, columns)
-    if (columns === "time") {
-        return renderTimeColsTable(tableData, getTimes(data), selectedParticipantId, selectedParticipantSlotId)
-    } else if (columns === "course") {
-        return renderCourseColsTable(tableData, getCourses(data), selectedParticipantId, selectedParticipantSlotId)
-    } else {
-        throw new Error("Unknown table column type")
-    }
-}
-

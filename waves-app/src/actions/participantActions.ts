@@ -1,5 +1,4 @@
-import { changesTanCollection, participantsTanCollection } from "@/database";
-import { slotsTanCollection } from "@/database";
+import { slotsTanCollection, participantsTanCollection, changesTanCollection } from "@/database";
 import { eq, queryOnce } from "@tanstack/react-db";
 
 // TODO: EACH OF THESE NEEDS TO BE A SET OF TRANSACTIONS that wait for isPersisted
@@ -14,15 +13,34 @@ export function setStateWaiting(participantId:string) {
     participantsTanCollection.update(participantId, (p) => {p.state = "waiting"})
 }
 
+export function setStateNoShow(participantId:string, prevState:string) {
+
+    participantsTanCollection.update(participantId, (p) => {p.state = "noShow"})
+
+    // Record the change for stats
+    changesTanCollection.insert([{
+        id: crypto.randomUUID(),
+        participantId: participantId,
+        changedAt: Date.now(),
+        changeType: 'noShow',
+        old: prevState,
+        new: 'noShow',
+        needsProcessing: false,
+        isProcessed: false
+    }]);
+}
+
 export async function setStateNotAttending(participantId:string, slotId:string, course:string) {
     // Update Participant State
-    participantsTanCollection.update(participantId, (p) => {p.state = "notAttending"})
+    const t1 = participantsTanCollection.update(participantId, (p) => {p.state = "notAttending", p.startChanged=true})
+    await t1.isPersisted.promise
 
     // Remove from current Slot
     const oldSlot = slotsTanCollection.get(slotId)
     if (oldSlot !== undefined) {
         const updatedParticipants = oldSlot.participants.filter(x => x !== participantId)
-        slotsTanCollection.update(slotId, (s) => {s.participants = updatedParticipants})
+        const t2 = slotsTanCollection.update(slotId, (s) => {s.participants = updatedParticipants})
+        await t2.isPersisted.promise
     }
     
     // Add to NotAttending Slot
@@ -34,11 +52,12 @@ export async function setStateNotAttending(participantId:string, slotId:string, 
         .findOne()
     )
     if (notAttendingSlot !== undefined) {
-        slotsTanCollection.update(notAttendingSlot.id, (s) => {s.participants = s.participants.concat(participantId)})
+        const t3 = slotsTanCollection.update(notAttendingSlot.id, (s) => {s.participants = s.participants.concat(participantId)})
+        await t3.isPersisted.promise
     }
     
     // Record the change for stats
-    changesTanCollection.insert([{
+    const t4 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,
         changedAt: Date.now(),
@@ -48,6 +67,8 @@ export async function setStateNotAttending(participantId:string, slotId:string, 
         needsProcessing: false,
         isProcessed: false
     }]);
+    await t4.isPersisted.promise
+
 }
 
 export async function setNewStartTime(participantId:string, oldSlotId:string, newSlotId:string) {
@@ -75,6 +96,7 @@ export async function setNewStartTime(participantId:string, oldSlotId:string, ne
 
     // TODO Set the participant state to waiting?
     // may need some logic here, check the transitions.
+    participantsTanCollection.update(participantId, (p) => {p.state = "waiting", p.startChanged=true})
 
     // Record the change for stats
     changesTanCollection.insert([{

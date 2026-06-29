@@ -4,7 +4,7 @@ import { populateSlotData } from "@/utils/populateSlotData";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useEffect, useState } from "react";
 import { pivotSlotsToEntries, } from "@/utils/pivotSlotsToEntries";
-import { Entry } from "@/components/Entry";
+import { SearchResultCard } from "@/components/SearchResultCard";
 
 interface Properties {
     setParticipant:Function
@@ -177,8 +177,8 @@ export function Search({setParticipant, closeSearch}:Properties) {
                     <hr className="mt-2"/>
                     <div className="flex flex-wrap">
                         {entries.map(e => 
-                            <div onClick={handleEntryClick} data-participant-id={e.participant.id} className="hover:bg-blue-500/50 rounded-lg">
-                                <Entry entry={e} highlight={false} key={e.participant.id} actions={[]}/>
+                            <div onClick={handleEntryClick} data-participant-id={e.participant.id} key={e.participant.id} className="hover:bg-blue-500/50 rounded-lg">
+                                <SearchResultCard entry={e} highlight={false} key={e.participant.id}/>
                             </div>
                         )}
                     </div> 
