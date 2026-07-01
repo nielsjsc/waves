@@ -4,7 +4,6 @@ import {
     type RxCollection,
     type RxJsonSchema
 } from 'rxdb';
-import { maxLength } from 'valibot';
 
 export const slotSchemaLiteral = {
     // UPDATE IN SERVER.TS TO MATCH!!
@@ -13,12 +12,13 @@ export const slotSchemaLiteral = {
     version: 0,
     primaryKey: 'id',
     type: 'object',
-    required: ['id', 'time', 'course', 'participants'],
+    required: ['id', 'time', 'course', 'participants', 'isUsable'],
     properties: {
         id: { type: 'string', maxLength: 64},
         time: { type: 'string' },
         course: { type: 'string' },
-        participants: { type: 'array', ref: 'participants', items: { type: 'string' } }
+        participants: { type: 'array', ref: 'participants', items: { type: 'string' } },
+        isUsable: { type: 'boolean'}
     },
 } as const;
 const slotSchemaTyped = toTypedRxJsonSchema(slotSchemaLiteral);

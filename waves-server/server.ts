@@ -52,7 +52,8 @@ await serverRxDb.addCollections({
                 id: { type: 'string', maxLength: 64},
                 time: { type: 'string' },
                 course: { type: 'string' },
-                participants: { type: 'array', ref: 'participants', items: { type: 'string' } }
+                participants: { type: 'array', ref: 'participants', items: { type: 'string' } },
+                isUsable: { type: 'boolean' }
             }
         }
     },

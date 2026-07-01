@@ -11,7 +11,7 @@ export function populateSlotData(slots:SlotDocType[], participants:ParticipantDo
                 time: s.time,
                 course: s.course,
                 participants: [] as Participant[],
-                isUsable: true
+                isUsable: s.isUsable
             })
         } else {
             let filledParticipants:Participant[] = []
@@ -26,7 +26,7 @@ export function populateSlotData(slots:SlotDocType[], participants:ParticipantDo
                 time: s.time,
                 course: s.course,
                 participants: filledParticipants,
-                isUsable: true
+                isUsable: s.isUsable
             })
         }
     });

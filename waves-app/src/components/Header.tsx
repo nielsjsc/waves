@@ -1,6 +1,6 @@
 // adapted from https://github.com/mertJF/tailblocks
 
-import { dropAllChanges, dropAllParticipants, dropAllSlots, insertMockData } from "@/database";
+import { dropAllChanges, dropAllParticipants, dropAllSlots } from "@/database";
 import { readStartListCsv } from "@/dataImport";
 import type { JSX } from "react";
 
@@ -54,16 +54,16 @@ const LOGO = <svg
   </g>
 </svg>
 
-async function handleDataLoadClick() {
-    const p1 = await dropAllSlots()
-    const p2 = await dropAllParticipants()
+// async function handleDataLoadClick() {
+//     const p1 = await dropAllSlots()
+//     const p2 = await dropAllParticipants()
 
-    Promise.all([p1, p2])
-    .then(() => {
-        console.log('rxdb: cleaned up collections')
-        insertMockData()
-    })
-}
+//     Promise.all([p1, p2])
+//     .then(() => {
+//         console.log('rxdb: cleaned up collections')
+//         insertMockData()
+//     })
+// }
 
 // async function handlePublicLoadClick() {
 //     const p1 = await dropAllSlots()
@@ -115,12 +115,13 @@ export function Header():JSX.Element {
             <button 
                 className="inline-flex items-center bg-gray-800 border-0 ml-2 py-1 px-3 focus:outline-none hover:bg-gray-700 rounded text-base mt-4 md:mt-0"
                 onClick={handleUWLoadClick}>
-                Reset 3
+                Load UW
             </button>
             <nav className="md:ml-auto flex flex-wrap items-center text-base justify-center">
+                <a className="mr-5 hover:text-white" href="/call-up">Call-up</a>
+                {/* <a className="mr-5 hover:text-white" href="/epunch-check">Epunch Check</a> */}
                 <a className="mr-5 hover:text-white" href="/manager">Start Manager</a>
-                <a className="mr-5 hover:text-white" href="/">Call-up</a>
-                <a className="mr-5 hover:text-white">Epunch Check</a>
+                <a className="mr-5 hover:text-white" href="/">Full Grid</a>
             </nav>
         </div>
     </header>

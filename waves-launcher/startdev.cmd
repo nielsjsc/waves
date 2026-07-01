@@ -12,7 +12,7 @@ cd rxserver
 start start.cmd
 cd ..
 
-timeout /t 20 /nobreak
+timeout /t 25 /nobreak
 
 ECHO "Starting nginx"
 cd nginx

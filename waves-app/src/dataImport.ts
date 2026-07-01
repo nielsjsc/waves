@@ -218,7 +218,8 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
             id: crypto.randomUUID(), 
             time: waveTime, 
             course: 'c1',
-            participants: c1p !==undefined ? [c1p.id] : []
+            participants: c1p !==undefined ? [c1p.id] : [],
+            isUsable: true
         })
 
         const c2p = participantFromStartListData(wave["MIDDLE SCHOOL.1"], wave["MIDDLE SCHOOL.2"], wave["MIDDLE SCHOOL.3"])
@@ -229,7 +230,8 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
             id: crypto.randomUUID(), 
             time: waveTime, 
             course: 'c2',
-            participants: c2p !== undefined ? [c2p.id] : []
+            participants: c2p !== undefined ? [c2p.id] : [],
+            isUsable: true
         })
         
         const c3p = participantFromStartListData(wave["ROOKIE FEMALEADV BEGINNER.1"], wave["ROOKIE FEMALEADV BEGINNER.2"], wave["ROOKIE FEMALEADV BEGINNER.3"])
@@ -240,7 +242,8 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
             id: crypto.randomUUID(), 
             time: waveTime, 
             course: 'c3',
-            participants: c3p !== undefined ? [c3p.id] : []
+            participants: c3p !== undefined ? [c3p.id] : [],
+            isUsable: true
         })
         
         const c4p = participantFromStartListData(wave["ROOKIE MALE.1"], wave["ROOKIE MALE.2"], wave["ROOKIE MALE.3"])
@@ -251,7 +254,8 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
             id: crypto.randomUUID(), 
             time: waveTime, 
             course: 'c4',
-            participants: c4p !== undefined ? [c4p.id] : []
+            participants: c4p !== undefined ? [c4p.id] : [],
+            isUsable: true
         })
         
         const c5p = participantFromStartListData(wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.1"], wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.2"], wave["JV FEMALECOLLEGIATE JVINTERMEDIATE.3"])
@@ -262,7 +266,8 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
             id: crypto.randomUUID(), 
             time: waveTime, 
             course: 'c5',
-            participants: c5p !== undefined ? [c5p.id] : []
+            participants: c5p !== undefined ? [c5p.id] : [],
+            isUsable: true
         })
         
         const c6p = participantFromStartListData(wave["JV MALE.1"], wave["JV MALE.2"], wave["JV MALE.3"])
@@ -273,7 +278,8 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
             id: crypto.randomUUID(), 
             time: waveTime, 
             course: 'c6',
-            participants: c6p !== undefined ? [c6p.id] : []
+            participants: c6p !== undefined ? [c6p.id] : [],
+            isUsable: true
         })
         
         const c7p = participantFromStartListData(wave["VARSITY.1"], wave["VARSITY.2"], wave["VARSITY.3"])
@@ -284,7 +290,8 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
             id: crypto.randomUUID(), 
             time: waveTime, 
             course: 'c7',
-            participants: c7p !== undefined ? [c7p.id] : []
+            participants: c7p !== undefined ? [c7p.id] : [],
+            isUsable: true
         })
         
         const c8p = participantFromStartListData(wave["SHORT ADVANCED.1"], wave["SHORT ADVANCED.2"], wave["SHORT ADVANCED.3"])
@@ -295,7 +302,8 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
             id: crypto.randomUUID(), 
             time: waveTime, 
             course: 'c8',
-            participants: c8p !== undefined ? [c8p.id] : []
+            participants: c8p !== undefined ? [c8p.id] : [],
+            isUsable: true
         })
         
         const c9p = participantFromStartListData(wave["COLLEGE VARSITYLONG ADVANCED.1"], wave["COLLEGE VARSITYLONG ADVANCED.2"], wave["COLLEGE VARSITYLONG ADVANCED.3"])
@@ -306,7 +314,8 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
             id: crypto.randomUUID(), 
             time: waveTime, 
             course: 'c9',
-            participants: c9p !== undefined ? [c9p.id] : []
+            participants: c9p !== undefined ? [c9p.id] : [],
+            isUsable: true
         })
     }
 
@@ -317,7 +326,8 @@ async function insertStartListCsv(data:PdfStartListRecord[]) {
                 id: crypto.randomUUID(),
                 time: specialTime,
                 course: course,
-                participants: []
+                participants: [],
+                isUsable: true
             })
         }
     }

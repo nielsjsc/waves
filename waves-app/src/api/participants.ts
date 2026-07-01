@@ -17,6 +17,7 @@ export const Participant = v.object({
 })
 export type Participant = v.InferOutput<typeof Participant>
 
+// Update participant State Styles if adding states here!
 export type ParticipantState = 
     | "waiting"
     | "present"

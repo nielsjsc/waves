@@ -2,23 +2,25 @@ import {type Slot as SlotType} from '@/api/slots'
 import type { JSX, Ref } from 'react'
 import { GridSlot } from './GridSlot'
 import type { PopulatedEntry } from '@/utils/PopulatedEntry'
+import type { SlotDocType } from '@/Schema'
+import type { ParticipantState } from '@/api/participants'
 
 interface Properties {
     data: SlotType[]
     columns: "time" | "course"
     selectedParticipantHydrated:PopulatedEntry|undefined
     scrollTo?:Ref<HTMLTableRowElement>
-    itemOnClick?: Function
-    itemButtons?: {icon:string, text:string, onClick:Function}[]
+    itemOnClick?: undefined
+    toStateButtons: ParticipantState[]
 }
 
-function getCourses(data:SlotType[]):string[] {
+function getUniqueCoursesFromSlots(data:SlotType[]):string[] {
     return data.reduce<string[]>((previous, slot) =>
 		previous.some( x => x === slot.course) ? previous : [...previous, slot.course]
 	, []).sort()
 }
 
-function getTimes(data:SlotType[]):string[] {
+export function getUniqueTimesFromSlots(data:SlotType[]|SlotDocType[]):string[] {
     return data.reduce<string[]>((previous, slot) =>
 		previous.some( x => x === slot.time) ? previous : [...previous, slot.time]
 	, []).sort().filter(x => x.startsWith('_') === false)
@@ -27,9 +29,9 @@ function getTimes(data:SlotType[]):string[] {
 function buildTableArray(data:SlotType[], columns:"time"|"course"):SlotType[][] {
     var tableData: SlotType[][] = [];
     if (columns === "time") {
-        getCourses(data).forEach((c) => {
+        getUniqueCoursesFromSlots(data).forEach((c) => {
             var rowData: SlotType[] = [];
-            getTimes(data).forEach((t) => {
+            getUniqueTimesFromSlots(data).forEach((t) => {
                 var thisSlot = data.find(x => x.course === c && x.time === t);
                 if (thisSlot) {
                     rowData.push(thisSlot);
@@ -40,9 +42,9 @@ function buildTableArray(data:SlotType[], columns:"time"|"course"):SlotType[][] 
             tableData.push(rowData);
         })
     } else if (columns === "course") {
-        getTimes(data).forEach((t) => {
+        getUniqueTimesFromSlots(data).forEach((t) => {
             var rowData: SlotType[] = [];
-            getCourses(data).forEach((c) => {
+            getUniqueCoursesFromSlots(data).forEach((c) => {
                 var thisSlot = data.find(x => x.course === c && x.time === t);
                 if (thisSlot) {
                     rowData.push(thisSlot);
@@ -60,19 +62,28 @@ function buildTableArray(data:SlotType[], columns:"time"|"course"):SlotType[][] 
 function renderSlotsInRow(
         rowData:SlotType[], 
         selectedParticipantHydrated:PopulatedEntry|undefined,
-        itemOnClick:Function|undefined, 
-        itemButtons:{icon:string, text:string, onClick:Function}[]|undefined
+        itemOnClick:undefined, 
+        toStateButtons:ParticipantState[]
     ): JSX.Element[] {
     if (rowData.length < 1) {
 		return ([])
 	} else {
-		return (rowData.map((slot,) =>
+        const firstSlot = rowData.shift()!
+        const firstItem = [<td className='px-2 py-1' key={`SlotTd-${firstSlot.time}-${firstSlot.course}`}>
+			<GridSlot 
+                slot={firstSlot} 
+                selectedParticipantHydrated={selectedParticipantHydrated}
+                itemOnClick={itemOnClick}
+                toStateButtons={toStateButtons}
+                key={`SlotCard-${firstSlot.time}-${firstSlot.course}`} />
+		</td>]
+		return firstItem.concat(rowData.map((slot,) =>
 		<td className='px-2 py-1' key={`SlotTd-${slot.time}-${slot.course}`}>
 			<GridSlot 
                 slot={slot} 
                 selectedParticipantHydrated={selectedParticipantHydrated}
                 itemOnClick={itemOnClick}
-                itemButtons={itemButtons}
+                toStateButtons={[]}
                 key={`SlotCard-${slot.time}-${slot.course}`} />
 		</td>
 	))
@@ -84,8 +95,8 @@ function renderRow(
         rowType:'time'|'course', 
         selectedParticipantHydrated:PopulatedEntry|undefined,
         scrollTo:Ref<HTMLTableRowElement>|undefined,
-        itemOnClick:Function|undefined,
-        itemButtons:{icon:string, text:string, onClick:Function}[]|undefined
+        itemOnClick:undefined,
+        toStateButtons:ParticipantState[]
     ): JSX.Element {
     if (rowData.length === 0) {
         return <tr></tr>
@@ -99,23 +110,23 @@ function renderRow(
     return (
         <tr key={rowKey} data-contains-selected-participant={containsSelected} ref={ref}>
             <td key={rowNameKey} className='font-bold text-center'>{rowKeyIdentifier}</td>
-            {renderSlotsInRow(rowData, selectedParticipantHydrated, itemOnClick, itemButtons)}
+            {renderSlotsInRow(rowData, selectedParticipantHydrated, itemOnClick, toStateButtons)}
         </tr>
     )
 }
 
 
-export function StartGrid({data, columns, selectedParticipantHydrated, scrollTo, itemOnClick, itemButtons}: Properties) {
+export function StartGrid({data, columns, selectedParticipantHydrated, scrollTo, itemOnClick, toStateButtons}: Properties) {
     const tableData = buildTableArray(data, columns)
 
     const firstHeader = columns === 'time' ? 'Course' : 'Time'
     const otherHeaders = columns === 'time' ? 
-        getTimes(data).map((time) => <th key={`wave-${time}`}>{time}</th>) :
-        getCourses(data).map((course) => <th key={`wave-${course}`}>{course}</th>)
+        getUniqueTimesFromSlots(data).map((time) => <th key={`wave-${time}`}>{time}</th>) :
+        getUniqueCoursesFromSlots(data).map((course) => <th key={`wave-${course}`}>{course}</th>)
     
     const rowType = columns === 'time' ? 'course' : 'time'
     const rows = tableData.map((row) => 
-        renderRow(row, rowType, selectedParticipantHydrated, scrollTo, itemOnClick, itemButtons))
+        renderRow(row, rowType, selectedParticipantHydrated, scrollTo, itemOnClick, toStateButtons))
 
     return(
         <div className=''>

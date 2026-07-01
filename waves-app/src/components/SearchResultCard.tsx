@@ -1,6 +1,7 @@
 import { type PopulatedEntry } from "@/utils/PopulatedEntry"
 import { SlotStateTag } from "./SlotStateTag"
 import { groupTag, ncTag, rentTag } from "./Tags"
+import { ColorStyles } from "@/utils/styleHelpers"
 
 interface Properties {
     entry: PopulatedEntry
@@ -10,7 +11,7 @@ interface Properties {
 export function SearchResultCard({entry, highlight=false}: Properties) {
     const notAttendingStyle:string = entry.participant.state === "notAttending" ? 'opacity-60 line-through' : ''
 
-    const borderColor = highlight ? 'border-4 border-pink-600' : ''
+    const borderColor = highlight ? `border-4 ${ColorStyles.get('pink')!.border}` : ''
 
     const originalStartRow = entry.participant.startChanged ? 
         <tr><td colSpan={2}>Original Start: {entry.participant.originalStartTime}</td></tr> :

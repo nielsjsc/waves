@@ -11,7 +11,7 @@ import { setNonCompetitive, setCompetitive, setStateNotAttending, setStateNoShow
 import { populateSlotData } from "@/utils/populateSlotData";
 import { StartGrid } from "@/components/grid/StartGrid";
 import { ManagerActionButton } from "@/components/ManagerActionButton";
-import { getColorByIconName } from "@/components/ParticipantStateIcon";
+import { getColorByIconName } from "@/utils/styleHelpers";
 
 
 export function Manager() {
@@ -36,7 +36,6 @@ export function Manager() {
     }
 
     const selectedParticipantEntry = hydrateParticipant(selectedParticipantId, DATA)
-    // setSelectedParticipantEntry(hydrateParticipant(selectedParticipantId, DATA))
  
     const slotsAtThisTime = selectedParticipantEntry?.time.startsWith('_') ? [] : populateSlotData(allSlots.filter(x => x.time === selectedParticipantEntry?.time), allParticipants)
     const slotsOnThisCourse = selectedParticipantEntry?.course === '' ? [] : populateSlotData(allSlots.filter(x => x.course === selectedParticipantEntry?.course), allParticipants)
@@ -186,7 +185,8 @@ export function Manager() {
                             <StartGrid 
                                 data={slotsAtThisTime}
                                 selectedParticipantHydrated={selectedParticipantEntry}
-                                columns="time" />
+                                columns="time"
+                                toStateButtons={[]} />
                             </div>
                         </div>
                         <div className="flex flex-col min-w-md">
@@ -196,7 +196,8 @@ export function Manager() {
                                 data={slotsOnThisCourse} 
                                 selectedParticipantHydrated={selectedParticipantEntry}
                                 columns="course" 
-                                scrollTo={scrollToElementRef}/>
+                                scrollTo={scrollToElementRef}
+                                toStateButtons={[]}/>
                             </div>
                         </div>
                     </div> {/*Slot Lists*/}

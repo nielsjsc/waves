@@ -1,17 +1,19 @@
 import { type Slot as SlotType } from '@/api/slots'
-import type {Participant as ParticipantType} from '@/api/participants'
+import type {ParticipantState, Participant as ParticipantType} from '@/api/participants'
 import { type JSX } from 'react'
 import { SvgIcon } from '../SvgIcon'
 import { SlotStateTag } from '../SlotStateTag'
 import { groupTag, ncTag } from '../Tags'
 import { setNewStartTime, } from '@/actions/participantActions'
 import type { PopulatedEntry } from '@/utils/PopulatedEntry'
+import { ParticipantStateChangeButton } from './ParticipantStateChangeButton'
+import { ColorStyles } from '@/utils/styleHelpers'
 
 interface Properties {
     slot: SlotType
     selectedParticipantHydrated:PopulatedEntry|undefined,
-    itemOnClick: Function|undefined
-    itemButtons: {icon:string, text:string, onClick:Function}[]|undefined
+    itemOnClick: undefined
+    toStateButtons: ParticipantState[]
 }
 
 function displayNotAvailable():JSX.Element {
@@ -61,9 +63,27 @@ function displayAvailable(slot:SlotType, selectedParticipantHydrated:PopulatedEn
     )
 }
 
-function displayParticipant(p:ParticipantType, highlightEntry:PopulatedEntry|undefined):JSX.Element {
+function displayParticipant(p:ParticipantType, highlightEntry:PopulatedEntry|undefined, itemOnClick:undefined, toStateButtons:ParticipantState[]):JSX.Element {
     const notAttendingStyle:string = p.state === "notAttending" ? 'opacity-60 line-through' : ''
-    const borderColor:string = p.id === highlightEntry?.participant.id ? 'border-4 border-pink-600 bg-pink-800 text-white' : ''
+    const borderColor:string = p.id === highlightEntry?.participant.id ? `border-4 ${ColorStyles.get('pink')!.border} ${ColorStyles.get('pink')!.bgDark} text-white` : ''
+
+    function buttons():JSX.Element {
+        if (toStateButtons === undefined) {return <></>}
+        else if (toStateButtons.length === 0) {return <></>}
+        else {
+            return (
+            <div className='flex flex-col gap-1'>
+            {toStateButtons.map((toState) => {return(
+                <ParticipantStateChangeButton
+                    participant={p}
+                    toState={toState}
+                />
+                )}
+            )}
+            </div>)
+        }
+    }
+
     return (
         <div className={`border-2 border-solid ${borderColor} rounded-md flex flex-row min-w-2xs`} key={p.id} data-participant-id={p.id}>
             <SlotStateTag state={p.state}/>
@@ -74,25 +94,14 @@ function displayParticipant(p:ParticipantType, highlightEntry:PopulatedEntry|und
                 <span className='text-sm'>{p.club}</span>
             </div>
             <div className='flex flex-row p-1 items-center ml-auto'>
-                {/* <button 
-                    className='bg-sky-200 rounded-sm p-1'
-                    onClick={(e) => handleSetPresent2(e)}
-                    data-participant-id={p.id}
-                    >
-                    <ParticipantStateIcon state="present"/>
-                </button>
-                <button 
-                    className='rounded-sm p-1 bg-slate-600 ml-1'
-                    >
-                    <SvgIcon icon="dots-vertical"/>
-                </button> */}
+                {buttons()}
             </div>
         </div>
     )
 }
 
-function displayParticipants(participants:ParticipantType[], highlightEntry:PopulatedEntry|undefined):JSX.Element {
-    const cards = participants.map((p) => displayParticipant(p, highlightEntry))
+function displayParticipants(participants:ParticipantType[], highlightEntry:PopulatedEntry|undefined, itemOnClick:undefined, toStateButtons:ParticipantState[]):JSX.Element {
+    const cards = participants.map((p) => displayParticipant(p, highlightEntry, itemOnClick, toStateButtons))
     return (
         <div>
             {cards}
@@ -100,13 +109,13 @@ function displayParticipants(participants:ParticipantType[], highlightEntry:Popu
     )
 }
 
-export function GridSlot({slot, selectedParticipantHydrated, itemOnClick, itemButtons}: Properties) {
+export function GridSlot({slot, selectedParticipantHydrated, itemOnClick, toStateButtons}: Properties) {
 
     if (slot.isUsable === false) {
         return displayNotAvailable()
     } else if (slot.participants.length === 0) {        
         return displayAvailable(slot, selectedParticipantHydrated)
     } else {
-        return displayParticipants(slot.participants, selectedParticipantHydrated)
+        return displayParticipants(slot.participants, selectedParticipantHydrated, itemOnClick, toStateButtons)
     }
 }
