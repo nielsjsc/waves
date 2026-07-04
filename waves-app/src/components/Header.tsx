@@ -4,77 +4,6 @@ import { dropAllChanges, dropAllParticipants, dropAllSlots } from "@/database";
 import { readStartListCsv } from "@/dataImport";
 import type { JSX } from "react";
 
-const LOGO = <svg
-   width="24"
-   height="24"
-   viewBox="0 0 24 24"
-   version="1.1"
-   id="svg1"
-   xmlns="http://www.w3.org/2000/svg">
-  <defs
-     id="defs1" />
-  <g
-     id="layer1">
-    <path
-       fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round"
-       d="m 1.2319215,10.270986 v 3.458028"
-       id="path1" />
-    <path
-       fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round"
-       d="M 3.9239411,7.4768171 V 16.523183"
-       id="path2" />
-    <path
-       fill="#none" stroke="currentColor" strokeWidth="1.1386" strokeLinecap="round"
-       d="M 6.6159607,8.9936962 V 15.006304"
-       id="path3" />
-    <path
-       fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round"
-       d="M 9.3079804,5.5200909 V 18.479909"
-       id="path4" />
-    <path
-       fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round"
-       d="M 12,1.9333646 V 22.066636"
-       id="path6" />
-    <path
-       fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round"
-       d="M 14.692019,3.7919452 V 20.208055"
-       id="path7" />
-    <path
-       fill="#none" stroke="currentColor" strokeWidth="1.1386" strokeLinecap="round"
-       d="M 17.384039,8.3595775 V 15.640423"
-       id="path8" />
-    <path
-       fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round"
-       d="M 20.076058,6.0011641 V 17.998836"
-       id="path9" />
-    <path
-       d="m 22.768078,10.239286 v 3.521428"
-       fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round"
-       id="path1-8" />
-  </g>
-</svg>
-
-// async function handleDataLoadClick() {
-//     const p1 = await dropAllSlots()
-//     const p2 = await dropAllParticipants()
-
-//     Promise.all([p1, p2])
-//     .then(() => {
-//         console.log('rxdb: cleaned up collections')
-//         insertMockData()
-//     })
-// }
-
-// async function handlePublicLoadClick() {
-//     const p1 = await dropAllSlots()
-//     const p2 = await dropAllParticipants()
-
-//     Promise.all([p1, p2])
-//     .then(() => {
-//         console.log('rxdb: re-created collections')
-//         readPublicCSV()
-//     })
-// }
 
 async function handleUWLoadClick() {
     const p1 = await dropAllSlots()
@@ -94,7 +23,7 @@ export function Header():JSX.Element {
     <header className="text-gray-400 bg-gray-900 body-font">
         <div className="container mx-auto flex flex-wrap p-5 flex-col md:flex-row items-center">
             <a className="flex title-font font-medium items-center text-white mb-4 md:mb-0">
-            {LOGO}
+            {/* {LOGO} */}
             <span className="ml-3 text-xl">Waves</span>
             </a>
             <div className='title-font text-xl px-2'>

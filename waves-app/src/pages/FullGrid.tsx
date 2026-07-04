@@ -1,5 +1,4 @@
 import {Head} from '@/components/Head'
-import { Header } from '@/components/Header'
 import { useLiveQuery } from '@tanstack/react-db'
 import { participantsTanCollection, slotsTanCollection } from '@/database'
 import { StartGrid } from '@/components/grid/StartGrid'
@@ -20,8 +19,7 @@ export function FullGrid() {
 
 	return (
 	<>
-		<Head title='Tent 1: Call-up' />
-		<Header/>
+		<Head title='Start Grid' />
 		<div className='flex flex-col'>
 			<StartGrid 
 				data={data} 

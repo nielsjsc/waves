@@ -43,7 +43,7 @@ function displayAvailable(slot:SlotType, selectedParticipantHydrated:PopulatedEn
                     className={`rounded m-1 px-2 py-1 border border-2 border-amber-600/80 text-amber-300/60 hover:bg-amber-600/80 hover:text-white`}
                     onClick={()=>setNewStartTime(selectedParticipantHydrated.participant.id, selectedParticipantHydrated.slotId, slot.id)} >
                     <span className="flex flex-column">
-                        <SvgIcon icon="arrow-box"/>
+                        <SvgIcon icon="arrow-box-right"/>
                         <span className='text-sm place-self-center'>Assign</span>
                     </span>
                 </button>
