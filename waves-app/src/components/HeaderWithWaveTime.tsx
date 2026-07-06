@@ -7,7 +7,10 @@ import { Modal } from "./Modal"
 import { WaveOffsetEditor } from "./WaveOffsetEditor"
 import { ClockOffsetEditor } from "./ClockOffsetEditor"
 import { readStartListCsv } from "@/dataImport"
-import { Outlet, useOutletContext } from "react-router"
+import { FullGrid } from "@/pages/FullGrid"
+import { Manager } from "@/pages/Manager"
+import { CallUp } from "@/pages/CallUp"
+import { EpunchVerify } from "@/pages/EpunchVerify"
 
 
 type TimeContext = {
@@ -25,6 +28,8 @@ export function HeaderWithWaveTime() {
 
     const [isWaveOffsetModalOpen, setWaveOffsetModalOpen] = useState(false)
     const [isClockOffsetModalOpen, setClockOffsetModalOpen] = useState(false)
+
+    const [appPage, setAppPage] = useState('grid')
     
     const {data: allSlots} = useLiveQuery((q) =>
         q.from({slot: slotsTanCollection})
@@ -63,8 +68,10 @@ export function HeaderWithWaveTime() {
         //     At 10:01 the current wave is 10:08, not 10:09.
         // So if we don't find a wave at this exact minute, subtract a minute and see if there's one there.
         // Do this until we get to actual clock time, or stop if we try to go past minute :00 
-        // That means **this breaks if starts are on odd minutes rather than even minutes**.
-        for (let i = 0; (i < waveOffsetMinutes+1); i++) {
+        // **stopping at actual clock time is wrong** doesn't handle the 0 offset case properly.
+        // That means **this breaks when offset is 0 and next wave is more than 2 minute gap.**
+        // That means **this breaks if starts are on odd minutes rather than even minutes**
+        for (let i = 0; (i <= waveOffsetMinutes+1); i++) {
             if (clockMinutePlusWaveOffset - i < 0) {break}
             const tryMinute = (clockMinutePlusWaveOffset - i).toString().padStart(2, "0")
             const waveTimeLocalString = `${waveHour}:${tryMinute}`
@@ -134,6 +141,25 @@ export function HeaderWithWaveTime() {
         })
     }
 
+    function handleNavClick(page:string) {
+        setAppPage(page)
+    }
+
+    function pageContent() {
+        switch (appPage) {
+            case 'grid':
+                return <FullGrid />
+            case 'manager':
+                return <Manager />
+            case 'call-up':
+                return <CallUp clockWave={clockWaveTime}/>
+            case 'epunch':
+                return <EpunchVerify clockWave={clockWaveTime} />
+            default:
+                return <FullGrid />
+        }
+    }
+
     return <div>
         <header className="text-gray-400 bg-gray-900 body-font">
             <div className="container mx-auto flex flex-wrap p-5 flex-col md:flex-row items-center">
@@ -154,22 +180,16 @@ export function HeaderWithWaveTime() {
                 Load UW
             </button>
             <nav className="md:ml-auto flex flex-wrap items-center text-base justify-center">
-                <a className="mr-5 hover:text-white" href="/call-up">Call-up</a>
-                {/* <a className="mr-5 hover:text-white" href="/epunch-check">Epunch Check</a> */}
-                <a className="mr-5 hover:text-white" href="/manager">Start Manager</a>
-                <a className="mr-5 hover:text-white" href="/">Full Grid</a>
+                <button className="mr-5 hover:text-white" onClick={()=>handleNavClick('call-up')}>Call-up</button>
+                <button className="mr-5 hover:text-white" onClick={()=>handleNavClick('epunch')}>Epunch Check</button>
+                <button className="mr-5 hover:text-white" onClick={()=>handleNavClick('manager')}>Start Manager</button>
+                <button className="mr-5 hover:text-white" onClick={()=>handleNavClick('grid')}>Full Grid</button>
             </nav>
             </div>
         </header>
         
         <div className="mx-auto">
-            <Outlet context={{ 
-                    clockWave: clockWaveTime
-                }} />
+            {pageContent()}
         </div>
     </div>
-}
-
-export function useTime() {
-    return useOutletContext<TimeContext>();
 }

@@ -3,7 +3,7 @@ import type {ParticipantState, Participant as ParticipantType} from '@/api/parti
 import { type JSX } from 'react'
 import { SvgIcon } from '../SvgIcon'
 import { SlotStateTag } from '../SlotStateTag'
-import { groupTag, ncTag } from '../Tags'
+import { groupTag, ncTag, rentTag } from '../Tags'
 import { setNewStartTime, } from '@/actions/participantActions'
 import type { PopulatedEntry } from '@/utils/PopulatedEntry'
 import { ParticipantStateChangeButton } from './ParticipantStateChangeButton'
@@ -88,10 +88,9 @@ function displayParticipant(p:ParticipantType, highlightEntry:PopulatedEntry|und
         <div className={`border-2 border-solid ${borderColor} rounded-md flex flex-row min-w-2xs`} key={p.id} data-participant-id={p.id}>
             <SlotStateTag state={p.state}/>
             <div className={`flex flex-col p-1 ${notAttendingStyle}`}>
-                <span className='flex flex-row items-center'>
-                    <span>{p.name} {groupTag(p)} {ncTag(p)}</span>
-                </span>
-                <span className='text-sm'>{p.club}</span>
+                <span><span className='font-bold'>{p.name}</span> {groupTag(p)} {ncTag(p)}</span>
+                <span className='text-sm italic'>{p.club}</span>
+                <span>{p.epunch} {rentTag(p)}</span>
             </div>
             <div className='flex flex-row p-1 items-center ml-auto'>
                 {buttons()}

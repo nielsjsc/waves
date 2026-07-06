@@ -1,21 +1,19 @@
 import { useEffect } from "react";
 import { ManagerActionButton } from "./ManagerActionButton";
-import { useTime } from "./HeaderWithWaveTime";
 import { getUniqueTimesFromSlots } from "./grid/StartGrid";
 import { useLiveQuery } from "@tanstack/react-db";
 import { slotsTanCollection } from "@/database";
 
 
 interface Properties {
+    clockWave: string
     userWaveTime: string
     setUserWaveTime: Function
     nextWaveTime: string
     setNextWaveTime: Function
 }
 
-export function WaveSelection({userWaveTime, setUserWaveTime, nextWaveTime, setNextWaveTime}:Properties) {
-
-    const times  = useTime()
+export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWaveTime, setNextWaveTime}:Properties) {
 
     const {data: allSlots} = useLiveQuery((q) =>
         q.from({slot: slotsTanCollection})
@@ -56,8 +54,8 @@ export function WaveSelection({userWaveTime, setUserWaveTime, nextWaveTime, setN
     }
     
     function handleGoToCurrentWaveClick() {
-        if (waveTimes.includes(times.clockWave)) {
-            setUserWaveTime(times.clockWave)
+        if (waveTimes.includes(clockWave)) {
+            setUserWaveTime(clockWave)
         } else {
             setUserWaveTime(waveTimes[0] ?? '')
         }
@@ -80,8 +78,8 @@ export function WaveSelection({userWaveTime, setUserWaveTime, nextWaveTime, setN
         }
     }
 
-    const userWaveFormat = (times.clockWave === userWaveTime) ? 'text-emerald-500' :
-    (userWaveTime > times.clockWave) ? 'text-sky-500' : 'text-red-500'
+    const userWaveFormat = (clockWave === userWaveTime) ? 'text-emerald-500' :
+    (userWaveTime > clockWave) ? 'text-sky-500' : 'text-red-500'
 
 
     return(

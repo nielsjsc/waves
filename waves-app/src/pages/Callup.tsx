@@ -6,10 +6,10 @@ import { WaveSelection } from "@/components/WaveSelection"
 import { useState } from "react"
 import { Head } from "@/components/Head"
 
-
-// export function CallUp({userWaveTime, nextWaveTime}:Properties) {
-export function CallUp() {
-
+interface Properties {
+    clockWave: string
+}
+export function CallUp({clockWave}:Properties) {
     const [userWaveTime, setUserWaveTime] = useState('')
     const [nextWaveTime, setNextWaveTime] = useState('')
 
@@ -24,7 +24,8 @@ export function CallUp() {
 
     return <div className="flex flex-col gap-4">
         <Head title='Tent 1: Call-up' />
-        <WaveSelection 
+        <WaveSelection
+            clockWave={clockWave}
             userWaveTime={userWaveTime}
             setUserWaveTime={setUserWaveTime}
             nextWaveTime={nextWaveTime}
