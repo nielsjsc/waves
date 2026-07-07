@@ -2,7 +2,6 @@ import { changesTanCollection, participantsTanCollection, slotsTanCollection } f
 import { useLiveQuery } from "@tanstack/react-db";
 
 import { Head } from "@/components/Head";
-import { Header } from "@/components/Header";
 import { useEffect, useRef, useState } from "react";
 import { Search } from "@/components/Search";
 import { hydrateParticipant } from "@/utils/hydrateParticipant";
@@ -152,8 +151,6 @@ export function Manager() {
         <>
             <Head title='Start Manager' />
             <div className="flex flex-col">
-                <Header/>
-
                 <div className="container mx-auto flex flex-col items-center">
 
                     {searchOverlay}
@@ -178,7 +175,7 @@ export function Manager() {
                     </div>
                     </div>
 
-                    <div className="flex flex-row flex-wrap mt-4"> {/*Slot Lists*/}
+                    <div className="flex flex-row flex-wrap mt-4 gap-12"> {/*Slot Lists*/}
                         <div className="flex flex-col min-w-md">
                             <h3 className="text-2xl text-center">All starts at {selectedParticipantEntry?.time}</h3>
                             <div className="max-h-155 overflow-scroll">

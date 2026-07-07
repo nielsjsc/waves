@@ -129,7 +129,7 @@ export function StartGrid({data, columns, selectedParticipantHydrated, scrollTo,
         renderRow(row, rowType, selectedParticipantHydrated, scrollTo, itemOnClick, toStateButtons))
 
     return(
-        <div className=''>
+        <div className='flex flex-col'>
             <table className="table-fixed">
                 <thead>
                     <tr key='gridHeaderRow'>

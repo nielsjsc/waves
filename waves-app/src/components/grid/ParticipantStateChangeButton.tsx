@@ -1,7 +1,6 @@
 import { setStateNoShow, setStatePresent, setStateWaiting } from "@/actions/participantActions"
 import {type Participant as ParticipantType,  type ParticipantState } from "@/api/participants"
 import { SvgIconWithText } from "../SvgIconWithText"
-import { getIconNameByState } from "../ParticipantStateIcon"
 import { ParticipantStateStyles } from "@/utils/styleHelpers"
 
 

@@ -99,7 +99,30 @@ export function SvgIcon({icon}: Properties) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.4104 9.5075L9.79728 6.19931L12.6132 8.26692L15.508 11.5752H19.2297"></path>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.89152 15.7103L7.65095 16.5374H4.34277"></path>
                 </svg>
+        case "plus": //plus
+            return <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+        case "minus": 
+            return <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+                </svg>
 
+
+
+        case "waves-logo": //custom
+            return <svg width="24" height="24" viewBox="0 0 24 24" version="1.1" id="svg1" xmlns="http://www.w3.org/2000/svg">
+                <defs id="defs1"/><g id="layer1">
+                <path fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round" d="m 1.2319215,10.270986 v 3.458028" id="path1" />
+                <path fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round" d="M 3.9239411,7.4768171 V 16.523183" id="path2" />
+                <path fill="#none" stroke="currentColor" strokeWidth="1.1386" strokeLinecap="round" d="M 6.6159607,8.9936962 V 15.006304" id="path3" />
+                <path fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round" d="M 9.3079804,5.5200909 V 18.479909" id="path4" />
+                <path fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round" d="M 12,1.9333646 V 22.066636" id="path6" />
+                <path fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round" d="M 14.692019,3.7919452 V 20.208055" id="path7" />
+                <path fill="#none" stroke="currentColor" strokeWidth="1.1386" strokeLinecap="round" d="M 17.384039,8.3595775 V 15.640423" id="path8" />
+                <path fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round" d="M 20.076058,6.0011641 V 17.998836" id="path9" />
+                <path d="m 22.768078,10.239286 v 3.521428" fill="none" stroke="currentColor" strokeWidth="1.13386" strokeLinecap="round" id="path1-8" />
+                </g></svg>
 
         default: // question-mark-circle
             return <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
