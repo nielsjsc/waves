@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Search } from "@/components/Search";
 import { hydrateParticipant } from "@/utils/hydrateParticipant";
 import { SearchResultCard } from "@/components/SearchResultCard";
-import { setNonCompetitive, setCompetitive, setStateNotAttending, setStateNoShow, setStateWaiting } from "@/actions/participantActions";
+import { setNonCompetitive, setCompetitive, setStateNotAttending, setStateNoShow, setStateWaiting, setStateNeedsAssignment } from "@/actions/participantActions";
 import { populateSlotData } from "@/utils/populateSlotData";
 import { StartGrid } from "@/components/grid/StartGrid";
 import { ManagerActionButton } from "@/components/ManagerActionButton";
@@ -113,19 +113,19 @@ export function Manager() {
             </div>
             <div className="flex flex-wrap flex-col p-1 gap-2">
                 <ManagerActionButton 
-                    action={()=>setStateNotAttending(selectedParticipantId, selectedParticipantEntry!.slotId, selectedParticipantEntry!.course)}
+                    action={()=>setStateNotAttending(selectedParticipantId)}
                     text="Not Attending"
                     icon="x" 
                     color={getColorByIconName("x")}
                     buttonStyle="outline" />
                 <ManagerActionButton 
-                    action={()=>setStateNoShow(selectedParticipantId, selectedParticipantEntry.participant.state)}
+                    action={()=>setStateNoShow(selectedParticipantId)}
                     text="No Show"
                     icon="question-circle" 
                     color={getColorByIconName("question-circle")}
                     buttonStyle="outline" />
                 <ManagerActionButton 
-                    action={()=>{alert("not yet implemented")}}
+                    action={()=>setStateNeedsAssignment(selectedParticipantId)}
                     text="Needs New Time"
                     icon="hourglass" 
                     color={getColorByIconName("hourglass")}

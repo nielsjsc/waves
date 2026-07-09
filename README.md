@@ -2,6 +2,46 @@
 
 Waves is an app to help orienteering event hosts keep interval starts running smoothly.
 
+## Usage
+
+### Participant States
+
+Participants always exist in exactly one of the following states:
+`waiting`, `present`, `validated`, `noShow`, `notAttending`, and `needsAssignment`.
+
+The initial state for a participant is either **waiting** (for those with a pre-assigned start time) or **needsAssignment** (for those who do not have a start time).
+The call-up volunteer can mark a participant as **present** when they arrive at call-up.
+The call-up volunteer can also mark a participant as **noShow** if they are not present at call-up.
+
+The epunch check volunteer will mark a participant as **validated** when they've confirmed that the epunch number in the system matches the epunch number the participant is holding.
+For v1 of this tool, **validated** is the final state for a participant. (Future versions may track states like "started", "finished", and "downloaded".)
+
+The start manager can set a participant as **notAttending**, which automatically frees up that participant's slot if they had one assigned.
+
+The start manager can set a participant as **needsAssignment** to indicate that a participant (perhaps someone who missed their start time and was set as a No-Show) needs a new time. When the start manager assigns a new start time, the participant is moved back to the **waiting** state.
+
+### Rules
+
+To be in waiting, present, validated, or noShow state, the participant must have a real start time.
+To be in notAttending, the participant must be in the _notAttending start time.
+To be in needsAssignment, the participant must be in the _needsAssignment start time.
+
+
+
+
+
+
+
+
+
+### Slots / Start Times
+
+Start times don't actually have a concept of time, they're just a string that looks like a time. 
+A `Slot` is the combination of a `Course` and a `Start Time`. While typically there would be zero or one participant in a given slot, Waves allows for multiple participants to occupy a slot. 
+One reason for this is that there are two "magic" start times: `_notAttending` and `_needsAssignment`.
+
+
+
 ## Developing
 
 ### Starting the app locally

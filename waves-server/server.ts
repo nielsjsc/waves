@@ -62,17 +62,20 @@ await serverRxDb.addCollections({
             version: 0,
             primaryKey: 'id',
             type: 'object',
-            required: ['id', 'name', 'state' ],
+            required: ['id', 'name', 'state', 'isRental', 'isNonCompete', 'groupSize', 'startChanged' ],
             properties: {
                 id: { type: 'string', maxLength: 64},
                 name: { type: 'string' },
-                state: { type: 'string' },
+                state: { type: 'string', enum: ["waiting", "present", "validated", "noShow", "notAttending", "needsAssignment", "started"]},
+                prevState: { type: 'string', enum: ["waiting", "present", "validated", "noShow", "notAttending", "needsAssignment", "started"]},
                 club: { type: 'string' },
                 epunch: { type: 'string' },
                 isRental: { type: 'boolean' },
                 isNonCompete: { type: 'boolean' },
                 groupSize: {type: 'number' },
                 // race_class: { type: 'string' },
+                originalStartTime: {type: 'string'},
+                startChanged: {type: 'boolean'}
             }
         }
     },

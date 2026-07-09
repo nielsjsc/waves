@@ -1,4 +1,4 @@
-import { setStateNoShow, setStatePresent, setStateWaiting } from "@/actions/participantActions"
+import { setStateNeedsAssignment, setStateNoShow, setStateNotAttending, setStatePresent, setStateValidated, setStateWaiting } from "@/actions/participantActions"
 import {type Participant as ParticipantType,  type ParticipantState } from "@/api/participants"
 import { SvgIconWithText } from "../SvgIconWithText"
 import { ParticipantStateStyles } from "@/utils/styleHelpers"
@@ -14,7 +14,13 @@ export function ParticipantStateChangeButton({participant, toState}:Properties) 
 
     function action(toState:ParticipantState) {
         if (participant.state === toState) {
-            return ()=>setStateWaiting(participant.id)
+            // in this case, we want to "un-set" the change
+            // this is to handle miss-clicks
+            if (participant.prevState === undefined) {
+                alert("No Previous State, something's wrong")
+                return
+            }
+            toState = participant.prevState
         }
         switch (toState) {
             case "waiting":
@@ -22,13 +28,13 @@ export function ParticipantStateChangeButton({participant, toState}:Properties) 
             case "present":
                 return ()=>setStatePresent(participant.id)
             case "noShow":
-                return ()=>setStateNoShow(participant.id, participant.state)
+                return ()=>setStateNoShow(participant.id)
             case "validated":
-                return ()=>{alert("Not Implemented")}
+                return ()=>setStateValidated(participant.id)
             case "notAttending":
-                return ()=>{alert("Not Implemented")}
+                return ()=>setStateNotAttending(participant.id)
             case "needsAssignment":
-                return ()=>{alert("Not Implemented")}
+                return ()=>setStateNeedsAssignment(participant.id)
             case "started":
                 return ()=>{alert("Not Implemented")}
             default:

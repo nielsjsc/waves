@@ -25,6 +25,7 @@ export function hydrateParticipant(participantId:string, DATA:AllData):Populated
     const slotDocs = DATA.slots.filter(x => x.participants.includes(participantId))
 
     if (slotDocs.length === 0) {
+        // this happens temporarily while the live data catches up as slot changes are made where we remove then add??
         console.log("BAD! Participant is not in any slot!")
         return undefined
     } else if (slotDocs.length > 1) {
