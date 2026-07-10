@@ -11,11 +11,9 @@ import { FullGrid } from "@/pages/FullGrid"
 import { Manager } from "@/pages/Manager"
 import { CallUp } from "@/pages/CallUp"
 import { EpunchVerify } from "@/pages/EpunchVerify"
+import { Changes } from "@/pages/Changes"
+import { SvgIconWithText } from "./SvgIconWithText"
 
-
-type TimeContext = {
-    clockWave: string
-}
 
 export function HeaderWithWaveTime() {
     
@@ -28,6 +26,7 @@ export function HeaderWithWaveTime() {
 
     const [isWaveOffsetModalOpen, setWaveOffsetModalOpen] = useState(false)
     const [isClockOffsetModalOpen, setClockOffsetModalOpen] = useState(false)
+    const [isNavOpen, setNavOpen] = useState(false)
 
     const [appPage, setAppPage] = useState('grid')
     
@@ -141,7 +140,8 @@ export function HeaderWithWaveTime() {
         })
     }
 
-    function handleNavClick(page:string) {
+    function handleNavPageClick(page:string) {
+        setNavOpen(false)
         setAppPage(page)
     }
 
@@ -155,41 +155,74 @@ export function HeaderWithWaveTime() {
                 return <CallUp clockWave={clockWaveTime}/>
             case 'epunch':
                 return <EpunchVerify clockWave={clockWaveTime} />
+            case 'changes':
+                return <Changes />
             default:
                 return <FullGrid />
         }
     }
 
-    return <div>
-        <header className="text-gray-400 bg-gray-900 body-font">
-            <div className="container mx-auto flex flex-wrap p-5 flex-col md:flex-row items-center">
-                <a className="flex title-font font-medium items-center text-white mb-4 md:mb-0">
-                    <SvgIcon icon="waves-logo" />
-                    <span className="ml-3 text-xl">Waves</span>
-                </a>
-                <div className='title-font text-xl px-2'>
-                    <span className="font-black text-white">{displayWaveTime()}&nbsp;</span>
-                    <span onClick={handleOffsetEditClick}>({waveOffsetMinutes} min ahead)</span>
-                    <span onClick={handleClockEditClick} className='text-base px-2'>Clock Time: {clockTime}</span>
+    function pageName() {
+        switch(appPage) {
+            case 'grid':
+                return "Full Grid"
+            case 'manager':
+                return "Start Manager"
+            case 'call-up':
+                return "Call Up"
+            case 'epunch':
+                return "Epunch Check"
+            case 'change':
+                return "Change Log"
+            default:
+                return ""
+        }
+    }
+
+    function handleNavMenuClick() {
+        setNavOpen(!isNavOpen)
+    }
+
+    const navMenu = isNavOpen ? <div className="absolute flex flex-col z-20 p-1 gap-1 top-6 py-2 right-0 min-w-40 bg-pink-900">
+            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('call-up')}>Call-up</button>
+            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('epunch')}>Epunch Check</button>
+            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('manager')}>Start Manager</button>
+            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('grid')}>Full Grid</button>
+            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('changes')}>Change Log</button>
+            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={handleUWLoadClick}>[temp] Load UW</button>
+    </div> : <></>
+
+    const navButtonStyle = isNavOpen ? "bg-pink-900 text-pink-200" : ""
+    const navButton = <nav className={`flex flex-wrap items-center text-base justify-center relative p-1 ${navButtonStyle}`}>
+        <button onClick={handleNavMenuClick}><SvgIcon icon="hamburger" /></button>
+        {navMenu}
+    </nav>
+
+    return <div className="">
+        <header className="text-gray-400 bg-gray-900 body-font fixed min-w-full max-w-full z-10">
+            {waveOffsetModal}
+            {clockOffsetModal}
+
+            <div className="container mx-auto flex flex-wrap p-4 flex-row items-center">
+                <SvgIconWithText 
+                    icon="waves-logo"
+                    text="Waves" />
+                <div className='title-font text-xl px-2 flex flex-row gap-2'>
+                    <span>{pageName()}</span>
+                    <span className="font-black text-white">{displayWaveTime()}</span>
+                    <span onClick={handleOffsetEditClick}>(+{waveOffsetMinutes})</span>
                 </div>
-                {waveOffsetModal}
-                {clockOffsetModal}
-            <button 
-                className="ml-auto inline-flex items-center bg-gray-800 border-0 ml-2 py-1 px-3 focus:outline-none hover:bg-gray-700 rounded text-base mt-4 md:mt-0"
-                onClick={handleUWLoadClick}>
-                Load UW
-            </button>
-            <nav className="md:ml-auto flex flex-wrap items-center text-base justify-center">
-                <button className="mr-5 hover:text-white" onClick={()=>handleNavClick('call-up')}>Call-up</button>
-                <button className="mr-5 hover:text-white" onClick={()=>handleNavClick('epunch')}>Epunch Check</button>
-                <button className="mr-5 hover:text-white" onClick={()=>handleNavClick('manager')}>Start Manager</button>
-                <button className="mr-5 hover:text-white" onClick={()=>handleNavClick('grid')}>Full Grid</button>
-            </nav>
+                <div className="ml-auto flex flex-row items-center">
+                    {navButton}
+                    <span className='px-2' onClick={handleClockEditClick}>{clockTime}</span>
+                </div>
             </div>
         </header>
         
-        <div className="mx-auto">
+        <div className="relative min-w-full max-w-full mx-auto md:px-8 ">
+            <div className="absolute top-20">
             {pageContent()}
+            </div>
         </div>
     </div>
 }

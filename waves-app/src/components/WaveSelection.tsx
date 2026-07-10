@@ -81,29 +81,28 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
     const userWaveFormat = (clockWave === userWaveTime) ? 'text-emerald-500' :
     (userWaveTime > clockWave) ? 'text-sky-500' : 'text-red-500'
 
-
     return(
-    <div className="flex flex-col gap-1 items-center">
-        <p>Selected Wave: <span className={userWaveFormat}>{userWaveTime}</span> Next Wave: {nextWaveTime}</p>
+    <div className="container mx-auto flex flex-wrap px-5 items-center gap-2">
+        <ManagerActionButton
+                text=""
+                icon="left"
+                color="mauve"
+                action={handlePrevWaveClick}
+                buttonStyle="outline" />
+        <p>Selected Wave: <span className={`text-xl font-bold ${userWaveFormat}`}>{userWaveTime}</span></p>
         <div className="flex flex-row gap-2">
-        <ManagerActionButton
-            text="Previous"
-            icon="left"
-            color="sky"
-            action={handlePrevWaveClick}
-            buttonStyle="outline" />
-        <ManagerActionButton
-            text="Current Wave"
-            icon="arrow-box-down"
-            color="sky"
-            action={handleGoToCurrentWaveClick}
-            buttonStyle="solid" />
-        <ManagerActionButton
-            text="Next Wave"
-            icon="right"
-            color="sky"
-            action={handleNextWaveClick}
-            buttonStyle="outline" />
+            <ManagerActionButton
+                text={`Next (${nextWaveTime})`}
+                icon="right"
+                color="sky"
+                action={handleNextWaveClick}
+                buttonStyle={clockWave === nextWaveTime ? "solid" : "outline"} />
+            <ManagerActionButton
+                text={`Now (${clockWave})`}
+                icon="signal"
+                color="emerald"
+                action={handleGoToCurrentWaveClick}
+                buttonStyle={clockWave !== userWaveTime ? "solid" : "outline"} />
         </div>
     </div>
     )
