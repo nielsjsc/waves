@@ -245,6 +245,29 @@ export async function setStateNeedsAssignment(participantId:string) {
 
 //// Update Participant Properties ////
 
+export async function setNewEpunch(participantId:string, newEpunch:string, newEpunchIsRental:boolean) {
+
+    const oldParticipant = await participantsTanCollection.get(participantId)
+    if (oldParticipant === undefined) {return;}
+
+    const t1 = participantsTanCollection.update(participantId, (p) => {p.epunch = newEpunch, p.isRental = newEpunchIsRental});
+    await t1.isPersisted.promise
+
+        // Record the change for stats
+    const t4 = changesTanCollection.insert([{
+        id: crypto.randomUUID(),
+        participantId: participantId,
+        changedAt: Date.now(),
+        changeType: 'epunch',
+        old: oldParticipant?.epunch ?? '',
+        new: `${newEpunch}, Rental:${newEpunchIsRental}`,
+        needsProcessing: true,
+        isProcessed: false
+    }]);
+    await t4.isPersisted.promise
+
+}
+
 export async function setNewStartTime(participantId:string, oldSlotId:string, newSlotId:string) {
 
     if (participantId === '' || oldSlotId === '' || newSlotId === '' || 

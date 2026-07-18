@@ -128,15 +128,8 @@ export function Search({setParticipant, closeSearch}:Properties) {
         closeSearch()
     }
 
-    function handleCloseClick(e:React.MouseEvent<HTMLDivElement,MouseEvent>) {
-        closeSearch()
-    }
-
     return (
         <>
-            <div onClick={handleCloseClick} className="relative">
-                <button className="absolute top-2 right-2 px-2 py-1 rounded-sm hover:bg-rose-500/50">Close Search</button>
-            </div>
             <div className='flex flex-col'>
                 <div className='text-base p-2'>
                     <div>

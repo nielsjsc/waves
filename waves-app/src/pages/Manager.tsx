@@ -11,12 +11,15 @@ import { populateSlotData } from "@/utils/populateSlotData";
 import { StartGrid } from "@/components/grid/StartGrid";
 import { ManagerActionButton } from "@/components/ManagerActionButton";
 import { getColorByIconName } from "@/utils/styleHelpers";
+import { Modal } from "@/components/Modal";
+import { EditEpunchModal } from "@/components/EditEpunchModal";
 
 
 export function Manager() {
 
     const [isSearchOpen, setSearchOpen] = useState(false)
     const [selectedParticipantId, setSelectedParticipantId] = useState('')
+    const [isEpunchEditOpen, setEpunchEditOpen] = useState(false)
 
     const {data: allParticipants} = useLiveQuery((q) =>
         q.from({participant: participantsTanCollection})
@@ -53,12 +56,28 @@ export function Manager() {
         items.forEach((el) => el.scrollIntoView())
     }
 
+    function handleEditEpunchClick() {
+        if (isEpunchEditOpen) {
+            return
+        }
+        if (!isEpunchEditOpen && selectedParticipantEntry !== undefined) {
+            setEpunchEditOpen(true)
+        }
+    }
+
+    const epunchEditOverlay = isEpunchEditOpen ?
+        <Modal 
+            title={`Edit e-punch for ${selectedParticipantEntry?.participant.name}`}
+            close={()=>setEpunchEditOpen(false)}
+            content={<EditEpunchModal participant={selectedParticipantEntry!} closeModal={()=>setEpunchEditOpen(false)}/>}
+        /> : <></>
+
     const searchOverlay = isSearchOpen ? 
-            <div className="fixed top-0 left-0 h-[95vh] w-[95vw] m-8 border z-50 px-8 py-4 bg-gray-700 overflow-y-auto"
-            >
-                <Search setParticipant={handleSearchSelection} closeSearch={()=>setSearchOpen(false)}/>
-            </div> :
-            <div></div>
+        <Modal
+            title="Participant Search"
+            close={()=>setSearchOpen(false)}
+            content={<Search setParticipant={handleSearchSelection} closeSearch={()=>setSearchOpen(false)}/>}
+        /> : <></>
 
     const selectedParticipantCard = 
         (selectedParticipantId === '' || selectedParticipantEntry === undefined) ? <div className="italic"></div> :
@@ -90,8 +109,8 @@ export function Manager() {
                     color={getColorByIconName("pencil")}
                     buttonStyle="outline" />
                 <ManagerActionButton 
-                    action={()=>{alert("not yet implemented")}}
-                    text="Edit Epunch"
+                    action={()=>handleEditEpunchClick()}
+                    text="Edit E-Punch"
                     icon="pencil" 
                     color={getColorByIconName("pencil")}
                     buttonStyle="outline" />
@@ -154,6 +173,7 @@ export function Manager() {
                 <div className="container mx-auto flex flex-col items-center">
 
                     {searchOverlay}
+                    {epunchEditOverlay}
 
                     <div className="flex flex-row">
                     <div className="flex flex-col mt-2 p-1 items-center gap-2">
