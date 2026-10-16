@@ -1,25 +1,152 @@
-import { changesTanCollection, participantsTanCollection, slotsTanCollection } from "@/database";
-import { useLiveQuery } from "@tanstack/react-db";
+import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useLiveQuery } from "@tanstack/react-db"
+import { changesTanCollection, participantsTanCollection, slotsTanCollection } from "@/database"
+import type { SlotDocType } from "@/Schema"
+import type { ParticipantState } from "@/api/participants"
+import type { PopulatedEntry } from "@/utils/PopulatedEntry"
+import { Head } from "@/components/Head"
+import { Modal } from "@/components/Modal"
+import { EditEpunchModal } from "@/components/EditEpunchModal"
+import { ManagerActionButton } from "@/components/ManagerActionButton"
+import { StartGrid } from "@/components/grid/StartGrid"
+import { ManagerSearchBox } from "@/components/manager/ManagerSearchBox"
+import { AttentionQueue } from "@/components/manager/AttentionQueue"
+import { OpenTimesPicker } from "@/components/manager/OpenTimesPicker"
+import { hydrateParticipant } from "@/utils/hydrateParticipant"
+import { populateSlotData } from "@/utils/populateSlotData"
+import { getOriginalEpunch, getOriginalStart } from "@/utils/originalValues"
+import { addMinutesToClock, formatSlotTime, isMagicTime } from "@/utils/slotLabels"
+import { ParticipantStateStyles, getColorByIconName } from "@/utils/styleHelpers"
+import { keepOnlyInSlot, putInNeedsAssignment } from "@/actions/repairActions"
+import {
+    setCompetitive,
+    setNewEpunch,
+    setNewStartTime,
+    setNonCompetitive,
+    setStateNeedsAssignment,
+    setStateNoShow,
+    setStateNotAttending,
+    setStatePresent,
+    setStateValidated,
+    setStateWaiting,
+} from "@/actions/participantActions"
 
-import { Head } from "@/components/Head";
-import { useEffect, useRef, useState } from "react";
-import { Search } from "@/components/Search";
-import { hydrateParticipant } from "@/utils/hydrateParticipant";
-import { SearchResultCard } from "@/components/SearchResultCard";
-import { setNonCompetitive, setCompetitive, setStateNotAttending, setStateNoShow, setStateWaiting, setStateNeedsAssignment } from "@/actions/participantActions";
-import { populateSlotData } from "@/utils/populateSlotData";
-import { StartGrid } from "@/components/grid/StartGrid";
-import { ManagerActionButton } from "@/components/ManagerActionButton";
-import { getColorByIconName } from "@/utils/styleHelpers";
-import { Modal } from "@/components/Modal";
-import { EditEpunchModal } from "@/components/EditEpunchModal";
+// How long the Undo notice stays on screen before it fades away on its own.
+const UNDO_VISIBLE_MS = 3000
 
+interface Properties {
+    // Header clock ("13:09:17", already corrected by the volunteer) and the call-up
+    // offset, used to hide start times that are already past call-up.
+    clockTime: string
+    waveOffsetMinutes: number
+    // Selection lives in the header so it survives switching to another page.
+    selectedParticipantId: string
+    setSelectedParticipantId: (id: string) => void
+}
 
-export function Manager() {
+//// Undo ////
 
-    const [isSearchOpen, setSearchOpen] = useState(false)
-    const [selectedParticipantId, setSelectedParticipantId] = useState('')
+interface Snapshot {
+    slotId: string
+    slotTime: string
+    state: ParticipantState
+}
+
+interface UndoInfo {
+    message: string
+    run: () => Promise<void>
+}
+
+async function applyState(participantId: string, state: ParticipantState) {
+    switch (state) {
+        case 'waiting': return setStateWaiting(participantId)
+        case 'present': return setStatePresent(participantId)
+        case 'validated': return setStateValidated(participantId)
+        case 'noShow': return setStateNoShow(participantId)
+        case 'notAttending': return setStateNotAttending(participantId)
+        case 'needsAssignment': return setStateNeedsAssignment(participantId)
+        default: return
+    }
+}
+
+// Put a participant back where (and as what) they were before an action.
+async function restoreSnapshot(participantId: string, snapshot: Snapshot, current: PopulatedEntry | undefined) {
+    if (current === undefined) {
+        alert("Can't undo right now: this record isn't in exactly one slot. Wait a moment and try again.")
+        return
+    }
+    if (current.slotId === snapshot.slotId && current.participant.state === snapshot.state) {
+        return // slot and state are unchanged, so there is nothing to put back
+    }
+    if (!isMagicTime(snapshot.slotTime) && current.slotId !== snapshot.slotId) {
+        // Back to a real start time: move there (this also resets them to waiting)...
+        await setNewStartTime(participantId, current.slotId, snapshot.slotId)
+    }
+    // ...then restore the state. For a queue slot this moves them back into the queue.
+    await applyState(participantId, snapshot.state)
+}
+
+//// Small pieces ////
+
+function Pill({className, children}: {className: string, children: ReactNode}) {
+    return <span className={`rounded px-2 py-0.5 text-xs font-medium ${className}`}>{children}</span>
+}
+
+function RecordProblem({name, slots, courses, onKeep, onPlace}: {
+    name: string
+    slots: SlotDocType[]
+    courses: string[]
+    onKeep: (slot: SlotDocType) => void
+    onPlace: (course: string) => void
+}) {
+    return (
+        <div className="flex flex-col gap-3 rounded-lg border border-red-700 bg-red-950 p-4 text-red-100">
+            <h3 className="text-lg font-semibold">Problem with {name}'s record</h3>
+            {slots.length === 0 ? (
+                <>
+                    <p>
+                        {name} isn't in any start slot. This can show up for a few seconds while changes sync.
+                        If it stays, choose a course to put them in its "needs a new time" queue:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {courses.map((c) => (
+                            <button key={c} type="button" onClick={() => onPlace(c)}
+                                className="rounded-md bg-red-800 px-3 py-1 font-semibold hover:bg-red-700">
+                                {c}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            ) : (
+                <>
+                    <p>{name} is listed in {slots.length} slots at once. Choose the one to keep:</p>
+                    <div className="flex flex-col gap-2">
+                        {slots.map((slot) => (
+                            <div key={slot.id} className="flex items-center gap-3">
+                                <span className="flex-1">{slot.course} · {formatSlotTime(slot.time)}</span>
+                                <button type="button" onClick={() => onKeep(slot)}
+                                    className="rounded-md bg-red-800 px-3 py-1 font-semibold hover:bg-red-700">
+                                    Keep this one
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+    )
+}
+
+//// Page ////
+
+export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, setSelectedParticipantId}: Properties) {
+
     const [isEpunchEditOpen, setEpunchEditOpen] = useState(false)
+    const [confirmNotAttending, setConfirmNotAttending] = useState(false)
+    const [timelineOpen, setTimelineOpen] = useState(false)
+    const [focusToken, setFocusToken] = useState(0)
+    const [undo, setUndo] = useState<UndoInfo | undefined>(undefined)
+    const [restoreNote, setRestoreNote] = useState('')
 
     const {data: allParticipants} = useLiveQuery((q) =>
         q.from({participant: participantsTanCollection})
@@ -36,193 +163,410 @@ export function Manager() {
         slots: allSlots,
         changes: allChanges
     }
+    // Undo runs later, so it reads the data as it is then, not as it was when the action ran.
+    const dataRef = useRef(DATA)
+    dataRef.current = DATA
 
-    const selectedParticipantEntry = hydrateParticipant(selectedParticipantId, DATA)
- 
-    const slotsAtThisTime = selectedParticipantEntry?.time.startsWith('_') ? [] : populateSlotData(allSlots.filter(x => x.time === selectedParticipantEntry?.time), allParticipants)
-    const slotsOnThisCourse = selectedParticipantEntry?.course === '' ? [] : populateSlotData(allSlots.filter(x => x.course === selectedParticipantEntry?.course), allParticipants)
-
-    function toggleSearch() {
-        if (isSearchOpen) {
-            setSearchOpen(false);
-        } else {
-            setSearchOpen(true);
+    // Which slot(s) each participant is in. Exactly one is healthy.
+    const slotsByParticipant = new Map<string, SlotDocType[]>()
+    for (const slot of allSlots) {
+        for (const pid of slot.participants) {
+            const list = slotsByParticipant.get(pid)
+            if (list === undefined) {slotsByParticipant.set(pid, [slot])} else {list.push(slot)}
         }
     }
+    const courses = [...new Set(allSlots.map((s) => s.course))].sort()
 
-    function handleSearchSelection(newSelectedParticipantId:string) {
-        setSelectedParticipantId(newSelectedParticipantId)
-        const items = document.querySelectorAll(`[data-participant-id="${newSelectedParticipantId}"`)
-        items.forEach((el) => el.scrollIntoView())
+    const selectedDoc = selectedParticipantId === '' ? undefined : allParticipants.find((p) => p.id === selectedParticipantId)
+    const selectedSlots = selectedDoc === undefined ? [] : (slotsByParticipant.get(selectedDoc.id) ?? [])
+    const entry = selectedDoc !== undefined && selectedSlots.length === 1 ? hydrateParticipant(selectedDoc.id, DATA) : undefined
+
+    const cutoff = addMinutesToClock(clockTime, waveOffsetMinutes)
+
+    // Changing who is selected closes anything that was open for the previous person.
+    useEffect(() => {
+        setConfirmNotAttending(false)
+        setEpunchEditOpen(false)
+        setRestoreNote('')
+    }, [selectedParticipantId])
+
+    // The Undo notice fades away by itself; a newer action replaces it and restarts the timer.
+    useEffect(() => {
+        if (undo === undefined) {return}
+        const timer = setTimeout(() => setUndo(undefined), UNDO_VISIBLE_MS)
+        return () => clearTimeout(timer)
+    }, [undo])
+
+    // Scroll the timeline to the selected participant when it's open.
+    const scrollToRef = useRef<HTMLTableRowElement>(null)
+    useEffect(() => {
+        if (timelineOpen && scrollToRef.current !== null) {
+            scrollToRef.current.scrollIntoView({behavior: 'smooth', block: 'nearest'})
+        }
+    }, [timelineOpen, selectedParticipantId, entry?.slotId])
+
+    function selectParticipant(id: string) {
+        setSelectedParticipantId(id)
     }
 
-    function handleEditEpunchClick() {
-        if (isEpunchEditOpen) {
+    function clearSelection() {
+        setSelectedParticipantId('')
+        setFocusToken((t) => t + 1)
+    }
+
+    // Run an action and offer a one-click undo afterwards. alsoUndo adds a step to the undo,
+    // for changes the slot/state snapshot can't cover (like the e-punch number).
+    async function runWithUndo(message: string, action: () => Promise<unknown>, alsoUndo?: () => Promise<unknown>) {
+        if (entry === undefined) {return}
+        const id = entry.participant.id
+        const snapshot: Snapshot = {slotId: entry.slotId, slotTime: entry.time, state: entry.participant.state}
+        await action()
+        setUndo({
+            message,
+            run: async () => {
+                await restoreSnapshot(id, snapshot, hydrateParticipant(id, dataRef.current))
+                await alsoUndo?.()
+            }
+        })
+    }
+
+    function handleAssign(slot: SlotDocType) {
+        if (entry === undefined) {return}
+        void runWithUndo(
+            `${entry.participant.name} moved to ${slot.course} · ${slot.time}`,
+            () => setNewStartTime(entry.participant.id, entry.slotId, slot.id))
+    }
+
+    function handlePlaceInQueue(course: string) {
+        const magic = allSlots.find((s) => s.course === course && s.time === '_needsAssignment')
+        if (selectedDoc === undefined || magic === undefined) {
+            alert(`Couldn't find the needs-new-time queue for ${course}.`)
             return
         }
-        if (!isEpunchEditOpen && selectedParticipantEntry !== undefined) {
-            setEpunchEditOpen(true)
-        }
+        void putInNeedsAssignment(selectedDoc.id, magic)
     }
 
-    const epunchEditOverlay = isEpunchEditOpen ?
-        <Modal 
-            title={`Edit e-punch for ${selectedParticipantEntry?.participant.name}`}
-            close={()=>setEpunchEditOpen(false)}
-            content={<EditEpunchModal participant={selectedParticipantEntry!} closeModal={()=>setEpunchEditOpen(false)}/>}
-        /> : <></>
+    //// Rendering ////
 
-    const searchOverlay = isSearchOpen ? 
-        <Modal
-            title="Participant Search"
-            close={()=>setSearchOpen(false)}
-            content={<Search setParticipant={handleSearchSelection} closeSearch={()=>setSearchOpen(false)}/>}
-        /> : <></>
-
-    const selectedParticipantCard = 
-        (selectedParticipantId === '' || selectedParticipantEntry === undefined) ? <div className="italic"></div> :
-        <SearchResultCard entry={selectedParticipantEntry} highlight={true} />
-
-    const competitiveToggle = selectedParticipantEntry === undefined ? <></> :
-    selectedParticipantEntry!.participant.isNonCompete ? 
-        <ManagerActionButton
-            text="Set Competitive"
-            action={()=>setCompetitive(selectedParticipantId)}
-            icon="medal" 
-            color="purple"
-            buttonStyle="outline" /> 
-        : <ManagerActionButton
-            text="Set Non-Competitive"
-            action={()=>setNonCompetitive(selectedParticipantId)}
-            icon="medal" 
-            color="purple"
-            buttonStyle="outline" />  
-
-    const actionsOrSearchPrompt = selectedParticipantEntry === undefined ? 
-        <div className="">Select a participant to populate actions</div> :
-        <div className="flex flex-row gap-4">
-            <div className="flex flex-wrap flex-col p-1 gap-2">
-                <ManagerActionButton 
-                    action={()=>{alert("not yet implemented")}}
-                    text="Edit Name"
-                    icon="pencil" 
-                    color={getColorByIconName("pencil")}
-                    buttonStyle="outline" />
-                <ManagerActionButton 
-                    action={()=>handleEditEpunchClick()}
-                    text="Edit E-Punch"
-                    icon="pencil" 
-                    color={getColorByIconName("pencil")}
-                    buttonStyle="outline" />
-                <ManagerActionButton 
-                    action={()=>{alert("not yet implemented")}}
-                    text="Change Class/Course"
-                    icon="pencil" 
-                    color={getColorByIconName("pencil")}
-                    buttonStyle="outline" />
-            </div>
-            <div className="flex flex-wrap flex-col p-1 gap-2">
-                {competitiveToggle}
-                <ManagerActionButton 
-                    action={()=>{alert("not yet implemented")}}
-                    text="Change Group"
-                    icon="group" 
-                    color={getColorByIconName("group")}
-                    buttonStyle="outline" />
-            </div>
-            <div className="flex flex-wrap flex-col p-1 gap-2">
-                <ManagerActionButton 
-                    action={()=>setStateNotAttending(selectedParticipantId)}
-                    text="Not Attending"
-                    icon="x" 
-                    color={getColorByIconName("x")}
-                    buttonStyle="outline" />
-                <ManagerActionButton 
-                    action={()=>setStateNoShow(selectedParticipantId)}
-                    text="No Show"
-                    icon="question-circle" 
-                    color={getColorByIconName("question-circle")}
-                    buttonStyle="outline" />
-                <ManagerActionButton 
-                    action={()=>setStateNeedsAssignment(selectedParticipantId)}
-                    text="Needs New Time"
-                    icon="hourglass" 
-                    color={getColorByIconName("hourglass")}
-                    buttonStyle="outline" />
-                <ManagerActionButton 
-                    action={()=>setStateWaiting(selectedParticipantId)}
-                    text="Reset / Waiting"
-                    icon="clock" 
-                    color={getColorByIconName("clock")}
-                    buttonStyle="outline" />
-            </div>
+    // A toast pinned to the bottom of the screen: it never pushes the page around and fades on its own.
+    const undoBanner = undo === undefined ? null : (
+        <div className="fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-center gap-3 rounded-lg border border-amber-600/60 bg-amber-950 px-4 py-3 text-amber-100 shadow-xl">
+            <span className="flex-1">{undo.message}</span>
+            <button type="button" className="rounded bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-500"
+                onClick={async () => { await undo.run(); setUndo(undefined) }}>
+                Undo
+            </button>
         </div>
+    )
 
-    const scrollToElementRef = useRef<HTMLTableRowElement>(null);
+    function renderDetail(e: PopulatedEntry) {
+        const p = e.participant
+        const style = ParticipantStateStyles.get(p.state)
+        const inRealSlot = !isMagicTime(e.time)
+        const club = p.club === '' || p.club === 'unknown' || p.club === 'None' ? '' : p.club
+        const where = inRealSlot
+            ? `Course ${e.course} · starts ${e.time}`
+            : `${formatSlotTime(e.time)} · course ${e.course}`
+        const originally = p.startChanged && p.originalStartTime !== '' && p.originalStartTime !== e.time
+            ? `Originally ${p.originalStartTime}`
+            : ''
 
-    useEffect(() => {
-        if (scrollToElementRef.current !== null) {
-            scrollToElementRef.current.scrollIntoView({ behavior: 'smooth' })
+        // What would "restore original" change for this person?
+        const originalStart = getOriginalStart(p.id, p.originalStartTime, e.course, allChanges)
+        const startDiffers = originalStart !== undefined && (e.course !== originalStart.course || e.time !== originalStart.time)
+        const originalEpunch = getOriginalEpunch(p.id, allChanges)
+        const epunchDiffers = originalEpunch !== undefined &&
+            (originalEpunch.epunch !== p.epunch || (originalEpunch.isRental !== undefined && originalEpunch.isRental !== p.isRental))
+        const noEpunch = (value: string) => (value === '' ? 'none' : value)
+
+        // The original slot, if it can be moved back into. Otherwise says why not.
+        function findRestorableSlot(): SlotDocType | undefined {
+            if (originalStart === undefined) {return undefined}
+            const label = `${originalStart.course} · ${originalStart.time}`
+            const target = allSlots.find((s) => s.course === originalStart.course && s.time === originalStart.time)
+            if (target === undefined || target.isUsable === false) {
+                setRestoreNote(`The original slot (${label}) isn't available any more. Pick a new time instead.`)
+                return undefined
+            }
+            const others = target.participants.filter((id) => id !== p.id)
+            if (others.length > 0) {
+                const names = others.map((id) => allParticipants.find((x) => x.id === id)?.name ?? 'someone').join(', ')
+                setRestoreNote(`${label} is now taken by ${names}. Pick a new time instead.`)
+                return undefined
+            }
+            return target
         }
-    }, [selectedParticipantId])
-    
+
+        function handleRestoreStart() {
+            setRestoreNote('')
+            const target = findRestorableSlot()
+            if (target === undefined || originalStart === undefined) {return}
+            void runWithUndo(
+                `${p.name} restored to ${originalStart.course} · ${originalStart.time}`,
+                () => setNewStartTime(p.id, e.slotId, target.id))
+        }
+
+        function handleRestoreEpunch() {
+            if (originalEpunch === undefined) {return}
+            const before = {epunch: p.epunch, isRental: p.isRental}
+            void runWithUndo(
+                `${p.name}'s e-punch restored to ${noEpunch(originalEpunch.epunch)}`,
+                () => setNewEpunch(p.id, originalEpunch.epunch, originalEpunch.isRental ?? p.isRental),
+                () => setNewEpunch(p.id, before.epunch, before.isRental))
+        }
+
+        function handleRestoreAll() {
+            setRestoreNote('')
+            const target = startDiffers ? findRestorableSlot() : undefined
+            const epunchTarget = epunchDiffers ? originalEpunch : undefined
+            if (target === undefined && epunchTarget === undefined) {return}
+            const before = {epunch: p.epunch, isRental: p.isRental}
+            const parts: string[] = []
+            if (target !== undefined && originalStart !== undefined) {parts.push(`${originalStart.course} · ${originalStart.time}`)}
+            if (epunchTarget !== undefined) {parts.push(`e-punch ${noEpunch(epunchTarget.epunch)}`)}
+            void runWithUndo(
+                `${p.name} restored to the original: ${parts.join(', ')}`,
+                async () => {
+                    if (target !== undefined) {await setNewStartTime(p.id, e.slotId, target.id)}
+                    if (epunchTarget !== undefined) {await setNewEpunch(p.id, epunchTarget.epunch, epunchTarget.isRental ?? p.isRental)}
+                },
+                epunchTarget === undefined ? undefined : () => setNewEpunch(p.id, before.epunch, before.isRental))
+        }
+
+        return (
+            <div className="flex flex-col gap-4">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+                    <div className="flex flex-col gap-4">
+                        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h2 className="text-2xl font-bold text-white">{p.name}</h2>
+                                {p.groupSize > 1 && <Pill className="bg-emerald-800 text-emerald-100">Group {p.groupSize}</Pill>}
+                                {p.isNonCompete && <Pill className="bg-indigo-800 text-indigo-100">Non-competitive</Pill>}
+                                {p.isRental && <Pill className="bg-orange-800 text-orange-100">Rental e-punch</Pill>}
+                                {style !== undefined && p.state !== 'waiting' && (
+                                    <Pill className={`${style.bg} text-white`}>{style.friendlyName}</Pill>
+                                )}
+                            </div>
+                            <div className="mt-1 text-gray-300">
+                                {club}{club !== '' && ' · '}E-punch {p.epunch === '' ? 'none' : p.epunch}
+                            </div>
+                            <div className="mt-3 text-lg font-semibold text-gray-100">{where}</div>
+                            {originally !== '' && <div className="text-sm text-gray-400">{originally}</div>}
+                        </div>
+
+                        {(startDiffers || epunchDiffers) && (
+                            <div className="flex flex-col gap-2 rounded-lg border border-gray-700 bg-gray-900 p-3">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="flex-1 text-sm font-semibold text-gray-300">Changed from the original</h3>
+                                    {startDiffers && epunchDiffers && (
+                                        <button type="button" className="text-sm text-sky-300 underline" onClick={handleRestoreAll}>
+                                            Restore all
+                                        </button>
+                                    )}
+                                </div>
+                                {startDiffers && originalStart !== undefined && (
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <span className="flex-1 text-gray-300">
+                                            Start: {originalStart.course} · {originalStart.time}
+                                            <span className="text-gray-500"> → now </span>
+                                            {e.course} · {formatSlotTime(e.time)}
+                                        </span>
+                                        <button type="button" className="rounded border border-sky-500 px-2 py-0.5 text-sky-300 hover:bg-sky-600 hover:text-white"
+                                            onClick={handleRestoreStart}>
+                                            Restore
+                                        </button>
+                                    </div>
+                                )}
+                                {epunchDiffers && originalEpunch !== undefined && (
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <span className="flex-1 text-gray-300">
+                                            E-punch: {noEpunch(originalEpunch.epunch)}{originalEpunch.isRental ? ' (rental)' : ''}
+                                            <span className="text-gray-500"> → now </span>
+                                            {noEpunch(p.epunch)}{p.isRental ? ' (rental)' : ''}
+                                        </span>
+                                        <button type="button" className="rounded border border-sky-500 px-2 py-0.5 text-sky-300 hover:bg-sky-600 hover:text-white"
+                                            onClick={handleRestoreEpunch}>
+                                            Restore
+                                        </button>
+                                    </div>
+                                )}
+                                {restoreNote !== '' && <p className="text-sm text-amber-300">{restoreNote}</p>}
+                            </div>
+                        )}
+
+                        <div className="flex flex-col gap-3">
+                            <div className="flex flex-wrap gap-2">
+                                <ManagerActionButton
+                                    action={() => setEpunchEditOpen(true)}
+                                    text="Edit e-punch"
+                                    icon="pencil"
+                                    color={getColorByIconName("pencil")}
+                                    buttonStyle="outline" />
+                                {p.isNonCompete ? (
+                                    <ManagerActionButton
+                                        action={() => setCompetitive(p.id)}
+                                        text="Set competitive"
+                                        icon="medal"
+                                        color="purple"
+                                        buttonStyle="outline" />
+                                ) : (
+                                    <ManagerActionButton
+                                        action={() => setNonCompetitive(p.id)}
+                                        text="Set non-competitive"
+                                        icon="medal"
+                                        color="purple"
+                                        buttonStyle="outline" />
+                                )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                {inRealSlot && p.state !== 'noShow' && (
+                                    <ManagerActionButton
+                                        action={() => void runWithUndo(`${p.name} marked No show`, () => setStateNoShow(p.id))}
+                                        text="No show"
+                                        icon="question-circle"
+                                        color={getColorByIconName("question-circle")}
+                                        buttonStyle="outline" />
+                                )}
+                                {inRealSlot && p.state !== 'waiting' && (
+                                    <ManagerActionButton
+                                        action={() => void runWithUndo(`${p.name} reset to waiting`, () => setStateWaiting(p.id))}
+                                        text="Reset to waiting"
+                                        icon="clock"
+                                        color={getColorByIconName("clock")}
+                                        buttonStyle="outline" />
+                                )}
+                                {e.time !== '_needsAssignment' && (
+                                    <ManagerActionButton
+                                        action={() => void runWithUndo(`${p.name} moved to needs a new time`, () => setStateNeedsAssignment(p.id))}
+                                        text="Needs new time"
+                                        icon="hourglass"
+                                        color={getColorByIconName("hourglass")}
+                                        buttonStyle="outline" />
+                                )}
+                                {e.time !== '_notAttending' && (
+                                    <ManagerActionButton
+                                        action={() => setConfirmNotAttending(true)}
+                                        text="Not attending"
+                                        icon="x"
+                                        color={getColorByIconName("x")}
+                                        buttonStyle="outline" />
+                                )}
+                            </div>
+
+                            {confirmNotAttending && (
+                                <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-600/60 bg-amber-950 px-3 py-2 text-amber-100">
+                                    <span className="flex-1">Mark {p.name} as not attending? This frees their start slot.</span>
+                                    <button type="button" className="rounded bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-500"
+                                        onClick={() => {
+                                            setConfirmNotAttending(false)
+                                            void runWithUndo(`${p.name} marked Not attending`, () => setStateNotAttending(p.id))
+                                        }}>
+                                        Yes, not attending
+                                    </button>
+                                    <button type="button" className="rounded border border-amber-600/60 px-3 py-1"
+                                        onClick={() => setConfirmNotAttending(false)}>
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <OpenTimesPicker
+                        key={p.id}
+                        participantName={p.name}
+                        currentCourse={e.course}
+                        currentTime={e.time}
+                        allSlots={allSlots}
+                        cutoff={cutoff}
+                        onAssign={handleAssign} />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                    <button type="button" className="self-start text-sm text-sky-300 underline"
+                        onClick={() => setTimelineOpen((open) => !open)}>
+                        {timelineOpen ? 'Hide' : 'Show'} full timeline for {e.course}
+                    </button>
+                    {timelineOpen && (
+                        <StartGrid
+                            data={populateSlotData(allSlots.filter((s) => s.course === e.course), allParticipants)}
+                            selectedParticipantHydrated={e}
+                            columns="course"
+                            scrollTo={scrollToRef}
+                            toStateButtons={[]}
+                            className="max-h-96" />
+                    )}
+                </div>
+            </div>
+        )
+    }
+
+    let body: ReactNode
+    if (selectedDoc === undefined) {
+        body = (
+            <>
+                {selectedParticipantId !== '' && (
+                    <p className="text-gray-400">
+                        That participant isn't in the data yet. If you just selected them, changes may still be syncing.
+                    </p>
+                )}
+                <AttentionQueue
+                    participants={allParticipants}
+                    slotsByParticipant={slotsByParticipant}
+                    changes={allChanges}
+                    onSelect={selectParticipant} />
+            </>
+        )
+    } else if (entry === undefined) {
+        body = (
+            <RecordProblem
+                name={selectedDoc.name}
+                slots={selectedSlots}
+                courses={courses}
+                onKeep={(slot) => void keepOnlyInSlot(selectedDoc.id, slot, allSlots)}
+                onPlace={handlePlaceInQueue} />
+        )
+    } else {
+        body = renderDetail(entry)
+    }
+
     return (
         <>
             <Head title='Start Manager' />
-            <div className="flex flex-col">
-                <div className="container mx-auto flex flex-col items-center">
+            <div className="mx-auto flex max-w-6xl flex-col gap-4 pb-8">
+                {isEpunchEditOpen && entry !== undefined && (
+                    <Modal
+                        title={`Edit e-punch for ${entry.participant.name}`}
+                        close={() => setEpunchEditOpen(false)}
+                        content={<EditEpunchModal participant={entry} closeModal={() => setEpunchEditOpen(false)} />}
+                    />
+                )}
 
-                    {searchOverlay}
-                    {epunchEditOverlay}
-
-                    <div className="flex flex-row">
-                    <div className="flex flex-col mt-2 p-1 items-center gap-2">
-                        <ManagerActionButton
-                            action={toggleSearch}
-                            text="Search"
-                            icon="search" 
-                            color="pink"
-                            buttonStyle="solid" />
-                        <div>
-                            {selectedParticipantCard}
-                        </div>
-                        
+                <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                        <ManagerSearchBox
+                            participants={allParticipants}
+                            slotsByParticipant={slotsByParticipant}
+                            onSelect={selectParticipant}
+                            onEscapeWhenEmpty={clearSelection}
+                            focusToken={focusToken} />
                     </div>
-
-                    <div className="flex flex-col items-center">
-                    <h3 className="text-2xl mt-2">Actions</h3>
-                    {actionsOrSearchPrompt}
-                    </div>
-                    </div>
-
-                    <div className="flex flex-row flex-wrap mt-4 gap-12"> {/*Slot Lists*/}
-                        <div className="flex flex-col min-w-md">
-                            <h3 className="text-2xl text-center">All starts at {selectedParticipantEntry?.time}</h3>
-                            <div className="max-h-155 overflow-scroll">
-                            <StartGrid 
-                                data={slotsAtThisTime}
-                                selectedParticipantHydrated={selectedParticipantEntry}
-                                columns="time"
-                                toStateButtons={[]} />
-                            </div>
+                    {selectedParticipantId !== '' && (
+                        <div className="pt-1">
+                            <ManagerActionButton
+                                action={clearSelection}
+                                text="Done"
+                                icon="x"
+                                color="mauve"
+                                buttonStyle="outline" />
                         </div>
-                        <div className="flex flex-col min-w-md">
-                            <h3 className="text-2xl text-center">All starts on course {selectedParticipantEntry?.course}</h3>
-                            <div className="max-h-155 overflow-scroll">
-                            <StartGrid 
-                                data={slotsOnThisCourse} 
-                                selectedParticipantHydrated={selectedParticipantEntry}
-                                columns="course" 
-                                scrollTo={scrollToElementRef}
-                                toStateButtons={[]}/>
-                            </div>
-                        </div>
-                    </div> {/*Slot Lists*/}
+                    )}
+                </div>
 
-                </div> {/*body area*/}
-            </div> {/*page*/}
-            
-            
+                {undoBanner}
+                {body}
+            </div>
         </>
     )
 }

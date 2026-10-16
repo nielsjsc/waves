@@ -9,7 +9,7 @@ import { ClockOffsetEditor } from "./ClockOffsetEditor"
 import { readStartListCsv } from "@/dataImport"
 import { FullGrid } from "@/pages/FullGrid"
 import { Manager } from "@/pages/Manager"
-import { CallUp } from "@/pages/CallUp"
+import { CallUp } from "@/pages/Callup"
 import { EpunchVerify } from "@/pages/EpunchVerify"
 import { Changes } from "@/pages/Changes"
 import { SvgIconWithText } from "./SvgIconWithText"
@@ -23,7 +23,7 @@ export function HeaderWithWaveTime() {
     const [clockTime, setClockTime] = useState('')
     const [waveOffsetMinutes, setWaveOffsetMinutes] = useState(8)
     const [clockWaveTime, setClockWaveTime] = useState('')
-
+    const [managerSelectedId, setManagerSelectedId] = useState('')
     const [isWaveOffsetModalOpen, setWaveOffsetModalOpen] = useState(false)
     const [isClockOffsetModalOpen, setClockOffsetModalOpen] = useState(false)
     const [isNavOpen, setNavOpen] = useState(false)
@@ -150,7 +150,11 @@ export function HeaderWithWaveTime() {
             case 'grid':
                 return <FullGrid />
             case 'manager':
-                return <Manager />
+                return <Manager
+                    clockTime={clockTime}
+                    waveOffsetMinutes={waveOffsetMinutes}
+                    selectedParticipantId={managerSelectedId}
+                    setSelectedParticipantId={setManagerSelectedId} />
             case 'call-up':
                 return <CallUp clockWave={clockWaveTime}/>
             case 'epunch':

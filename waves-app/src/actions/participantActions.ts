@@ -259,7 +259,8 @@ export async function setNewEpunch(participantId:string, newEpunch:string, newEp
         participantId: participantId,
         changedAt: Date.now(),
         changeType: 'epunch',
-        old: oldParticipant?.epunch ?? '',
+        // Same "<epunch>, Rental:<true|false>" format as `new`, so "Restore original" can bring back the rental flag too
+        old: `${oldParticipant.epunch ?? ''}, Rental:${oldParticipant.isRental}`,
         new: `${newEpunch}, Rental:${newEpunchIsRental}`,
         needsProcessing: true,
         isProcessed: false
@@ -275,28 +276,43 @@ export async function setNewStartTime(participantId:string, oldSlotId:string, ne
         console.log("Missing some information, no action taken")
         return
     }
+    if (oldSlotId === newSlotId) {
+        // already in this slot, nothing to move
+        return
+    }
 
     const oldParticipant = await participantsTanCollection.get(participantId)
     if (oldParticipant === undefined) {return;}
 
-    // Remove from current Slot
+    // Look up BOTH slots before changing anything. If the new slot turned out to be
+    // missing after we had already removed the participant from the old one, they
+    // would be left in no slot at all.
     const oldSlot = slotsTanCollection.get(oldSlotId)
     if (oldSlot === undefined) {
         alert("Didn't find old Slot")
         console.log("Didn't find old slot")
         return
     }
-    const remainingOldSlotParticipants = oldSlot.participants.filter(x => x !== participantId)
-    const t1 = slotsTanCollection.update(oldSlotId, (s) => {s.participants = remainingOldSlotParticipants})
-    await t1.isPersisted.promise
-
-    // Add to new Slot
     const newSlot = slotsTanCollection.get(newSlotId)
     if (newSlot === undefined) {
         alert("Didn't find new Slot")
         console.log("Didn't find new slot")
         return
     }
+    if (!oldSlot.participants.includes(participantId)) {
+        // Stale information (for example another device moved them first): do nothing rather than
+        // risk listing them in two slots.
+        alert("That participant is no longer in the slot they were being moved from. Please check their record and try again.")
+        console.log("Participant not in the old slot, no action taken")
+        return
+    }
+
+    // Remove from current Slot
+    const remainingOldSlotParticipants = oldSlot.participants.filter(x => x !== participantId)
+    const t1 = slotsTanCollection.update(oldSlotId, (s) => {s.participants = remainingOldSlotParticipants})
+    await t1.isPersisted.promise
+
+    // Add to new Slot
     const updatedNewSlotParticipants = newSlot.participants.concat(participantId)
     const t2 = slotsTanCollection.update(newSlotId, (s) => {s.participants = updatedNewSlotParticipants})
     await t2.isPersisted.promise
@@ -314,14 +330,16 @@ export async function setNewStartTime(participantId:string, oldSlotId:string, ne
         await t3.isPersisted.promise
     }
 
-    // Record the change for stats
+    // Record the change for stats. A move to another course is logged as "<course> <time>"
+    // on both sides so "Restore original" can find the starting course.
+    const courseChanged = oldSlot.course !== newSlot.course
     const t4 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,
         changedAt: Date.now(),
-        changeType: 'newTime',
-        old: oldSlot?.time ?? '',
-        new: newSlot?.time ?? '',
+        changeType: courseChanged ? 'newCourse' : 'newTime',
+        old: courseChanged ? `${oldSlot.course} ${oldSlot.time}` : oldSlot.time,
+        new: courseChanged ? `${newSlot.course} ${newSlot.time}` : newSlot.time,
         needsProcessing: false,
         isProcessed: false
     }]);
