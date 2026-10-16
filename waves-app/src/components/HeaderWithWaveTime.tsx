@@ -1,4 +1,11 @@
-import { dropAllChanges, dropAllParticipants, dropAllSlots, slotsTanCollection } from "@/database"
+import {
+    dropAllChanges,
+    dropAllParticipants,
+    dropAllSlots,
+    isStaleEvent,
+    onStaleEvent,
+    slotsTanCollection,
+} from "@/database"
 import { useLiveQuery } from "@tanstack/react-db"
 import { useState, useEffect } from "react"
 import { getUniqueTimesFromSlots } from "./grid/StartGrid"
@@ -6,7 +13,7 @@ import { SvgIcon } from "./SvgIcon"
 import { Modal } from "./Modal"
 import { WaveOffsetEditor } from "./WaveOffsetEditor"
 import { ClockOffsetEditor } from "./ClockOffsetEditor"
-import { readStartListCsv } from "@/dataImport"
+import { ensureStartListLoaded, readStartListCsv } from "@/dataImport"
 import { FullGrid } from "@/pages/FullGrid"
 import { Manager } from "@/pages/Manager"
 import { CallUp } from "@/pages/Callup"
@@ -27,6 +34,7 @@ export function HeaderWithWaveTime() {
     const [isWaveOffsetModalOpen, setWaveOffsetModalOpen] = useState(false)
     const [isClockOffsetModalOpen, setClockOffsetModalOpen] = useState(false)
     const [isNavOpen, setNavOpen] = useState(false)
+    const [staleEvent, setStaleEvent] = useState(() => isStaleEvent())
 
     const [appPage, setAppPage] = useState('grid')
     
@@ -35,6 +43,16 @@ export function HeaderWithWaveTime() {
     )
     
     const waveTimes = getUniqueTimesFromSlots(allSlots)
+
+    // Auto-import startlist.csv once the first sync with the server finishes and the event is still empty.
+    useEffect(() => {
+        void ensureStartListLoaded()
+    }, [])
+
+    // Listen for a new event replacing the one this tab opened with.
+    useEffect(() => {
+        return onStaleEvent(() => setStaleEvent(true))
+    }, [])
     
     // CLOCK TIME
     // Adapted from https://stackoverflow.com/questions/70734401/creating-clock-in-react
@@ -128,16 +146,20 @@ export function HeaderWithWaveTime() {
             }
         /> : <></>
     
-    async function handleUWLoadClick() {
-        const p1 = await dropAllSlots()
-        const p2 = await dropAllParticipants()
-        const p3 = await dropAllChanges()
+    const isOrganizer = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('organizer')
 
-        Promise.all([p1, p2, p3])
-        .then(() => {
-            console.log('rxdb: re-created collections')
-            readStartListCsv()
-        })
+    async function handleOrganizerReimportClick() {
+        setNavOpen(false)
+        if (!window.confirm('Reset this event and re-import startlist.csv? This clears all check-in progress and changes for every connected laptop.')) {
+            return
+        }
+        await Promise.all([
+            dropAllSlots(),
+            dropAllParticipants(),
+            dropAllChanges(),
+        ])
+        console.log('rxdb: cleared collections; re-importing startlist.csv')
+        await readStartListCsv()
     }
 
     function handleNavPageClick(page:string) {
@@ -177,6 +199,7 @@ export function HeaderWithWaveTime() {
             case 'epunch':
                 return "Epunch Check"
             case 'change':
+            case 'changes':
                 return "Change Log"
             default:
                 return ""
@@ -193,7 +216,11 @@ export function HeaderWithWaveTime() {
             <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('manager')}>Start Manager</button>
             <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('grid')}>Full Grid</button>
             <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('changes')}>Change Log</button>
-            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={handleUWLoadClick}>[temp] Load UW</button>
+            {isOrganizer && (
+                <button className="rounded-md text-amber-200 hover:bg-pink-700 hover:text-white" onClick={() => void handleOrganizerReimportClick()}>
+                    Re-import start list
+                </button>
+            )}
     </div> : <></>
 
     const navButtonStyle = isNavOpen ? "bg-pink-900 text-pink-200" : ""
@@ -201,6 +228,25 @@ export function HeaderWithWaveTime() {
         <button onClick={handleNavMenuClick}><SvgIcon icon="hamburger" /></button>
         {navMenu}
     </nav>
+
+    if (staleEvent) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-gray-900 p-6 text-gray-100">
+                <div className="flex max-w-md flex-col gap-4 rounded-lg border border-amber-600 bg-amber-950 p-6 text-amber-100 shadow-xl">
+                    <h1 className="text-2xl font-bold text-white">New event loaded</h1>
+                    <p>
+                        This tab is still open from a previous event. Reload the page to switch to the current event's start list.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="self-start rounded-md bg-amber-600 px-4 py-2 font-semibold text-white hover:bg-amber-500">
+                        Reload for new event
+                    </button>
+                </div>
+            </div>
+        )
+    }
 
     return <div className="">
         <header className="text-gray-400 bg-gray-900 body-font fixed min-w-full max-w-full z-10">

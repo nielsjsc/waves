@@ -23,7 +23,7 @@ export function FullGrid() {
 		<div className='flex flex-col'>
 			<StartGrid 
 				data={data} 
-				columns='time' 
+				columns='course' 
 				selectedParticipantHydrated={undefined}
 				toStateButtons={[]} />
 		</div>
