@@ -107,7 +107,7 @@ function replicateRxCollectionsWithServer() {
     console.log(`rxdb: RxServer replication started to ${RX_REPLICATION_SERVER_HOST}`)
 }
 
-replicateRxCollectionsWithServer()
+// replicateRxCollectionsWithServer() // TODO: re-enable when nginx is running
 
 
 

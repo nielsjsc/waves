@@ -4,21 +4,45 @@
 // ESTABLISH MONGODB
 
 import { MongoClient } from 'mongodb';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+// EVENT: each event has its own databases, named after the start list.
+// startsheet_to_csv.py writes event.json (run it from make-start-list.cmd) into
+// waves-app/public. Start this server from the waves-server folder.
+const EVENT_FILE = resolve(process.env.WAVES_EVENT_FILE ?? '../waves-app/public/event.json')
+if (!existsSync(EVENT_FILE)) {
+    console.error(`PROBLEM: ${EVENT_FILE} not found. Run make-start-list.cmd first, then start the server again.`)
+    process.exit(1)
+}
+const EVENT_ID: string = JSON.parse(readFileSync(EVENT_FILE, 'utf8')).eventId
+if (!/^[a-z0-9]+$/.test(EVENT_ID ?? '')) {
+    console.error(`PROBLEM: ${EVENT_FILE} does not contain a valid eventId. Run make-start-list.cmd again.`)
+    process.exit(1)
+}
+const MONGO_DB_NAME = `wavesmongodb_${EVENT_ID}`
+console.log(`event: ${EVENT_ID}`)
+
 const mongoClient = new MongoClient(
     'mongodb://localhost:27017/?directConnection=true'
 );
-const mongoDatabase = mongoClient.db('wavesmongodb');
-console.log('using Mongodb: wavesmongodb')
-await mongoDatabase.createCollection('slots', {
-  changeStreamPreAndPostImages: { enabled: true },
-});
-await mongoDatabase.createCollection('participants', {
-  changeStreamPreAndPostImages: { enabled: true }
-});
-await mongoDatabase.createCollection('changes', {
-    changeStreamPreAndPostImages: {enabled: true }
-})
-console.log('added collections to wavesmongodb')
+const mongoDatabase = mongoClient.db(MONGO_DB_NAME);
+console.log(`using Mongodb: ${MONGO_DB_NAME}`)
+
+// Restarting the server during an event must not fail because the collections already exist.
+async function ensureCollection(name: string) {
+    try {
+        await mongoDatabase.createCollection(name, {
+            changeStreamPreAndPostImages: { enabled: true },
+        });
+    } catch (err: any) {
+        if (err?.code !== 48) { throw err }   // 48 = NamespaceExists
+    }
+}
+await ensureCollection('slots')
+await ensureCollection('participants')
+await ensureCollection('changes')
+console.log(`added collections to ${MONGO_DB_NAME}`)
 
 // ESTABLISH THE RX-SERVER INSTANCE
 
@@ -26,7 +50,7 @@ import { createRxDatabase } from 'rxdb';
 import { getRxStorageMongoDB } from 'rxdb/plugins/storage-mongodb';
 
 const serverRxDb = await createRxDatabase({
-    name: 'wavesServerDb',
+    name: `wavesServerDb_${EVENT_ID}`,
     storage: getRxStorageMongoDB({
         /**
          * MongoDB connection string
@@ -109,7 +133,7 @@ const replicationStateParticipants = replicateMongoDB({
   mongodb: {
     collectionName: 'participants',
     connection: 'mongodb://localhost:27017',
-    databaseName: 'wavesmongodb'
+    databaseName: MONGO_DB_NAME
   },
   collection: serverRxDb.participants,
   replicationIdentifier: 'participants-mongodb-replication-localhost',
@@ -129,7 +153,7 @@ const replicationStateSlots = replicateMongoDB({
   mongodb: {
     collectionName: 'slots',
     connection: 'mongodb://localhost:27017',
-    databaseName: 'wavesmongodb'
+    databaseName: MONGO_DB_NAME
   },
   collection: serverRxDb.slots,
   replicationIdentifier: 'slots-mongodb-replication-localhost',
@@ -149,7 +173,7 @@ const replicationStateChanges = replicateMongoDB({
     mongodb: {
         collectionName: 'changes',
         connection: 'mongodb://localhost:27017',
-        databaseName: 'wavesmongodb'
+        databaseName: MONGO_DB_NAME
     },
     collection: serverRxDb.changes,
     replicationIdentifier: 'changes-mongodb-replication-localhost',
@@ -188,20 +212,20 @@ const server = await createRxServer({
 console.log('created rx-server')
  
 const slotsEndpoint = server.addReplicationEndpoint({
-    name: 'slots',
+    name: `slots-${EVENT_ID}`,
     collection: serverRxDb.slots,
 });
 console.log('Replication endpoint:', `${RX_SERVER_HOST}:${RX_SERVER_PORT}/${slotsEndpoint.urlPath}`);
 
 const participantsEndpoint = server.addReplicationEndpoint({
-    name: 'participants',
+    name: `participants-${EVENT_ID}`,
     collection: serverRxDb.participants,
 });
 console.log('Replication endpoint:', `${RX_SERVER_HOST}:${RX_SERVER_PORT}/${participantsEndpoint.urlPath}`);
  
 
 const changesEndpoint = server.addReplicationEndpoint({
-    name: 'changes',
+    name: `changes-${EVENT_ID}`,
     collection: serverRxDb.changes,
 });
 console.log('Replication endpoint:', `${RX_SERVER_HOST}:${RX_SERVER_PORT}/${changesEndpoint.urlPath}`);
