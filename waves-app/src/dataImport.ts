@@ -157,7 +157,7 @@ type PdfStartListRecord = {
 }
 
 export function readStartListCsv():void {
-    Papa.parse("/WIOL4UWStartListExpanded.csv", {
+    Papa.parse("/startlist.csv", {
         header: true,
         download: true,
         skipEmptyLines: true,
