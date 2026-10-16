@@ -2,9 +2,13 @@ import {
     dropAllChanges,
     dropAllParticipants,
     dropAllSlots,
+    EVENT_ID,
+    getSyncStatus,
     isStaleEvent,
     onStaleEvent,
+    onSyncStatusChange,
     slotsTanCollection,
+    type SyncStatus,
 } from "@/database"
 import { useLiveQuery } from "@tanstack/react-db"
 import { useState, useEffect } from "react"
@@ -21,22 +25,66 @@ import { EpunchVerify } from "@/pages/EpunchVerify"
 import { Changes } from "@/pages/Changes"
 import { SvgIconWithText } from "./SvgIconWithText"
 
+const STORAGE_PAGE_KEY = 'waves.appPage'
+const STORAGE_CLOCK_OFFSET_KEY = `waves.clockOffset.${EVENT_ID}`
+const STORAGE_WAVE_OFFSET_KEY = `waves.waveOffset.${EVENT_ID}`
+
+function readSavedClockOffset(): { hours: number, minutes: number, seconds: number } {
+    try {
+        const raw = localStorage.getItem(STORAGE_CLOCK_OFFSET_KEY)
+        if (!raw) return { hours: 0, minutes: 0, seconds: 0 }
+        const parsed = JSON.parse(raw)
+        return {
+            hours: Number.isFinite(parsed?.hours) ? parsed.hours : 0,
+            minutes: Number.isFinite(parsed?.minutes) ? parsed.minutes : 0,
+            seconds: Number.isFinite(parsed?.seconds) ? parsed.seconds : 0,
+        }
+    } catch {
+        return { hours: 0, minutes: 0, seconds: 0 }
+    }
+}
+
+function readSavedWaveOffset(): number {
+    try {
+        const raw = localStorage.getItem(STORAGE_WAVE_OFFSET_KEY)
+        if (raw === null) return 8
+        const num = Number(raw)
+        return Number.isFinite(num) && num >= 0 ? num : 8
+    } catch {
+        return 8
+    }
+}
+
+function readSavedPage(): string {
+    try {
+        return localStorage.getItem(STORAGE_PAGE_KEY) ?? 'grid'
+    } catch {
+        return 'grid'
+    }
+}
+
+function parseHHMMToMinutes(hhmm: string): number | undefined {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(hhmm)
+    if (!match) return undefined
+    return Number(match[1]) * 60 + Number(match[2])
+}
 
 export function HeaderWithWaveTime() {
-    
-    const [clockOffsetHours, setClockOffsetHours] = useState(0)
-    const [clockOffsetMinutes, setClockOffsetMinutes] = useState(0)
-    const [clockOffsetSeconds, setClockOffsetSeconds] = useState(0)
+    const initialClockOffset = readSavedClockOffset()
+    const [clockOffsetHours, setClockOffsetHours] = useState(initialClockOffset.hours)
+    const [clockOffsetMinutes, setClockOffsetMinutes] = useState(initialClockOffset.minutes)
+    const [clockOffsetSeconds, setClockOffsetSeconds] = useState(initialClockOffset.seconds)
     const [clockTime, setClockTime] = useState('')
-    const [waveOffsetMinutes, setWaveOffsetMinutes] = useState(8)
+    const [waveOffsetMinutes, setWaveOffsetMinutes] = useState(readSavedWaveOffset)
     const [clockWaveTime, setClockWaveTime] = useState('')
     const [managerSelectedId, setManagerSelectedId] = useState('')
     const [isWaveOffsetModalOpen, setWaveOffsetModalOpen] = useState(false)
     const [isClockOffsetModalOpen, setClockOffsetModalOpen] = useState(false)
     const [isNavOpen, setNavOpen] = useState(false)
     const [staleEvent, setStaleEvent] = useState(() => isStaleEvent())
+    const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus())
 
-    const [appPage, setAppPage] = useState('grid')
+    const [appPage, setAppPage] = useState(readSavedPage)
     
     const {data: allSlots} = useLiveQuery((q) =>
         q.from({slot: slotsTanCollection})
@@ -53,52 +101,79 @@ export function HeaderWithWaveTime() {
     useEffect(() => {
         return onStaleEvent(() => setStaleEvent(true))
     }, [])
+
+    // Listen for replication connection changes.
+    useEffect(() => {
+        return onSyncStatusChange(setSyncStatus)
+    }, [])
+
+    // Persist station page and clock/wave offsets across accidental page refreshes.
+    useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_PAGE_KEY, appPage)
+        } catch { /* ignore */ }
+    }, [appPage])
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(
+                STORAGE_CLOCK_OFFSET_KEY,
+                JSON.stringify({ hours: clockOffsetHours, minutes: clockOffsetMinutes, seconds: clockOffsetSeconds })
+            )
+        } catch { /* ignore */ }
+    }, [clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_WAVE_OFFSET_KEY, String(waveOffsetMinutes))
+        } catch { /* ignore */ }
+    }, [waveOffsetMinutes])
     
     // CLOCK TIME
-    // Adapted from https://stackoverflow.com/questions/70734401/creating-clock-in-react
     useEffect(() => {
-        setTimeout(() => {
-            const nowEpoch = new Date().getTime()
-            const nowEpochOffset = nowEpoch + clockOffsetSeconds*1000 + clockOffsetMinutes*60*1000 + clockOffsetHours*60*60*1000
+        function updateClock() {
+            const nowEpoch = Date.now()
+            const nowEpochOffset =
+                nowEpoch +
+                clockOffsetSeconds * 1000 +
+                clockOffsetMinutes * 60 * 1000 +
+                clockOffsetHours * 60 * 60 * 1000
             const nowDate = new Date(nowEpochOffset)
-            
             const hour = nowDate.getHours().toString().padStart(2, "0")
             const minute = nowDate.getMinutes().toString().padStart(2, "0")
             const second = nowDate.getSeconds().toString().padStart(2, "0")
-            const nowTimeLocalString = `${hour}:${minute}:${second}`
-            setClockTime(nowTimeLocalString)
-        },1000)
-    }, [clockTime, clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
+            setClockTime(`${hour}:${minute}:${second}`)
+        }
+        updateClock()
+        const timer = setInterval(updateClock, 1000)
+        return () => clearInterval(timer)
+    }, [clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
 
     // CLOCK BASED CURRENT WAVE TIME
+    // Compares total minutes since midnight so hour rollovers (e.g. 09:58 -> 10:01),
+    // odd-minute starts, and a 0-minute wave offset all work cleanly.
     useEffect(() => {
-        const nowEpoch = new Date().getTime()
-        const nowEpochOffset = nowEpoch + clockOffsetSeconds*1000 + clockOffsetMinutes*60*1000 + clockOffsetHours*60*60*1000
+        const nowEpoch = Date.now()
+        const nowEpochOffset =
+            nowEpoch +
+            clockOffsetSeconds * 1000 +
+            clockOffsetMinutes * 60 * 1000 +
+            clockOffsetHours * 60 * 60 * 1000
 
-        const waveDate = new Date(nowEpochOffset + waveOffsetMinutes*60*1000)
-        const waveHour = waveDate.getHours().toString().padStart(2, "0")
-        const clockMinutePlusWaveOffset = waveDate.getMinutes()
-        
-        // Actual Wave minute is always equal to or less than the Clock Minute Plus Wave Offset.
-        // ex: Waves 8 minutes ahead, new wave every 2 minutes
-        //     At 10:00 the current wave is 10:08. 
-        //     At 10:01 the current wave is 10:08, not 10:09.
-        // So if we don't find a wave at this exact minute, subtract a minute and see if there's one there.
-        // Do this until we get to actual clock time, or stop if we try to go past minute :00 
-        // **stopping at actual clock time is wrong** doesn't handle the 0 offset case properly.
-        // That means **this breaks when offset is 0 and next wave is more than 2 minute gap.**
-        // That means **this breaks if starts are on odd minutes rather than even minutes**
-        for (let i = 0; (i <= waveOffsetMinutes+1); i++) {
-            if (clockMinutePlusWaveOffset - i < 0) {break}
-            const tryMinute = (clockMinutePlusWaveOffset - i).toString().padStart(2, "0")
-            const waveTimeLocalString = `${waveHour}:${tryMinute}`
-            if (waveTimes.includes(waveTimeLocalString)) {
-                setClockWaveTime(waveTimeLocalString)
-                return;
+        const waveDate = new Date(nowEpochOffset + waveOffsetMinutes * 60 * 1000)
+        const targetMinutes = waveDate.getHours() * 60 + waveDate.getMinutes()
+        const lookbackMinutes = Math.max(waveOffsetMinutes + 1, 2)
+
+        let matched = ''
+        for (const wt of waveTimes) {
+            const wm = parseHHMMToMinutes(wt)
+            if (wm === undefined) continue
+            if (wm <= targetMinutes && targetMinutes - wm <= lookbackMinutes) {
+                matched = wt
             }
         }
-        setClockWaveTime('')
-    }, [clockTime, waveTimes, waveOffsetMinutes])
+        setClockWaveTime(matched)
+    }, [clockTime, waveTimes, waveOffsetMinutes, clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
 
     function displayWaveTime() {
         if (clockWaveTime !== '') {
@@ -229,6 +304,29 @@ export function HeaderWithWaveTime() {
         {navMenu}
     </nav>
 
+    const syncBadge = syncStatus === 'synced' ? (
+        <span
+            title="Synced with the Waves server"
+            className="flex items-center gap-1.5 rounded-full bg-emerald-950/80 px-2.5 py-0.5 text-xs font-medium text-emerald-300 border border-emerald-700/60">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            Synced
+        </span>
+    ) : syncStatus === 'offline' ? (
+        <span
+            title="Cannot reach the Waves sync server. Changes are saved on this laptop and will sync when reconnected."
+            className="flex items-center gap-1.5 rounded-full bg-amber-950 px-2.5 py-0.5 text-xs font-semibold text-amber-200 border border-amber-500">
+            <span className="h-2 w-2 rounded-full bg-amber-400" />
+            Offline (saved locally)
+        </span>
+    ) : (
+        <span
+            title="Connecting to the Waves sync server..."
+            className="flex items-center gap-1.5 rounded-full bg-gray-800 px-2.5 py-0.5 text-xs font-medium text-gray-300 border border-gray-600">
+            <span className="h-2 w-2 rounded-full bg-sky-400" />
+            Syncing…
+        </span>
+    )
+
     if (staleEvent) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-gray-900 p-6 text-gray-100">
@@ -260,11 +358,12 @@ export function HeaderWithWaveTime() {
                 <div className='title-font text-xl px-2 flex flex-row gap-2'>
                     <span>{pageName()}</span>
                     <span className="font-black text-white">{displayWaveTime()}</span>
-                    <span onClick={handleOffsetEditClick}>(+{waveOffsetMinutes})</span>
+                    <span className="cursor-pointer" onClick={handleOffsetEditClick}>(+{waveOffsetMinutes})</span>
                 </div>
-                <div className="ml-auto flex flex-row items-center">
+                <div className="ml-auto flex flex-row items-center gap-2">
+                    {syncBadge}
                     {navButton}
-                    <span className='px-2' onClick={handleClockEditClick}>{clockTime}</span>
+                    <span className='px-2 cursor-pointer tabular-nums' onClick={handleClockEditClick}>{clockTime}</span>
                 </div>
             </div>
         </header>

@@ -174,10 +174,14 @@ export async function setStateNotAttending(participantId:string) {
     }
 
     // Update Participant State
+    const preserveOriginalTime = isRealStartTime(oldSlot) && !oldParticipant.startChanged
     const t1 = participantsTanCollection.update(participantId, (p) => {
         p.state = "notAttending"
-        p.prevState = oldParticipant.state 
-        p.startChanged=true
+        p.prevState = oldParticipant.state
+        p.startChanged = true
+        if (preserveOriginalTime) {
+            p.originalStartTime = oldSlot.time
+        }
     })
     await t1.isPersisted.promise
     

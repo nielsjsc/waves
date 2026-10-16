@@ -168,12 +168,40 @@ function replicateRxCollectionsWithServer() {
 
 export const replications = replicateRxCollectionsWithServer()
 
+export type SyncStatus = 'connecting' | 'synced' | 'offline'
+
+let currentSyncStatus: SyncStatus = 'connecting'
+const syncStatusListeners = new Set<(status: SyncStatus) => void>()
+
+function setSyncStatus(next: SyncStatus) {
+    if (currentSyncStatus === next) {
+        return
+    }
+    currentSyncStatus = next
+    for (const listener of syncStatusListeners) {
+        listener(currentSyncStatus)
+    }
+}
+
+export function getSyncStatus(): SyncStatus {
+    return currentSyncStatus
+}
+
+export function onSyncStatusChange(listener: (status: SyncStatus) => void): () => void {
+    syncStatusListeners.add(listener)
+    listener(currentSyncStatus)
+    return () => {
+        syncStatusListeners.delete(listener)
+    }
+}
+
 export const firstSyncDone: Promise<void> = Promise.all([
     replications.slots.awaitInitialReplication(),
     replications.participants.awaitInitialReplication(),
     replications.changes.awaitInitialReplication(),
 ]).then(() => {
     console.log(`rxdb: Initial sync with server finished for event ${EVENT_ID}`)
+    setSyncStatus('synced')
 })
 
 export async function isEventEmpty(): Promise<boolean> {
@@ -232,12 +260,35 @@ export async function checkIfEventChanged(): Promise<void> {
     }
 }
 
-replications.slots.error$.subscribe(() => { void checkIfEventChanged() })
-replications.participants.error$.subscribe(() => { void checkIfEventChanged() })
-replications.changes.error$.subscribe(() => { void checkIfEventChanged() })
+for (const rep of [replications.slots, replications.participants, replications.changes]) {
+    let wasActive = false
+    let errorDuringCycle = false
+    rep.error$.subscribe(() => {
+        errorDuringCycle = true
+        setSyncStatus('offline')
+        void checkIfEventChanged()
+    })
+    rep.received$.subscribe(() => {
+        errorDuringCycle = false
+        setSyncStatus('synced')
+    })
+    rep.sent$.subscribe(() => {
+        errorDuringCycle = false
+        setSyncStatus('synced')
+    })
+    rep.active$.subscribe((active) => {
+        if (active) {
+            wasActive = true
+            errorDuringCycle = false
+        } else if (wasActive && !errorDuringCycle) {
+            setSyncStatus('synced')
+        }
+    })
+}
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     window.addEventListener('focus', () => { void checkIfEventChanged() })
+    window.addEventListener('offline', () => { setSyncStatus('offline') })
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             void checkIfEventChanged()
