@@ -35,6 +35,10 @@ export function CallUp({clockWave}:Properties) {
             columns={"time"} 
             selectedParticipantHydrated={undefined}
             toStateButtons={["present", "noShow"]}
+            variant="station"
+            columnLabels={["Calling now", "Up next"]}
+            currentWave={clockWave}
+            className="max-h-[calc(100vh_-_10.5rem)]"
             />
         </div>
 }

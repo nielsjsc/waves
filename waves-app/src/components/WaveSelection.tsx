@@ -8,9 +8,9 @@ import { slotsTanCollection } from "@/database";
 interface Properties {
     clockWave: string
     userWaveTime: string
-    setUserWaveTime: Function
+    setUserWaveTime: (wave: string) => void
     nextWaveTime: string
-    setNextWaveTime: Function
+    setNextWaveTime: (wave: string) => void
 }
 
 export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWaveTime, setNextWaveTime}:Properties) {
@@ -19,47 +19,51 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
         q.from({slot: slotsTanCollection})
     )
     const waveTimes = getUniqueTimesFromSlots(allSlots)
+    // waveTimes is a new array on every render, so effects depend on this string instead.
+    const waveKey = waveTimes.join(',')
+
+    // INITIAL SELECTION
+    // Start on the clock's wave if it exists, otherwise the first wave, so the
+    // page isn't empty until someone presses "Now". Waits for slots to load.
+    useEffect(() => {
+        if (userWaveTime !== '' || waveTimes.length === 0) {
+            return
+        }
+        setUserWaveTime(waveTimes.includes(clockWave) ? clockWave : waveTimes[0]!)
+    }, [userWaveTime, clockWave, waveKey])
 
     // NEXT WAVE based on USER WAVE
+    // Always set it (blank on the last wave) so a stale value never lingers.
     useEffect(() => {
-        const next = getNextWave()
-        if (next !== undefined) {
-            setNextWaveTime(next)
-        }
-    }, [userWaveTime])
-    
+        setNextWaveTime(getNextWave() ?? '')
+    }, [userWaveTime, waveKey])
+
 
     function getNextWave():string|undefined {
-        if (userWaveTime === '') {
+        const currentIndex = waveTimes.indexOf(userWaveTime)
+        if (currentIndex === -1) {
             return
         }
-        const currentIndex = waveTimes.findIndex((x) => x === userWaveTime)
-        if (currentIndex+1 > waveTimes.length) {
-            // no more waves
-            return
-        }
+        // past the end of the array this is undefined, i.e. no more waves
         return waveTimes[currentIndex+1]
     }
-    
+
     function getPrevWave():string|undefined {
-        if (userWaveTime === '') {
-            return
-        }
-        const currentIndex = waveTimes.findIndex((x) => x === userWaveTime)
-        if (currentIndex-1 < 0) {
-            // no more waves
+        const currentIndex = waveTimes.indexOf(userWaveTime)
+        if (currentIndex <= 0) {
+            // not found, or already the first wave
             return
         }
         return waveTimes[currentIndex-1]
     }
-    
+
     function handleGoToCurrentWaveClick() {
         if (waveTimes.includes(clockWave)) {
             setUserWaveTime(clockWave)
         } else {
             setUserWaveTime(waveTimes[0] ?? '')
         }
-        
+
     }
     function handleNextWaveClick() {
         const next = getNextWave()
@@ -92,13 +96,13 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
         <p>Selected Wave: <span className={`text-xl font-bold ${userWaveFormat}`}>{userWaveTime}</span></p>
         <div className="flex flex-row gap-2">
             <ManagerActionButton
-                text={`Next (${nextWaveTime})`}
+                text={nextWaveTime === '' ? 'Next' : `Next (${nextWaveTime})`}
                 icon="right"
                 color="sky"
                 action={handleNextWaveClick}
-                buttonStyle={clockWave === nextWaveTime ? "solid" : "outline"} />
+                buttonStyle={clockWave !== '' && clockWave === nextWaveTime ? "solid" : "outline"} />
             <ManagerActionButton
-                text={`Now (${clockWave})`}
+                text={clockWave === '' ? 'Now' : `Now (${clockWave})`}
                 icon="signal"
                 color="emerald"
                 action={handleGoToCurrentWaveClick}
