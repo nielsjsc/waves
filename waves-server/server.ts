@@ -83,7 +83,7 @@ await serverRxDb.addCollections({
     },
     participants: {
         schema: {
-            version: 0,
+            version: 1,
             primaryKey: 'id',
             type: 'object',
             required: ['id', 'name', 'state', 'isRental', 'isNonCompete', 'groupSize', 'startChanged' ],

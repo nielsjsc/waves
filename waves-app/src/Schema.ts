@@ -32,7 +32,7 @@ export type SlotCollectionMethods = {
 export const participantSchemaLiteral = {
     // UPDATE IN SERVER.TS TO MATCH!!
     title: 'participant schema',
-    version: 0,
+    version: 1,
     primaryKey: 'id',
     type: 'object',
     required: ['id', 'name', 'state', 'isRental', 'isNonCompete', 'groupSize', 'startChanged' ],

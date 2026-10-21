@@ -126,6 +126,11 @@ async function createRxCollections() {
         participants: {
             schema: participantSchema,
             statics: participantCollectionMethods,
+            migrationStrategies: {
+                1: function(oldDoc) {
+                    return oldDoc;
+                }
+            }
         },
         changes: {
             schema: changesSchema,
