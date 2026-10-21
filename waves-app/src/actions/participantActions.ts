@@ -4,6 +4,13 @@ import { eq, inArray, queryOnce } from "@tanstack/react-db";
 
 //// Helpers ////
 
+let lastChangeTimestamp = 0
+function nextChangeTimestamp(): number {
+    const now = Date.now()
+    lastChangeTimestamp = now > lastChangeTimestamp ? now : lastChangeTimestamp + 1
+    return lastChangeTimestamp
+}
+
 async function getSlotForParticipantId(participantId:string):Promise<SlotDocType|undefined> {
     const slots = await queryOnce((q) =>
         q
@@ -144,7 +151,7 @@ export async function setStateWrongEpunch(participantId:string) {
     const t2 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,
-        changedAt: Date.now(),
+        changedAt: nextChangeTimestamp(),
         changeType: 'wrongEpunch',
         old: oldParticipant.state,
         new: 'wrongEpunch',
@@ -175,7 +182,7 @@ export async function setStateNoShow(participantId:string) {
     const t2 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,
-        changedAt: Date.now(),
+        changedAt: nextChangeTimestamp(),
         changeType: 'noShow',
         old: oldParticipant.state, //TODO CHECK THAT THIS WORKS, IT MIGHT LIVE UPDATE!
         new: 'noShow',
@@ -219,11 +226,11 @@ export async function setStateNotAttending(participantId:string) {
     const t4 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,
-        changedAt: Date.now(),
+        changedAt: nextChangeTimestamp(),
         changeType: 'notAttending',
         old: oldParticipant.state,
         new: 'notAttending',
-        needsProcessing: courseChanged,
+        needsProcessing: false,
         isProcessed: false
     }]);
     await t4.isPersisted.promise
@@ -266,7 +273,7 @@ export async function setStateNeedsAssignment(participantId:string) {
     const t4 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,
-        changedAt: Date.now(),
+        changedAt: nextChangeTimestamp(),
         changeType: 'needsAssignment',
         old: oldParticipant.state,
         new: 'needsAssignment',
@@ -298,7 +305,7 @@ export async function setNewEpunch(participantId:string, newEpunch:string, newEp
     const t4 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,
-        changedAt: Date.now(),
+        changedAt: nextChangeTimestamp(),
         changeType: 'epunch',
         // Same "<epunch>, Rental:<true|false>" format as `new`, so "Restore original" can bring back the rental flag too
         old: `${oldParticipant.epunch ?? ''}, Rental:${oldParticipant.isRental}`,
@@ -377,11 +384,11 @@ export async function setNewStartTime(participantId:string, oldSlotId:string, ne
     const t4 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,
-        changedAt: Date.now(),
+        changedAt: nextChangeTimestamp(),
         changeType: courseChanged ? 'newCourse' : 'newTime',
         old: courseChanged ? `${oldSlot.course} ${oldSlot.time}` : oldSlot.time,
         new: courseChanged ? `${newSlot.course} ${newSlot.time}` : newSlot.time,
-        needsProcessing: false,
+        needsProcessing: courseChanged,
         isProcessed: false
     }]);
     await t4.isPersisted.promise
@@ -395,7 +402,7 @@ export async function setNonCompetitive(participantId:string) {
     const t2 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,
-        changedAt: Date.now(),
+        changedAt: nextChangeTimestamp(),
         changeType: 'competitiveStatus',
         old: 'competitive',
         new: 'non-competitive',
@@ -413,7 +420,7 @@ export async function setCompetitive(participantId:string) {
     const t2 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,
-        changedAt: Date.now(),
+        changedAt: nextChangeTimestamp(),
         changeType: 'competitiveStatus',
         old: 'non-competitive',
         new: 'competitive',

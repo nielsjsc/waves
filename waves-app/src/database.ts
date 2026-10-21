@@ -1,6 +1,7 @@
 
 import { createRxDatabase, addRxPlugin } from 'rxdb/plugins/core';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
+import { getRxStorageMemory } from 'rxdb/plugins/storage-memory';
 
 // import { RxDBDevModePlugin } from 'rxdb/plugins/dev-mode';
 import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv';
@@ -80,13 +81,15 @@ async function fetchEventInfo(): Promise<EventInfo> {
     return info
 }
 
-export const EVENT_INFO: EventInfo = await fetchEventInfo()
+const IS_TEST_ENV = import.meta.env.MODE === 'test'
+
+export const EVENT_INFO: EventInfo = IS_TEST_ENV ? { eventId: 'testevent01' } : await fetchEventInfo()
 export const EVENT_ID: string = EVENT_INFO.eventId
 
 console.log(`rxdb: Creating database for event ${EVENT_ID}...`)
 const db = await createRxDatabase<WavesDbCollections>({
     name: `wavesAppDb_${EVENT_ID}`,
-    storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie() })
+    storage: wrappedValidateAjvStorage({ storage: IS_TEST_ENV ? getRxStorageMemory() : getRxStorageDexie() })
 });
 console.log(`rxdb: Created database wavesAppDb_${EVENT_ID}.`)
 
@@ -171,11 +174,11 @@ function replicateRxCollectionsWithServer() {
     return { slots, participants, changes }
 }
 
-export const replications = replicateRxCollectionsWithServer()
+export const replications = IS_TEST_ENV ? undefined : replicateRxCollectionsWithServer()
 
 export type SyncStatus = 'connecting' | 'synced' | 'offline'
 
-let currentSyncStatus: SyncStatus = 'connecting'
+let currentSyncStatus: SyncStatus = IS_TEST_ENV ? 'synced' : 'connecting'
 const syncStatusListeners = new Set<(status: SyncStatus) => void>()
 const syncChannel =
     typeof BroadcastChannel !== 'undefined'
@@ -225,14 +228,31 @@ export function onSyncStatusChange(listener: (status: SyncStatus) => void): () =
     }
 }
 
-export const firstSyncDone: Promise<void> = Promise.all([
-    replications.slots.awaitInitialReplication(),
-    replications.participants.awaitInitialReplication(),
-    replications.changes.awaitInitialReplication(),
-]).then(() => {
-    console.log(`rxdb: Initial sync with server finished for event ${EVENT_ID}`)
-    setSyncStatus('synced')
-})
+export const firstSyncDone: Promise<void> = replications === undefined
+    ? Promise.resolve()
+    : new Promise<void>((resolve) => {
+          let settled = false
+          const finish = () => {
+              if (!settled) {
+                  settled = true
+                  resolve()
+              }
+          }
+          Promise.all([
+              replications.slots.awaitInitialReplication(),
+              replications.participants.awaitInitialReplication(),
+              replications.changes.awaitInitialReplication(),
+          ]).then(() => {
+              console.log(`rxdb: Initial sync with server finished for event ${EVENT_ID}`)
+              setSyncStatus('synced')
+              finish()
+          })
+          // If the sync server is unreachable on initial boot, allow local offline operation to proceed.
+          const sub = replications.slots.error$.subscribe(() => {
+              sub.unsubscribe()
+              finish()
+          })
+      })
 
 export async function isEventEmpty(): Promise<boolean> {
     const [slot, participant] = await Promise.all([
@@ -276,9 +296,9 @@ export async function checkIfEventChanged(): Promise<void> {
         if (typeof info.eventId === 'string' && /^[a-z0-9]+$/.test(info.eventId) && info.eventId !== EVENT_ID) {
             staleEvent = true
             console.warn(`rxdb: Event changed from ${EVENT_ID} to ${info.eventId}; stopping replication.`)
-            void replications.slots.cancel()
-            void replications.participants.cancel()
-            void replications.changes.cancel()
+            void replications?.slots.cancel()
+            void replications?.participants.cancel()
+            void replications?.changes.cancel()
             for (const listener of staleListeners) {
                 listener()
             }
@@ -290,7 +310,7 @@ export async function checkIfEventChanged(): Promise<void> {
     }
 }
 
-for (const rep of [replications.slots, replications.participants, replications.changes]) {
+for (const rep of replications ? [replications.slots, replications.participants, replications.changes] : []) {
     let wasActive = false
     let errorDuringCycle = false
     rep.error$.subscribe(() => {

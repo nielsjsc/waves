@@ -85,7 +85,7 @@ export function getCourseForClass(className:string):string {
     }
 }
 
-function formatStartTime(timeString:string):string {
+export function formatStartTime(timeString:string):string {
     let res = timeString;
     if (timeString.endsWith(":00")) {
         res = timeString.slice(0,-3)
@@ -100,15 +100,15 @@ function formatStartTime(timeString:string):string {
 // Fixed IDs derived from (event, course, time) so that if two laptops import
 // startlist.csv at the same moment, their documents have identical IDs and
 // contents and collapse into one record instead of creating duplicates.
-function slotIdFor(course: string, time: string): string {
+export function slotIdFor(course: string, time: string): string {
     return `${EVENT_ID}-slot-${course}-${time}`
 }
 
-function participantIdFor(course: string, time: string): string {
+export function participantIdFor(course: string, time: string): string {
     return `${EVENT_ID}-participant-${course}-${time}`
 }
 
-type PdfStartListRecord = {
+export type PdfStartListRecord = {
     Time: string,
     "ELEMENTARYBEGINNER.1": string,
     "ELEMENTARYBEGINNER.2": string,
@@ -182,7 +182,7 @@ export function ensureStartListLoaded(): Promise<void> {
     })()
 }
 
-function participantFromStartListData(
+export function participantFromStartListData(
     participantId: string,
     col1: string,
     col2: string,
@@ -232,7 +232,7 @@ const COURSE_COLUMNS = [
     { course: 'c9', col1: 'COLLEGE VARSITYLONG ADVANCED.1', col2: 'COLLEGE VARSITYLONG ADVANCED.2', col3: 'COLLEGE VARSITYLONG ADVANCED.3' },
 ] as const
 
-async function insertStartListCsv(data:PdfStartListRecord[]) {
+export async function insertStartListCsv(data:PdfStartListRecord[]) {
     const participants:ParticipantDocType[] = []
     const slots:SlotDocType[] = []
 

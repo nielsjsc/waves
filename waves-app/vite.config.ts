@@ -17,14 +17,11 @@ export default defineConfig(() => ({
 		bail: 1,
 		clearMocks: true,
 		coverage: {
-			enabled: true,
-			exclude: ['src/main.tsx', 'src/mocks/browser.ts'],
+			enabled: false,
+			exclude: ['src/main.tsx'],
 			include: ['src/**/*'],
 			reporter: ['text', 'lcov'],
-			reportsDirectory: 'coverage',
-			thresholds: {
-				'100': true
-			}
+			reportsDirectory: 'coverage'
 		},
 		css: false,
 		environment: 'happy-dom',

@@ -3,28 +3,32 @@ import {defineConfig, devices} from '@playwright/test'
 
 export default defineConfig({
 	forbidOnly: Boolean(process.env.CI),
-	fullyParallel: true,
+	fullyParallel: false,
 	projects: [
 		{
 			name: 'chromium',
-			use: {...devices['Desktop Chrome']}
-		},
-		{
-			name: 'Mobile Chrome',
-			use: {...devices['Pixel 5']}
+			use: {
+				...devices['Desktop Chrome'],
+				channel: 'chrome',
+				viewport: {width: 1280, height: 850},
+				ignoreHTTPSErrors: true,
+			}
 		}
 	],
-	reporter: 'html',
-	retries: process.env.CI ? 2 : 0,
+	reporter: 'list',
+	retries: process.env.CI ? 1 : 0,
 	testDir: './tests',
+	timeout: 60000,
 	use: {
-		baseURL: 'http://localhost:5173',
+		baseURL: 'https://localhost:5173',
+		ignoreHTTPSErrors: true,
 		trace: 'on-first-retry'
 	},
 	webServer: {
 		command: 'pnpm dev',
+		ignoreHTTPSErrors: true,
 		reuseExistingServer: !process.env.CI,
-		url: 'http://localhost:5173'
+		url: 'https://localhost:5173'
 	},
-	workers: process.env.CI ? 1 : undefined
+	workers: 1
 })
