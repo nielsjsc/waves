@@ -90,8 +90,9 @@ function formatStartTime(timeString:string):string {
     if (timeString.endsWith(":00")) {
         res = timeString.slice(0,-3)
     }
-    if (res.startsWith("9:")) {
-        res = "0"+res
+    const parts = res.split(":")
+    if (parts.length === 2 && parts[0].length === 1) {
+        return `0${parts[0]}:${parts[1]}`
     }
     return res;
 }

@@ -105,7 +105,7 @@ def parse_cell(value, nc_style, where, warnings):
 def fmt_time(t):
     if isinstance(t, datetime.datetime):
         t = t.time()
-    return f"{t.hour}:{t.minute:02d}:{t.second:02d}"
+    return f"{t.hour:02d}:{t.minute:02d}:{t.second:02d}"
 
 
 def find_headers(ws):

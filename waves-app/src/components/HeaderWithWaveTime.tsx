@@ -69,12 +69,117 @@ function parseHHMMToMinutes(hhmm: string): number | undefined {
     return Number(match[1]) * 60 + Number(match[2])
 }
 
+function HeaderClock({
+    clockOffsetHours,
+    clockOffsetMinutes,
+    clockOffsetSeconds,
+    onClick,
+}: {
+    clockOffsetHours: number
+    clockOffsetMinutes: number
+    clockOffsetSeconds: number
+    onClick: () => void
+}) {
+    const [clockTime, setClockTime] = useState("")
+
+    useEffect(() => {
+        function updateClock() {
+            const nowEpoch = Date.now()
+            const nowEpochOffset =
+                nowEpoch +
+                clockOffsetSeconds * 1000 +
+                clockOffsetMinutes * 60 * 1000 +
+                clockOffsetHours * 60 * 60 * 1000
+            const nowDate = new Date(nowEpochOffset)
+            const hour = nowDate.getHours().toString().padStart(2, "0")
+            const minute = nowDate.getMinutes().toString().padStart(2, "0")
+            const second = nowDate.getSeconds().toString().padStart(2, "0")
+            setClockTime(`${hour}:${minute}:${second}`)
+        }
+        updateClock()
+        const timer = setInterval(updateClock, 1000)
+        return () => clearInterval(timer)
+    }, [clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
+
+    return (
+        <span className="px-2 cursor-pointer tabular-nums" onClick={onClick}>
+            {clockTime}
+        </span>
+    )
+}
+
+function ClockOffsetModalWrapper({
+    close,
+    clockOffsetHours,
+    clockOffsetMinutes,
+    clockOffsetSeconds,
+    handleHoursPlus,
+    handleHoursMinus,
+    handleMinutesPlus,
+    handleMinutesMinus,
+    handleSecondsPlus,
+    handleSecondsMinus,
+}: {
+    close: () => void
+    clockOffsetHours: number
+    clockOffsetMinutes: number
+    clockOffsetSeconds: number
+    handleHoursPlus: () => void
+    handleHoursMinus: () => void
+    handleMinutesPlus: () => void
+    handleMinutesMinus: () => void
+    handleSecondsPlus: () => void
+    handleSecondsMinus: () => void
+}) {
+    const [clockTime, setClockTime] = useState("")
+
+    useEffect(() => {
+        function update() {
+            const nowEpoch = Date.now()
+            const nowEpochOffset =
+                nowEpoch +
+                clockOffsetSeconds * 1000 +
+                clockOffsetMinutes * 60 * 1000 +
+                clockOffsetHours * 60 * 60 * 1000
+            const nowDate = new Date(nowEpochOffset)
+            const hour = nowDate.getHours().toString().padStart(2, "0")
+            const minute = nowDate.getMinutes().toString().padStart(2, "0")
+            const second = nowDate.getSeconds().toString().padStart(2, "0")
+            setClockTime(`${hour}:${minute}:${second}`)
+        }
+        update()
+        const timer = setInterval(update, 1000)
+        return () => clearInterval(timer)
+    }, [clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
+
+    return (
+        <Modal
+            close={close}
+            title="Clock Time"
+            content={
+                <ClockOffsetEditor
+                    clockTime={clockTime}
+                    clockOffsetHours={clockOffsetHours}
+                    clockOffsetMinutes={clockOffsetMinutes}
+                    clockOffsetSeconds={clockOffsetSeconds}
+                    handleHoursPlus={handleHoursPlus}
+                    handleHoursMinus={handleHoursMinus}
+                    handleMinutesPlus={handleMinutesPlus}
+                    handleMinutesMinus={handleMinutesMinus}
+                    handleSecondsPlus={handleSecondsPlus}
+                    handleSecondsMinus={handleSecondsMinus}
+                />
+            }
+        />
+    )
+}
+
 export function HeaderWithWaveTime() {
     const initialClockOffset = readSavedClockOffset()
     const [clockOffsetHours, setClockOffsetHours] = useState(initialClockOffset.hours)
     const [clockOffsetMinutes, setClockOffsetMinutes] = useState(initialClockOffset.minutes)
     const [clockOffsetSeconds, setClockOffsetSeconds] = useState(initialClockOffset.seconds)
-    const [clockTime, setClockTime] = useState('')
+    const [currentMinuteTime, setCurrentMinuteTime] = useState('')
     const [waveOffsetMinutes, setWaveOffsetMinutes] = useState(readSavedWaveOffset)
     const [clockWaveTime, setClockWaveTime] = useState('')
     const [managerSelectedId, setManagerSelectedId] = useState('')
@@ -129,9 +234,11 @@ export function HeaderWithWaveTime() {
         } catch { /* ignore */ }
     }, [waveOffsetMinutes])
     
-    // CLOCK TIME
+    // CLOCK BASED CURRENT WAVE TIME & MINUTE
+    // Checks every second in background, but only updates state when the wave or
+    // the minute changes, preventing constant re-renders across the whole page.
     useEffect(() => {
-        function updateClock() {
+        function updateWaveAndMinute() {
             const nowEpoch = Date.now()
             const nowEpochOffset =
                 nowEpoch +
@@ -141,39 +248,29 @@ export function HeaderWithWaveTime() {
             const nowDate = new Date(nowEpochOffset)
             const hour = nowDate.getHours().toString().padStart(2, "0")
             const minute = nowDate.getMinutes().toString().padStart(2, "0")
-            const second = nowDate.getSeconds().toString().padStart(2, "0")
-            setClockTime(`${hour}:${minute}:${second}`)
-        }
-        updateClock()
-        const timer = setInterval(updateClock, 1000)
-        return () => clearInterval(timer)
-    }, [clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
+            const minuteStr = `${hour}:${minute}`
 
-    // CLOCK BASED CURRENT WAVE TIME
-    // Compares total minutes since midnight so hour rollovers (e.g. 09:58 -> 10:01),
-    // odd-minute starts, and a 0-minute wave offset all work cleanly.
-    useEffect(() => {
-        const nowEpoch = Date.now()
-        const nowEpochOffset =
-            nowEpoch +
-            clockOffsetSeconds * 1000 +
-            clockOffsetMinutes * 60 * 1000 +
-            clockOffsetHours * 60 * 60 * 1000
+            setCurrentMinuteTime((prev) => (prev === minuteStr ? prev : minuteStr))
 
-        const waveDate = new Date(nowEpochOffset + waveOffsetMinutes * 60 * 1000)
-        const targetMinutes = waveDate.getHours() * 60 + waveDate.getMinutes()
-        const lookbackMinutes = Math.max(waveOffsetMinutes + 1, 2)
+            const waveDate = new Date(nowEpochOffset + waveOffsetMinutes * 60 * 1000)
+            const targetMinutes = waveDate.getHours() * 60 + waveDate.getMinutes()
+            const lookbackMinutes = Math.max(waveOffsetMinutes + 1, 2)
 
-        let matched = ''
-        for (const wt of waveTimes) {
-            const wm = parseHHMMToMinutes(wt)
-            if (wm === undefined) continue
-            if (wm <= targetMinutes && targetMinutes - wm <= lookbackMinutes) {
-                matched = wt
+            let matched = ""
+            for (const wt of waveTimes) {
+                const wm = parseHHMMToMinutes(wt)
+                if (wm === undefined) continue
+                if (wm <= targetMinutes && targetMinutes - wm <= lookbackMinutes) {
+                    matched = wt
+                }
             }
+            setClockWaveTime((prev) => (prev === matched ? prev : matched))
         }
-        setClockWaveTime(matched)
-    }, [clockTime, waveTimes, waveOffsetMinutes, clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
+
+        updateWaveAndMinute()
+        const timer = setInterval(updateWaveAndMinute, 1000)
+        return () => clearInterval(timer)
+    }, [waveTimes, waveOffsetMinutes, clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
 
     function displayWaveTime() {
         if (clockWaveTime !== '') {
@@ -202,24 +299,20 @@ export function HeaderWithWaveTime() {
         setClockOffsetModalOpen((prev) => !prev)
     }
 
-    const clockOffsetModal = isClockOffsetModalOpen ? 
-        <Modal 
-            close={()=>handleClockEditClick()}
-            title="Clock Time"
-            content={<ClockOffsetEditor
-                clockTime={clockTime}
-                clockOffsetHours={clockOffsetHours}
-                clockOffsetMinutes={clockOffsetMinutes}
-                clockOffsetSeconds={clockOffsetSeconds}
-                handleHoursPlus={()=>setClockOffsetHours((prev)=>prev+1)}
-                handleHoursMinus={()=>setClockOffsetHours((prev)=>prev-1)}
-                handleMinutesPlus={()=>setClockOffsetMinutes((prev)=>prev+1)}
-                handleMinutesMinus={()=>setClockOffsetMinutes((prev)=>prev-1)}
-                handleSecondsPlus={()=>setClockOffsetSeconds((prev)=>prev+1)}
-                handleSecondsMinus={()=>setClockOffsetSeconds((prev)=>prev-1)}
-                />
-            }
-        /> : <></>
+    const clockOffsetModal = isClockOffsetModalOpen ? (
+        <ClockOffsetModalWrapper
+            close={() => setClockOffsetModalOpen(false)}
+            clockOffsetHours={clockOffsetHours}
+            clockOffsetMinutes={clockOffsetMinutes}
+            clockOffsetSeconds={clockOffsetSeconds}
+            handleHoursPlus={() => setClockOffsetHours((prev) => prev + 1)}
+            handleHoursMinus={() => setClockOffsetHours((prev) => prev - 1)}
+            handleMinutesPlus={() => setClockOffsetMinutes((prev) => prev + 1)}
+            handleMinutesMinus={() => setClockOffsetMinutes((prev) => prev - 1)}
+            handleSecondsPlus={() => setClockOffsetSeconds((prev) => prev + 1)}
+            handleSecondsMinus={() => setClockOffsetSeconds((prev) => prev - 1)}
+        />
+    ) : null
     
     const isOrganizer = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('organizer')
 
@@ -248,7 +341,7 @@ export function HeaderWithWaveTime() {
                 return <FullGrid />
             case 'manager':
                 return <Manager
-                    clockTime={clockTime}
+                    clockTime={currentMinuteTime}
                     waveOffsetMinutes={waveOffsetMinutes}
                     selectedParticipantId={managerSelectedId}
                     setSelectedParticipantId={setManagerSelectedId} />
@@ -363,7 +456,12 @@ export function HeaderWithWaveTime() {
                 <div className="ml-auto flex flex-row items-center gap-2">
                     {syncBadge}
                     {navButton}
-                    <span className='px-2 cursor-pointer tabular-nums' onClick={handleClockEditClick}>{clockTime}</span>
+                    <HeaderClock
+                        clockOffsetHours={clockOffsetHours}
+                        clockOffsetMinutes={clockOffsetMinutes}
+                        clockOffsetSeconds={clockOffsetSeconds}
+                        onClick={handleClockEditClick}
+                    />
                 </div>
             </div>
         </header>
