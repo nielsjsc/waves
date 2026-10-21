@@ -71,7 +71,7 @@ await serverRxDb.addCollections({
             version: 0,
             primaryKey: 'id',
             type: 'object',
-            required: ['id', 'time', 'course', 'participants'],
+            required: ['id', 'time', 'course', 'participants', 'isUsable'],
             properties: {
                 id: { type: 'string', maxLength: 64},
                 time: { type: 'string' },

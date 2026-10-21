@@ -74,6 +74,14 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
 
     const recent = [...changes].sort((a, b) => b.changedAt - a.changedAt).slice(0, 6)
 
+    // Surface any participant who is in 0 slots or 2+ slots (once slots have loaded)
+    // so the Start Manager spots and repairs sync anomalies without having to search for them.
+    const brokenRecords = slotsByParticipant.size === 0
+        ? []
+        : participants
+              .filter((p) => (slotsByParticipant.get(p.id)?.length ?? 0) !== 1)
+              .sort((a, b) => a.name.localeCompare(b.name))
+
     // Group participants by school/club so volunteers can browse any school's roster without typing names.
     const bySchool = new Map<string, ParticipantDocType[]>()
     for (const p of participants) {
@@ -128,6 +136,37 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
 
     return (
         <div className="flex flex-col gap-8">
+            {brokenRecords.length > 0 && (
+                <section className="flex flex-col gap-3 rounded-lg border border-red-700 bg-red-950 p-4 text-red-100">
+                    <div>
+                        <h3 className="text-lg font-semibold text-white">
+                            Records needing repair ({brokenRecords.length})
+                        </h3>
+                        <p className="text-sm text-red-200">
+                            Every participant should be in exactly one slot. Click a record below to fix it:
+                        </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {brokenRecords.map((p) => {
+                            const count = slotsByParticipant.get(p.id)?.length ?? 0
+                            const issue = count === 0 ? 'Not in any slot' : `Listed in ${count} slots`
+                            return (
+                                <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => onSelect(p.id)}
+                                    className="flex items-center justify-between gap-2 rounded-md border border-red-700 bg-red-900/70 px-3 py-2 text-left hover:bg-red-800">
+                                    <span className="truncate font-semibold text-white">{p.name}</span>
+                                    <span className="shrink-0 rounded bg-red-800 px-2 py-0.5 text-xs font-semibold text-red-100">
+                                        {issue}
+                                    </span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </section>
+            )}
+
             <div className="grid gap-6 lg:grid-cols-3">
                 <Section title="Needs a new time" count={needsTime.length} empty="Nobody is waiting for a new time.">
                     {needsTime.map((p) => {

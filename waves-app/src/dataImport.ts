@@ -198,7 +198,7 @@ function participantFromStartListData(
         col2 = "";
     }
     const isGroup = col2.toLocaleLowerCase().includes("group")
-    const groupSize = isGroup ? parseInt(/\(([0-9])\)/.exec(col2)?.[1]!) : 1
+    const groupSize = isGroup ? parseInt(/\(([0-9]+)\)/.exec(col2)?.[1] ?? "1", 10) : 1
 
     const hasClub = !(col2 === "" || isGroup)
     const club = hasClub ? col2 : "unknown"

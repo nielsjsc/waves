@@ -172,8 +172,12 @@ export type SyncStatus = 'connecting' | 'synced' | 'offline'
 
 let currentSyncStatus: SyncStatus = 'connecting'
 const syncStatusListeners = new Set<(status: SyncStatus) => void>()
+const syncChannel =
+    typeof BroadcastChannel !== 'undefined'
+        ? new BroadcastChannel(`waves-sync-status-${EVENT_ID}`)
+        : undefined
 
-function setSyncStatus(next: SyncStatus) {
+function setSyncStatus(next: SyncStatus, broadcast = true) {
     if (currentSyncStatus === next) {
         return
     }
@@ -181,6 +185,27 @@ function setSyncStatus(next: SyncStatus) {
     for (const listener of syncStatusListeners) {
         listener(currentSyncStatus)
     }
+    if (broadcast) {
+        try {
+            syncChannel?.postMessage({ type: 'status', status: currentSyncStatus })
+        } catch { /* ignore */ }
+    }
+}
+
+if (syncChannel !== undefined) {
+    syncChannel.onmessage = (ev) => {
+        const data = ev.data as { type?: string, status?: SyncStatus } | undefined
+        if (data?.type === 'status' && (data.status === 'synced' || data.status === 'offline')) {
+            setSyncStatus(data.status, false)
+        } else if (data?.type === 'request' && currentSyncStatus !== 'connecting') {
+            try {
+                syncChannel.postMessage({ type: 'status', status: currentSyncStatus })
+            } catch { /* ignore */ }
+        }
+    }
+    try {
+        syncChannel.postMessage({ type: 'request' })
+    } catch { /* ignore */ }
 }
 
 export function getSyncStatus(): SyncStatus {
