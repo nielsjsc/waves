@@ -14,6 +14,8 @@ export function getColorByState(state:string):string {
             return "sky"
         case "validated":
             return "emerald"
+        case "wrongEpunch":
+            return "amber"
         case "noShow":
             return "red"
         case "notAttending":
@@ -35,6 +37,8 @@ export function getIconNameByState(state:string):string {
             return "pin"
         case "validated":
             return "check-badge"
+        case "wrongEpunch":
+            return "triangle-bang"
         case "noShow":
             return "question-circle"
         case "notAttending":

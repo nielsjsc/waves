@@ -46,6 +46,7 @@ export function clockHHMM(ms: number): string {
 
 const CHANGE_LABELS: Record<string, string> = {
     noShow: 'No show',
+    wrongEpunch: 'Wrong e-punch',
     notAttending: 'Not attending',
     needsAssignment: 'Needs new time',
     newTime: 'New time',

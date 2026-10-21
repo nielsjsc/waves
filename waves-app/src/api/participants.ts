@@ -3,8 +3,8 @@ import * as v from 'valibot'
 export const Participant = v.object({
     id:v.string(),
     name:v.string(),
-    state:v.picklist(["waiting", "present", "validated", "noShow", "notAttending", "needsAssignment", "started"]),
-    prevState:v.optional(v.picklist(["waiting", "present", "validated", "noShow", "notAttending", "needsAssignment", "started"])),
+    state:v.picklist(["waiting", "present", "validated", "wrongEpunch", "noShow", "notAttending", "needsAssignment", "started"]),
+    prevState:v.optional(v.picklist(["waiting", "present", "validated", "wrongEpunch", "noShow", "notAttending", "needsAssignment", "started"])),
     club:v.optional(v.string(), 'None'),
     epunch:v.optional(v.string(), ''),
     isRental:v.boolean(),
@@ -20,6 +20,7 @@ export type ParticipantState =
     | "waiting"
     | "present"
     | "validated"
+    | "wrongEpunch"
     | "noShow"
     | "notAttending"
     | "needsAssignment"

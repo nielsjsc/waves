@@ -34,7 +34,7 @@ export function EpunchVerify({clockWave}:Properties) {
             data={slotsThisWaveAndNext} 
             columns={"time"}
             selectedParticipantHydrated={undefined}
-            toStateButtons={["validated"]}
+            toStateButtons={["validated", "wrongEpunch"]}
             variant="station"
             columnLabels={["Checking now", "Up next"]}
             currentWave={clockWave}

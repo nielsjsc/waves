@@ -29,6 +29,7 @@ import {
     setStatePresent,
     setStateValidated,
     setStateWaiting,
+    setStateWrongEpunch,
 } from "@/actions/participantActions"
 
 // How long the Undo notice stays on screen before it fades away on its own.
@@ -62,6 +63,7 @@ async function applyState(participantId: string, state: ParticipantState) {
         case 'waiting': return setStateWaiting(participantId)
         case 'present': return setStatePresent(participantId)
         case 'validated': return setStateValidated(participantId)
+        case 'wrongEpunch': return setStateWrongEpunch(participantId)
         case 'noShow': return setStateNoShow(participantId)
         case 'notAttending': return setStateNotAttending(participantId)
         case 'needsAssignment': return setStateNeedsAssignment(participantId)
@@ -402,6 +404,14 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                                     icon="pencil"
                                     color={getColorByIconName("pencil")}
                                     buttonStyle="outline" />
+                                {inRealSlot && p.state === 'wrongEpunch' && (
+                                    <ManagerActionButton
+                                        action={() => void runWithUndo(`${p.name} marked Validated`, () => setStateValidated(p.id))}
+                                        text="Mark e-punch validated"
+                                        icon="check-badge"
+                                        color={getColorByIconName("check-badge")}
+                                        buttonStyle="outline" />
+                                )}
                                 {p.isNonCompete ? (
                                     <ManagerActionButton
                                         action={() => setCompetitive(p.id)}

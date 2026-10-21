@@ -1,4 +1,4 @@
-import { setStateNeedsAssignment, setStateNoShow, setStateNotAttending, setStatePresent, setStateValidated, setStateWaiting } from "@/actions/participantActions"
+import { setStateNeedsAssignment, setStateNoShow, setStateNotAttending, setStatePresent, setStateValidated, setStateWaiting, setStateWrongEpunch } from "@/actions/participantActions"
 import {type Participant as ParticipantType,  type ParticipantState } from "@/api/participants"
 import { SvgIconWithText } from "../SvgIconWithText"
 import { ParticipantStateStyles } from "@/utils/styleHelpers"
@@ -31,6 +31,8 @@ export function ParticipantStateChangeButton({participant, toState}:Properties) 
                 return ()=>setStateNoShow(participant.id)
             case "validated":
                 return ()=>setStateValidated(participant.id)
+            case "wrongEpunch":
+                return ()=>setStateWrongEpunch(participant.id)
             case "notAttending":
                 return ()=>setStateNotAttending(participant.id)
             case "needsAssignment":
@@ -54,6 +56,13 @@ export function ParticipantStateChangeButton({participant, toState}:Properties) 
         }
     }
 
+    function buttonLabel() {
+        if (toState === "validated") {
+            return participant.state === "validated" ? "Validated" : "Validate"
+        }
+        return ParticipantStateStyles.get(toState)!.friendlyName
+    }
+
     return(
         <button 
             className={`border border-1 rounded-sm p-1 ${buttonStyle()}`}
@@ -61,7 +70,7 @@ export function ParticipantStateChangeButton({participant, toState}:Properties) 
             key={`participant-state-change-${toState}-${participant.id}`}>
             <SvgIconWithText 
                 icon={ParticipantStateStyles.get(toState)!.iconName}
-                text={ParticipantStateStyles.get(toState)!.friendlyName}/>
+                text={buttonLabel()}/>
         </button>
     )
 }

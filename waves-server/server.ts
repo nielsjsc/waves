@@ -90,8 +90,8 @@ await serverRxDb.addCollections({
             properties: {
                 id: { type: 'string', maxLength: 64},
                 name: { type: 'string' },
-                state: { type: 'string', enum: ["waiting", "present", "validated", "noShow", "notAttending", "needsAssignment", "started"]},
-                prevState: { type: 'string', enum: ["waiting", "present", "validated", "noShow", "notAttending", "needsAssignment", "started"]},
+                state: { type: 'string', enum: ["waiting", "present", "validated", "wrongEpunch", "noShow", "notAttending", "needsAssignment", "started"]},
+                prevState: { type: 'string', enum: ["waiting", "present", "validated", "wrongEpunch", "noShow", "notAttending", "needsAssignment", "started"]},
                 club: { type: 'string' },
                 epunch: { type: 'string' },
                 isRental: { type: 'boolean' },

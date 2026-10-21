@@ -124,6 +124,36 @@ export async function setStateValidated(participantId:string) {
     await t1.isPersisted.promise
 }
 
+export async function setStateWrongEpunch(participantId:string) {
+    // must have a valid start time; keeps the participant in their current slot
+    // (any?) -> WrongEpunch
+
+    const oldParticipant = await participantsTanCollection.get(participantId)
+    if (oldParticipant === undefined) {return;}
+
+    const slot = await getSlotForParticipantId(participantId)
+    if (slot === undefined) {return;}
+    if (!isRealStartTime(slot)) {return;}
+
+    const t1 = participantsTanCollection.update(participantId, (p) => {
+        p.state = "wrongEpunch"
+        p.prevState = oldParticipant.state
+    })
+    await t1.isPersisted.promise
+
+    const t2 = changesTanCollection.insert([{
+        id: crypto.randomUUID(),
+        participantId: participantId,
+        changedAt: Date.now(),
+        changeType: 'wrongEpunch',
+        old: oldParticipant.state,
+        new: 'wrongEpunch',
+        needsProcessing: false,
+        isProcessed: false
+    }]);
+    await t2.isPersisted.promise
+}
+
 export async function setStateNoShow(participantId:string) {
     // must have a valid start time
     // (any?) -> NoShow
@@ -193,7 +223,7 @@ export async function setStateNotAttending(participantId:string) {
         changeType: 'notAttending',
         old: oldParticipant.state,
         new: 'notAttending',
-        needsProcessing: false,
+        needsProcessing: courseChanged,
         isProcessed: false
     }]);
     await t4.isPersisted.promise
@@ -254,7 +284,14 @@ export async function setNewEpunch(participantId:string, newEpunch:string, newEp
     const oldParticipant = await participantsTanCollection.get(participantId)
     if (oldParticipant === undefined) {return;}
 
-    const t1 = participantsTanCollection.update(participantId, (p) => {p.epunch = newEpunch, p.isRental = newEpunchIsRental});
+    const t1 = participantsTanCollection.update(participantId, (p) => {
+        p.epunch = newEpunch
+        p.isRental = newEpunchIsRental
+        if (oldParticipant.state === "wrongEpunch") {
+            p.prevState = oldParticipant.state
+            p.state = "validated"
+        }
+    });
     await t1.isPersisted.promise
 
         // Record the change for stats

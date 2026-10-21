@@ -67,6 +67,11 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
         .filter((p) => p.state === 'needsAssignment')
         .sort((a, b) => courseOf(a.id).localeCompare(courseOf(b.id)) || a.name.localeCompare(b.name))
 
+    // People flagged at Tent 1 with an incorrect e-punch, ordered by upcoming start time.
+    const wrongEpunch = participants
+        .filter((p) => p.state === 'wrongEpunch')
+        .sort((a, b) => timeOf(a.id).localeCompare(timeOf(b.id)) || courseOf(a.id).localeCompare(courseOf(b.id)) || a.name.localeCompare(b.name))
+
     // Oldest start first: the people who have been waiting longest to be dealt with.
     const noShows = participants
         .filter((p) => p.state === 'noShow')
@@ -105,7 +110,7 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
                     checkedIn++
                 } else if (m.state === 'waiting') {
                     waiting++
-                } else if (m.state === 'noShow' || m.state === 'needsAssignment') {
+                } else if (m.state === 'noShow' || m.state === 'needsAssignment' || m.state === 'wrongEpunch') {
                     attention++
                 } else if (m.state === 'notAttending') {
                     notAttending++
@@ -167,7 +172,23 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
                 </section>
             )}
 
-            <div className="grid gap-6 lg:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+                <Section title="Wrong e-punch" count={wrongEpunch.length} empty="No e-punch issues right now.">
+                    {wrongEpunch.map((p) => {
+                        const at = lastChange.get(`${p.id}|wrongEpunch`)
+                        const ep = p.epunch ? `E-punch ${p.epunch}` : 'no e-punch'
+                        return (
+                            <Row
+                                key={p.id}
+                                title={p.name}
+                                detail={[courseOf(p.id), `starts ${formatSlotTime(timeOf(p.id))}`, ep, clubOf(p)].filter((x) => x !== '').join(' · ')}
+                                aside={at === undefined ? '' : timeAgo(at)}
+                                onClick={() => onSelect(p.id)}
+                            />
+                        )
+                    })}
+                </Section>
+
                 <Section title="Needs a new time" count={needsTime.length} empty="Nobody is waiting for a new time.">
                     {needsTime.map((p) => {
                         const at = lastChange.get(`${p.id}|needsAssignment`)
