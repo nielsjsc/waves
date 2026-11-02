@@ -124,7 +124,12 @@ async function createRxCollections() {
     await db.addCollections({
         slots: {
             schema: slotSchema,
-            statics: slotCollectionMethods
+            statics: slotCollectionMethods,
+            migrationStrategies: {
+                1: function(oldDoc) {
+                    return oldDoc;
+                }
+            }
         },
         participants: {
             schema: participantSchema,
@@ -149,7 +154,7 @@ function replicateRxCollectionsWithServer() {
     const slots = replicateServer({
         collection: db.slots,
         replicationIdentifier: `slots-replication-app-to-rxserver-${EVENT_ID}`,
-        url: `${baseUrl}/slots-${EVENT_ID}/0`,
+        url: `${baseUrl}/slots-${EVENT_ID}/${slotSchema.version}`,
         live: true,
         pull: { batchSize: 50 },
         push: { batchSize: 50 }
@@ -157,7 +162,7 @@ function replicateRxCollectionsWithServer() {
     const participants = replicateServer({
         collection: db.participants,
         replicationIdentifier: `participants-replication-app-to-rxserver-${EVENT_ID}`,
-        url: `${baseUrl}/participants-${EVENT_ID}/0`,
+        url: `${baseUrl}/participants-${EVENT_ID}/${participantSchema.version}`,
         live: true,
         pull: { batchSize: 50 },
         push: { batchSize: 50 }
@@ -165,7 +170,7 @@ function replicateRxCollectionsWithServer() {
     const changes = replicateServer({
         collection: db.changes,
         replicationIdentifier: `changes-replication-app-to-rxserver-${EVENT_ID}`,
-        url: `${baseUrl}/changes-${EVENT_ID}/0`,
+        url: `${baseUrl}/changes-${EVENT_ID}/${changesSchema.version}`,
         live: true,
         pull: { batchSize: 50 },
         push: { batchSize: 50 }

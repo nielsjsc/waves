@@ -46,8 +46,11 @@ console.log(`added collections to ${MONGO_DB_NAME}`)
 
 // ESTABLISH THE RX-SERVER INSTANCE
 
-import { createRxDatabase } from 'rxdb';
+import { createRxDatabase, addRxPlugin } from 'rxdb';
 import { getRxStorageMongoDB } from 'rxdb/plugins/storage-mongodb';
+import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
+
+addRxPlugin(RxDBMigrationSchemaPlugin);
 
 const serverRxDb = await createRxDatabase({
     name: `wavesServerDb_${EVENT_ID}`,
@@ -68,7 +71,7 @@ await serverRxDb.addCollections({
     // UPDATE IN APP>Schema.ts TO MATCH!!
     slots: {
         schema: {
-            version: 0,
+            version: 1,
             primaryKey: 'id',
             type: 'object',
             required: ['id', 'time', 'course', 'participants', 'isUsable'],
@@ -78,6 +81,11 @@ await serverRxDb.addCollections({
                 course: { type: 'string' },
                 participants: { type: 'array', ref: 'participants', items: { type: 'string' } },
                 isUsable: { type: 'boolean' }
+            }
+        },
+        migrationStrategies: {
+            1: function(oldDoc: any) {
+                return oldDoc;
             }
         }
     },
@@ -100,6 +108,11 @@ await serverRxDb.addCollections({
                 // race_class: { type: 'string' },
                 originalStartTime: {type: 'string'},
                 startChanged: {type: 'boolean'}
+            }
+        },
+        migrationStrategies: {
+            1: function(oldDoc: any) {
+                return oldDoc;
             }
         }
     },

@@ -20,15 +20,15 @@ export default defineConfig({
 	testDir: './tests',
 	timeout: 60000,
 	use: {
-		baseURL: 'https://localhost:5173',
+		baseURL: 'https://localhost:5174',
 		ignoreHTTPSErrors: true,
 		trace: 'on-first-retry'
 	},
 	webServer: {
-		command: 'pnpm dev',
+		command: 'pnpm dev --port 5174 --strictPort',
 		ignoreHTTPSErrors: true,
-		reuseExistingServer: !process.env.CI,
-		url: 'https://localhost:5173'
+		reuseExistingServer: false,
+		url: 'https://localhost:5174'
 	},
 	workers: 1
 })

@@ -9,7 +9,7 @@ export const slotSchemaLiteral = {
     // UPDATE IN SERVER.TS TO MATCH!!
     title: 'slot schema',
     description: 'a slot is a possible start time on a course',
-    version: 0,
+    version: 1,
     primaryKey: 'id',
     type: 'object',
     required: ['id', 'time', 'course', 'participants', 'isUsable'],
