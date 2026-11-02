@@ -59,3 +59,19 @@ const CHANGE_LABELS: Record<string, string> = {
 export function changeTypeLabel(changeType: string): string {
     return CHANGE_LABELS[changeType] ?? changeType
 }
+
+const COURSE_HINTS: Record<string, string> = {
+    c1: 'Elem / Beg',
+    c2: 'Middle Sch',
+    c3: 'Rookie F / Adv Beg',
+    c4: 'Rookie M',
+    c5: 'JV F / Int',
+    c6: 'JV M',
+    c7: 'Varsity',
+    c8: 'Short Adv',
+    c9: 'Long Adv / Coll',
+}
+
+export function courseShortLabel(course: string): string {
+    return COURSE_HINTS[course] ?? ''
+}

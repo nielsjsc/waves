@@ -8,7 +8,21 @@ import { hydrateChange } from '@/utils/hydrateChange'
 import { changeTypeLabel, clockHHMM, formatSlotTime, timeAgo } from '@/utils/slotLabels'
 import { ParticipantStateStyles } from '@/utils/styleHelpers'
 
-type FilterMode = 'pendingTiming' | 'allTiming' | 'allChanges'
+type CategoryFilter = 'all' | 'epunch' | 'timeCourse' | 'attendance'
+
+function categoryOf(changeType: string): CategoryFilter {
+    switch (changeType) {
+        case 'epunch':
+        case 'wrongEpunch':
+            return 'epunch'
+        case 'newTime':
+        case 'newCourse':
+        case 'needsAssignment':
+            return 'timeCourse'
+        default:
+            return 'attendance'
+    }
+}
 
 function formatChangeValue(changeType: string, value: string): string {
     if (changeType === 'epunch') {
@@ -48,7 +62,7 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<stri
 }
 
 export function Changes() {
-    const [filterMode, setFilterMode] = useState<FilterMode>('pendingTiming')
+    const [category, setCategory] = useState<CategoryFilter>('all')
     const [searchQuery, setSearchQuery] = useState('')
 
     const { data: allParticipants } = useLiveQuery((q) =>
@@ -79,19 +93,19 @@ export function Changes() {
         }
     }
 
-    // Newest first so the timing desk sees the most recent changes at the top.
+    // Newest first so volunteers immediately see the most recent changes at the top.
     const hydratedChanges = allChanges
         .map((x) => hydrateChange(x.id, DATA))
         .filter((x) => x !== undefined)
         .sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime())
 
-    const pendingTimingCount = hydratedChanges.filter((c) => c.needsProcessing && !c.isProcessed).length
-    const allTimingCount = hydratedChanges.filter((c) => c.needsProcessing).length
+    const epunchCount = hydratedChanges.filter((c) => categoryOf(c.changeType) === 'epunch').length
+    const timeCourseCount = hydratedChanges.filter((c) => categoryOf(c.changeType) === 'timeCourse').length
+    const attendanceCount = hydratedChanges.filter((c) => categoryOf(c.changeType) === 'attendance').length
 
     const q = searchQuery.trim().toLowerCase()
     const visibleChanges = hydratedChanges.filter((c) => {
-        if (filterMode === 'pendingTiming' && (!c.needsProcessing || c.isProcessed)) return false
-        if (filterMode === 'allTiming' && !c.needsProcessing) return false
+        if (category !== 'all' && categoryOf(c.changeType) !== category) return false
         if (q !== '') {
             const slot = slotsByParticipant.get(c.participant.id)?.[0]
             const haystack = `${c.participant.name} ${c.participant.club} ${c.participant.epunch} ${slot?.course ?? ''} ${changeTypeLabel(c.changeType)} ${c.old} ${c.new}`.toLowerCase()
@@ -99,13 +113,6 @@ export function Changes() {
         }
         return true
     })
-
-    async function toggleProcessed(changeId: string, currentValue: boolean) {
-        const tx = changesTanCollection.update(changeId, (draft) => {
-            draft.isProcessed = !currentValue
-        })
-        await tx.isPersisted.promise
-    }
 
     function handleExportChangesCsv() {
         const headers = [
@@ -120,8 +127,6 @@ export function Changes() {
             'Change Type',
             'Old Value',
             'New Value',
-            'Needs Timing Entry',
-            'Entered in Timing',
         ]
         const rows = hydratedChanges.map((c) => {
             const slot = slotsByParticipant.get(c.participant.id)?.[0]
@@ -138,8 +143,6 @@ export function Changes() {
                 changeTypeLabel(c.changeType),
                 formatChangeValue(c.changeType, c.old),
                 formatChangeValue(c.changeType, c.new),
-                c.needsProcessing,
-                c.isProcessed,
             ]
         })
         downloadCsv(`waves-changes-${EVENT_ID}.csv`, headers, rows)
@@ -187,47 +190,32 @@ export function Changes() {
         downloadCsv(`waves-roster-${EVENT_ID}.csv`, headers, rows)
     }
 
+    const filterTabs: Array<{ id: CategoryFilter; label: string; count: number }> = [
+        { id: 'all', label: 'All changes', count: hydratedChanges.length },
+        { id: 'epunch', label: 'E-punch', count: epunchCount },
+        { id: 'timeCourse', label: 'Time & Course', count: timeCourseCount },
+        { id: 'attendance', label: 'Attendance & Status', count: attendanceCount },
+    ]
+
     return (
         <>
-            <Head title="Change Log & Timing Desk" />
+            <Head title="Change Log" />
             <div className="mx-auto flex max-w-6xl flex-col gap-4 pb-8">
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-800 bg-gray-900 p-4">
                     <div className="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setFilterMode('pendingTiming')}
-                            className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-                                filterMode === 'pendingTiming'
-                                    ? 'bg-pink-700 text-white'
-                                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                            }`}>
-                            <span>Needs timing entry</span>
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                                pendingTimingCount > 0 ? 'bg-amber-500 text-gray-950' : 'bg-gray-700 text-gray-300'
-                            }`}>
-                                {pendingTimingCount}
-                            </span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setFilterMode('allTiming')}
-                            className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-                                filterMode === 'allTiming'
-                                    ? 'bg-pink-700 text-white'
-                                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                            }`}>
-                            All timing changes ({allTimingCount})
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setFilterMode('allChanges')}
-                            className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-                                filterMode === 'allChanges'
-                                    ? 'bg-pink-700 text-white'
-                                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                            }`}>
-                            All meet changes ({hydratedChanges.length})
-                        </button>
+                        {filterTabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setCategory(tab.id)}
+                                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                                    category === tab.id
+                                        ? 'bg-pink-700 text-white'
+                                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                                }`}>
+                                {tab.label} ({tab.count})
+                            </button>
+                        ))}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -256,9 +244,7 @@ export function Changes() {
 
                 {visibleChanges.length === 0 ? (
                     <div className="rounded-lg border border-gray-800 bg-gray-900 p-8 text-center text-gray-400">
-                        {filterMode === 'pendingTiming'
-                            ? 'All timing changes have been entered! Switch to "All timing changes" or "All meet changes" to review history.'
-                            : 'No matching changes recorded yet.'}
+                        No changes recorded in this view yet.
                     </div>
                 ) : (
                     <div className="flex flex-col gap-2">
@@ -277,13 +263,7 @@ export function Changes() {
                             return (
                                 <div
                                     key={c.id}
-                                    className={`flex flex-col justify-between gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center ${
-                                        c.isProcessed
-                                            ? 'border-gray-800 bg-gray-900/60 opacity-75'
-                                            : c.needsProcessing
-                                              ? 'border-amber-700/60 bg-gray-800'
-                                              : 'border-gray-800 bg-gray-800/80'
-                                    }`}>
+                                    className="flex flex-col justify-between gap-2 rounded-lg border border-gray-800 bg-gray-800 px-4 py-3 sm:flex-row sm:items-center">
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <span className="text-lg font-bold text-white">
@@ -311,42 +291,27 @@ export function Changes() {
                                             <span>{where}</span>
                                             {club !== '' && <span>· {club}</span>}
                                             <span>
-                                                · Current e-punch:{' '}
+                                                · E-punch:{' '}
                                                 <strong className="font-semibold text-white">
                                                     {c.participant.epunch || 'none'}
                                                 </strong>
                                             </span>
                                         </div>
-
-                                        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm">
-                                            {c.old !== '' && (
-                                                <>
-                                                    <span className="text-gray-400 line-through">
-                                                        {oldFormatted}
-                                                    </span>
-                                                    <SvgIcon icon="right" />
-                                                </>
-                                            )}
-                                            <span className="font-semibold text-amber-300">
-                                                {newFormatted}
-                                            </span>
-                                        </div>
                                     </div>
 
-                                    {c.needsProcessing && (
-                                        <div className="shrink-0">
-                                            <button
-                                                type="button"
-                                                onClick={() => void toggleProcessed(c.id, c.isProcessed)}
-                                                className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
-                                                    c.isProcessed
-                                                        ? 'border border-emerald-700 bg-emerald-950 text-emerald-300 hover:bg-emerald-900'
-                                                        : 'bg-amber-600 text-white hover:bg-amber-500'
-                                                }`}>
-                                                {c.isProcessed ? 'Entered ✓' : 'Mark entered'}
-                                            </button>
-                                        </div>
-                                    )}
+                                    <div className="flex shrink-0 items-center gap-2 text-base">
+                                        {c.old !== '' && (
+                                            <>
+                                                <span className="text-gray-400 line-through">
+                                                    {oldFormatted}
+                                                </span>
+                                                <SvgIcon icon="right" />
+                                            </>
+                                        )}
+                                        <span className="font-semibold text-amber-300">
+                                            {newFormatted}
+                                        </span>
+                                    </div>
                                 </div>
                             )
                         })}

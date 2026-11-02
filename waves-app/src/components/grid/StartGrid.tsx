@@ -4,6 +4,7 @@ import type { ParticipantState } from '@/api/participants'
 import type { SlotDocType } from '@/Schema'
 import type { PopulatedEntry } from '@/utils/PopulatedEntry'
 import { GridSlot } from './GridSlot'
+import { courseShortLabel } from '@/utils/slotLabels'
 
 // Layout sizes, in rem. Tweak these to fit more or fewer waves on screen.
 const COL_REM = 9.5 // one wave (or one course)
@@ -13,7 +14,7 @@ const labelRemFor = (columns: 'time' | 'course') => (columns === 'time' ? 3.5 : 
 
 // "station" variant (call-up, e-punch): fills the width, with the wave being
 // worked taking this share and the "up next" wave taking the rest.
-const STATION_LABEL_REM = 4.5
+const STATION_LABEL_REM = 6.5
 const STATION_FIRST_COL_PERCENT = 62
 
 interface Properties {
@@ -161,7 +162,12 @@ export function StartGrid({
                                             {label}
                                         </div>
                                     )}
-                                    {key}
+                                    <div>{key}</div>
+                                    {columns === 'course' && courseShortLabel(key) !== '' && (
+                                        <div className="text-[11px] font-normal leading-tight text-gray-400">
+                                            {courseShortLabel(key)}
+                                        </div>
+                                    )}
                                 </th>
                             )
                         })}
@@ -186,7 +192,12 @@ export function StartGrid({
                                     className={`sticky left-0 z-10 border-b border-r border-gray-800 bg-gray-900 px-2 text-center font-bold text-gray-200 ${
                                         isStation ? 'text-base' : 'text-sm'
                                     }`}>
-                                    {row.key}
+                                    <div>{row.key}</div>
+                                    {columns === 'time' && courseShortLabel(row.key) !== '' && (
+                                        <div className="text-[11px] font-normal leading-tight text-gray-400">
+                                            {courseShortLabel(row.key)}
+                                        </div>
+                                    )}
                                 </th>
                                 {row.slots.map((slot, i) => (
                                     <td

@@ -104,7 +104,6 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
                 color="mauve"
                 action={handlePrevWaveClick}
                 buttonStyle="outline" />
-        <p>Selected Wave: <span className={`text-xl font-bold ${userWaveFormat}`}>{userWaveTime}</span></p>
         <div className="flex flex-row gap-2">
             <ManagerActionButton
                 text={nextWaveTime === '' ? 'Next' : `Next (${nextWaveTime})`}
@@ -119,6 +118,23 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
                 action={handleGoToCurrentWaveClick}
                 buttonStyle={clockWave !== userWaveTime ? "solid" : "outline"} />
         </div>
+        <label className="flex items-center gap-2 ml-1">
+            <span>Selected Wave:</span>
+            <select
+                aria-label="Select wave time"
+                value={userWaveTime}
+                onChange={(e) => {
+                    setWaveNotice('')
+                    setUserWaveTime(e.target.value)
+                }}
+                className={`cursor-pointer rounded-md border border-gray-700 bg-gray-800 px-2.5 py-1 text-xl font-bold tabular-nums focus:border-pink-500 focus:outline-none ${userWaveFormat}`}>
+                {waveTimes.map((wt) => (
+                    <option key={wt} value={wt} className="bg-gray-900 text-base text-gray-100">
+                        {wt}{wt === clockWave ? ' (Now)' : ''}
+                    </option>
+                ))}
+            </select>
+        </label>
         {waveNotice !== '' && (
             <div
                 role="status"

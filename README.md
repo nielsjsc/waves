@@ -35,7 +35,7 @@ Do this on the **host laptop** once the start-list spreadsheet (`.xlsx` or `.xls
 2. Open Chrome to **`https://app.waves.local`**.
 3. Check the top header bar:
    - **Sync badge**: Confirm it says **`Synced`** (green dot).
-   - **Station selection**: Click the **menu icon (`☰`)** in the top-right to switch to your station (`Call-up`, `Epunch Check`, `Start Manager`, `Full Grid`, or `Change Log`).
+   - **Station selection**: Click your station button in the top header bar (`Call-up`, `Epunch Check`, `Start Manager`, `Full Grid`, or `Change Log`).
    - **Clock alignment**: If a laptop's clock is off from the official meet clock, click the **clock time (`HH:MM:SS`)** in the top-right to adjust the offset.
    - **Wave offset (`+8`)**: Click `(+8)` next to the wave time in the header if Call-up or E-punch Check is operating a different number of minutes ahead of the start clock.
 
@@ -96,16 +96,13 @@ Do this on the **host laptop** once the start-list spreadsheet (`.xlsx` or `.xls
 
 ---
 
-### Station D — Timing Desk (`Change Log`)
-**Goal:** Enter e-punch, course, and competitive-status changes into the timing software (MeOS / SportIdent) so every starter downloads cleanly at the finish.
+### Station D — Change Log (`Change Log`)
+**Goal:** View a live chronological history of every change made during the meet and export CSV backups.
 
-1. Keep the page on the **`Needs timing entry`** tab (selected by default).
-   - The badge shows how many changes are waiting to be entered in the timing software.
-2. For each row in the list:
-   - Enter the updated **E-punch**, **New course**, or **Competitive status** into the timing software.
-   - Click **`Mark entered`** (turns green **`Entered ✓`** and moves out of the pending queue).
-3. **End-of-Meet Exports (or Periodic Backups)**:
-   - Click **`Export Changes CSV`** to download a complete spreadsheet of every change made during the meet.
+1. **Filter by Category**:
+   - Switch between **`All changes`**, **`E-punch`**, **`Time & Course`**, and **`Attendance & Status`**, or use the search box to filter by runner name, school, or e-punch number.
+2. **End-of-Meet Exports (or Periodic Backups)**:
+   - Click **`Export Changes CSV`** to download a spreadsheet of every change made during the meet.
    - Click **`Export Full Roster CSV`** to download the final roster with every participant's course, start time, original start time, check-in status, and e-punch.
 
 ---
@@ -126,4 +123,4 @@ Do this on the **host laptop** once the start-list spreadsheet (`.xlsx` or `.xls
 | **`New event loaded`** screen | A new start list was generated with `make-start-list.cmd` while this tab was open. Click **`Reload for new event`**. |
 | **`Records needing repair`** red banner in Start Manager | A brief multi-laptop sync conflict listed a runner in 0 or 2 slots. If it stays for more than a few seconds, click the runner's name and click **`Keep this one`** on the correct slot. |
 | **`start-waves.cmd` says Waves is already running** | Double-click **`stop-waves.cmd`** first, then double-click **`start-waves.cmd`** again. No data is lost. |
-| **Need to wipe and re-import the current start list** *(Organizer only)* | Before the meet starts, open `https://app.waves.local/?organizer`, click the `☰` menu, and click **`Re-import start list`**. |
+| **Need to wipe and re-import the current start list** *(Organizer only)* | Before the meet starts, open `https://app.waves.local/?organizer` and click **`Re-import start list`** in the top navigation bar. |

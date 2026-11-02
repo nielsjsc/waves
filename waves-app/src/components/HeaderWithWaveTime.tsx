@@ -185,7 +185,6 @@ export function HeaderWithWaveTime() {
     const [managerSelectedId, setManagerSelectedId] = useState('')
     const [isWaveOffsetModalOpen, setWaveOffsetModalOpen] = useState(false)
     const [isClockOffsetModalOpen, setClockOffsetModalOpen] = useState(false)
-    const [isNavOpen, setNavOpen] = useState(false)
     const [staleEvent, setStaleEvent] = useState(() => isStaleEvent())
     const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus())
 
@@ -317,7 +316,6 @@ export function HeaderWithWaveTime() {
     const isOrganizer = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('organizer')
 
     async function handleOrganizerReimportClick() {
-        setNavOpen(false)
         if (!window.confirm('Reset this event and re-import startlist.csv? This clears all check-in progress and changes for every connected laptop.')) {
             return
         }
@@ -331,7 +329,6 @@ export function HeaderWithWaveTime() {
     }
 
     function handleNavPageClick(page:string) {
-        setNavOpen(false)
         setAppPage(page)
     }
 
@@ -374,28 +371,7 @@ export function HeaderWithWaveTime() {
         }
     }
 
-    function handleNavMenuClick() {
-        setNavOpen(!isNavOpen)
-    }
 
-    const navMenu = isNavOpen ? <div className="absolute flex flex-col z-20 p-1 gap-1 top-6 py-2 right-0 min-w-40 bg-pink-900">
-            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('call-up')}>Call-up</button>
-            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('epunch')}>Epunch Check</button>
-            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('manager')}>Start Manager</button>
-            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('grid')}>Full Grid</button>
-            <button className="rounded-md text-white hover:bg-pink-700 hover:text-pink-200" onClick={()=>handleNavPageClick('changes')}>Change Log</button>
-            {isOrganizer && (
-                <button className="rounded-md text-amber-200 hover:bg-pink-700 hover:text-white" onClick={() => void handleOrganizerReimportClick()}>
-                    Re-import start list
-                </button>
-            )}
-    </div> : <></>
-
-    const navButtonStyle = isNavOpen ? "bg-pink-900 text-pink-200" : ""
-    const navButton = <nav className={`flex flex-wrap items-center text-base justify-center relative p-1 ${navButtonStyle}`}>
-        <button onClick={handleNavMenuClick}><SvgIcon icon="hamburger" /></button>
-        {navMenu}
-    </nav>
 
     const syncBadge = syncStatus === 'synced' ? (
         <span
@@ -453,9 +429,37 @@ export function HeaderWithWaveTime() {
                     <span className="font-black text-white">{displayWaveTime()}</span>
                     <span className="cursor-pointer" onClick={handleOffsetEditClick}>(+{waveOffsetMinutes})</span>
                 </div>
-                <div className="ml-auto flex flex-row items-center gap-2">
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                    <nav className="flex flex-wrap items-center gap-1 rounded-lg border border-gray-800 bg-gray-950/60 p-1">
+                        {[
+                            { id: 'call-up', label: 'Call-up' },
+                            { id: 'epunch', label: 'Epunch Check' },
+                            { id: 'manager', label: 'Start Manager' },
+                            { id: 'grid', label: 'Full Grid' },
+                            { id: 'changes', label: 'Change Log' },
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => handleNavPageClick(tab.id)}
+                                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                                    appPage === tab.id
+                                        ? 'bg-pink-700 text-white'
+                                        : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                                }`}>
+                                {tab.label}
+                            </button>
+                        ))}
+                        {isOrganizer && (
+                            <button
+                                type="button"
+                                onClick={() => void handleOrganizerReimportClick()}
+                                className="rounded-md px-2.5 py-1 text-xs font-semibold text-amber-300 hover:bg-gray-800 hover:text-white">
+                                Re-import start list
+                            </button>
+                        )}
+                    </nav>
                     {syncBadge}
-                    {navButton}
                     <HeaderClock
                         clockOffsetHours={clockOffsetHours}
                         clockOffsetMinutes={clockOffsetMinutes}

@@ -153,7 +153,9 @@ function ParticipantCard({
                     </span>
                     <span
                         className={`ml-auto shrink-0 tabular-nums ${
-                            large ? 'text-base font-semibold text-white' : 'text-gray-300'
+                            large
+                                ? 'rounded border border-gray-700 bg-gray-900/90 px-2 py-0.5 text-xl font-bold tracking-wider text-amber-200'
+                                : 'text-gray-300'
                         }`}>
                         {p.epunch}
                     </span>

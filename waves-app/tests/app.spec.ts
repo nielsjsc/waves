@@ -47,7 +47,6 @@ const TEST_STARTLIST_CSV = [
 ].join('\r\n')
 
 async function navigateToStation(page: Page, stationLabel: 'Call-up' | 'Epunch Check' | 'Start Manager' | 'Full Grid' | 'Change Log') {
-	await page.locator('header nav button').first().click()
 	await page.locator('header nav').getByRole('button', { name: stationLabel, exact: true }).click()
 }
 
@@ -157,21 +156,20 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await expect(managerPage.getByText('Originally 10:00')).toBeVisible()
 
 	// -------------------------------------------------------------------------
-	// 4. STATION 4: TIMING DESK & CSV EXPORT
+	// 4. STATION 4: CHANGE LOG & CSV EXPORT
 	// -------------------------------------------------------------------------
 	const timingPage = await context.newPage()
 	await timingPage.goto('/')
 	await navigateToStation(timingPage, 'Change Log')
 
-	// Grace Hopper's e-punch change should be waiting in "Needs timing entry"
-	await expect(timingPage.getByRole('button', { name: /Needs timing entry/i })).toContainText('1')
-	await expect(timingPage.getByText('Grace Hopper')).toBeVisible()
+	// Verify the chronological change log and category filters
+	await expect(timingPage.getByRole('button', { name: /All changes/i })).toBeVisible()
+	await expect(timingPage.getByText('Grace Hopper').first()).toBeVisible()
 	await expect(timingPage.getByText('9876543 (rental)')).toBeVisible()
 
-	// Mark the e-punch change as entered in timing software
-	await timingPage.getByRole('button', { name: 'Mark entered' }).click()
-	await expect(timingPage.getByText('All timing changes have been entered!')).toBeVisible()
-	await expect(timingPage.getByRole('button', { name: /Needs timing entry/i })).toContainText('0')
+	await timingPage.getByRole('button', { name: /^Time & Course/i }).click()
+	await expect(timingPage.getByText('Alan Turing').first()).toBeVisible()
+	await timingPage.getByRole('button', { name: /^All changes/i }).click()
 
 	// Verify CSV exports download valid files with all expected records
 	const [changesDownload] = await Promise.all([
