@@ -420,7 +420,7 @@ export function HeaderWithWaveTime() {
             {waveOffsetModal}
             {clockOffsetModal}
 
-            <div className="container mx-auto flex flex-wrap p-4 flex-row items-center">
+            <div className="container mx-auto flex flex-wrap px-4 py-1.5 flex-row items-center">
                 <SvgIconWithText 
                     icon="waves-logo"
                     text="Waves" />
@@ -470,8 +470,8 @@ export function HeaderWithWaveTime() {
             </div>
         </header>
         
-        <div className="relative min-w-full max-w-full mx-auto md:px-8 ">
-            <div className="absolute top-20">
+        <div className="relative min-w-full max-w-full mx-auto md:px-6">
+            <div className="absolute top-12 inset-x-0 md:px-6">
             {pageContent()}
             </div>
         </div>

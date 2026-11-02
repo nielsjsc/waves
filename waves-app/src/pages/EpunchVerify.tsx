@@ -22,7 +22,7 @@ export function EpunchVerify({clockWave}:Properties) {
 
     const slotsThisWaveAndNext = populateSlotData(allSlots.filter(x => (x.time === userWaveTime || x.time === nextWaveTime)), allParticipants)
 
-    return <div className="flex flex-col gap-4">
+    return <div className="flex flex-col gap-1">
         <Head title='Tent 1: E-punch check' />
         <WaveSelection
             clockWave={clockWave}
@@ -38,7 +38,7 @@ export function EpunchVerify({clockWave}:Properties) {
             variant="station"
             columnLabels={["Checking now", "Up next"]}
             currentWave={clockWave}
-            className="max-h-[calc(100vh_-_10.5rem)]"
+            className="max-h-[calc(100vh_-_5.5rem)]"
             />
         </div>
 }

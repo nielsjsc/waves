@@ -29,11 +29,11 @@ const SIZES: Record<Size, { cell: string; pad: string; name: string; detail: str
         badge: 'text-[10px] leading-4',
     },
     large: {
-        cell: 'min-h-[3.5rem]',
-        pad: 'px-3 py-1.5',
-        name: 'text-lg leading-6',
+        cell: 'min-h-[2.75rem]',
+        pad: 'px-3 py-1',
+        name: 'text-base leading-5',
         detail: 'text-sm leading-5',
-        badge: 'text-xs leading-5',
+        badge: 'text-xs leading-4',
     },
 }
 
@@ -154,7 +154,7 @@ function ParticipantCard({
                     <span
                         className={`ml-auto shrink-0 tabular-nums ${
                             large
-                                ? 'rounded border border-gray-700 bg-gray-900/90 px-2 py-0.5 text-xl font-bold tracking-wider text-amber-200'
+                                ? 'rounded border border-gray-700 bg-gray-900/90 px-2 py-0 text-base font-bold tracking-wider text-amber-200 leading-5'
                                 : 'text-gray-300'
                         }`}>
                         {p.epunch}
@@ -165,7 +165,7 @@ function ParticipantCard({
                 <div
                     className={
                         large
-                            ? 'flex shrink-0 gap-2 [&_button]:min-h-11 [&_button]:px-4 [&_button]:text-base'
+                            ? 'flex shrink-0 gap-2 [&_button]:min-h-9 [&_button]:px-3 [&_button]:py-1 [&_button]:text-sm [&_svg]:size-5'
                             : 'mt-1 flex gap-1'
                     }>
                     {toStateButtons.map((toState) => (

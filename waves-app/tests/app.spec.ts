@@ -79,6 +79,8 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	// -------------------------------------------------------------------------
 	await navigateToStation(callupPage, 'Call-up')
 	await expect(callupPage.getByText('Calling now')).toBeVisible()
+	await expect(callupPage.getByRole('rowheader', { name: /c1/i })).toBeInViewport()
+	await expect(callupPage.getByRole('rowheader', { name: /c9/i })).toBeInViewport()
 
 	const adaCardCallup = callupPage.locator('[data-participant-id="e2etest01-participant-c1-10:00"]')
 	const graceCardCallup = callupPage.locator('[data-participant-id="e2etest01-participant-c2-10:00"]')

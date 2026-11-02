@@ -149,8 +149,8 @@ export function StartGrid({
                                 <th
                                     key={key}
                                     data-wave={columns === 'time' ? key : undefined}
-                                    className={`sticky top-0 z-20 border-b border-gray-700 px-2 text-center tabular-nums ${
-                                        isStation ? 'py-2 text-lg' : 'py-1 text-sm'
+                                    className={`sticky top-0 z-20 border-b border-gray-700 px-2 text-center tabular-nums leading-tight ${
+                                        isStation ? 'py-1 text-base' : 'py-1 text-sm'
                                     } ${
                                         current
                                             ? 'bg-emerald-900 font-bold text-emerald-100'
@@ -189,12 +189,12 @@ export function StartGrid({
                                 ref={containsSelected ? scrollTo : undefined}>
                                 <th
                                     scope="row"
-                                    className={`sticky left-0 z-10 border-b border-r border-gray-800 bg-gray-900 px-2 text-center font-bold text-gray-200 ${
+                                    className={`sticky left-0 z-10 border-b border-r border-gray-800 bg-gray-900 px-2 py-1 text-center font-bold leading-tight text-gray-200 ${
                                         isStation ? 'text-base' : 'text-sm'
                                     }`}>
-                                    <div>{row.key}</div>
+                                    <div className="leading-tight">{row.key}</div>
                                     {columns === 'time' && courseShortLabel(row.key) !== '' && (
-                                        <div className="text-[11px] font-normal leading-tight text-gray-400">
+                                        <div className="text-xs font-normal leading-tight text-gray-400">
                                             {courseShortLabel(row.key)}
                                         </div>
                                     )}
@@ -203,7 +203,7 @@ export function StartGrid({
                                     <td
                                         key={`${slot.time}-${slot.course}`}
                                         className={`border-b border-l border-gray-800 align-top ${
-                                            isStation ? 'p-1' : 'p-0.5'
+                                            isStation ? 'px-1 py-0.5' : 'p-0.5'
                                         } ${
                                             isCurrentColumn(columns === 'time' ? slot.time : '')
                                                 ? 'bg-emerald-950/40'
