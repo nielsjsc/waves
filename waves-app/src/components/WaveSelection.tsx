@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ManagerActionButton } from "./ManagerActionButton";
 import { getUniqueTimesFromSlots } from "./grid/StartGrid";
 import { useLiveQuery } from "@tanstack/react-db";
@@ -14,6 +14,15 @@ interface Properties {
 }
 
 export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWaveTime, setNextWaveTime}:Properties) {
+    const [waveNotice, setWaveNotice] = useState('')
+
+    useEffect(() => {
+        if (waveNotice === '') {
+            return
+        }
+        const timer = setTimeout(() => setWaveNotice(''), 3000)
+        return () => clearTimeout(timer)
+    }, [waveNotice])
 
     const {data: allSlots} = useLiveQuery((q) =>
         q.from({slot: slotsTanCollection})
@@ -58,26 +67,28 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
     }
 
     function handleGoToCurrentWaveClick() {
+        setWaveNotice('')
         if (waveTimes.includes(clockWave)) {
             setUserWaveTime(clockWave)
         } else {
             setUserWaveTime(waveTimes[0] ?? '')
         }
-
     }
     function handleNextWaveClick() {
         const next = getNextWave()
         if (next === undefined) {
-            alert("no future waves");
+            setWaveNotice("No future waves")
         } else {
+            setWaveNotice('')
             setUserWaveTime(next)
         }
     }
     function handlePrevWaveClick() {
         const prev = getPrevWave()
         if (prev === undefined) {
-            alert("no previous waves")
+            setWaveNotice("No previous waves")
         } else {
+            setWaveNotice('')
             setUserWaveTime(prev)
         }
     }
@@ -108,6 +119,20 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
                 action={handleGoToCurrentWaveClick}
                 buttonStyle={clockWave !== userWaveTime ? "solid" : "outline"} />
         </div>
+        {waveNotice !== '' && (
+            <div
+                role="status"
+                className="flex items-center gap-2 rounded-md border border-amber-600/70 bg-amber-950 px-3 py-1.5 text-sm font-medium text-amber-100 shadow-md">
+                <span>{waveNotice}</span>
+                <button
+                    type="button"
+                    onClick={() => setWaveNotice('')}
+                    aria-label="Dismiss notice"
+                    className="rounded px-1 text-amber-300 hover:bg-amber-900 hover:text-white">
+                    ×
+                </button>
+            </div>
+        )}
     </div>
     )
 }
