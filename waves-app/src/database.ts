@@ -23,7 +23,7 @@ addRxPlugin(RxDBMigrationSchemaPlugin)
 
 // Replication location is actually nginx which terminates SSL and forwards to the server.
 const RX_REPLICATION_SERVER_PROTOCOL = 'https'
-const RX_REPLICATION_SERVER_HOST = 'server.waves.local'
+const RX_REPLICATION_SERVER_HOST = typeof window !== 'undefined' && window.location.hostname !== '' && window.location.hostname !== 'app.waves.local' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? window.location.hostname : 'server.waves.local'
 const RX_REPLICATION_SERVER_PORT = '5443'
 
 export interface EventInfo {

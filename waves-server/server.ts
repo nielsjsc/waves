@@ -209,7 +209,7 @@ console.log('server rxdb synced with mongodb')
 
 const RX_SERVER_HOST = 'localhost'
 const RX_SERVER_PORT = 3000
-const RX_SERVER_ALLOW_REMOTE = 'https://app.waves.local'
+const RX_SERVER_ALLOW_REMOTE = true
 
 import { createRxServer } from 'rxdb-server/plugins/server';
 import { RxServerAdapterExpress } from 'rxdb-server/plugins/adapter-express';
