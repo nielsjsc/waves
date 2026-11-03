@@ -14,13 +14,8 @@ export function ParticipantStateChangeButton({participant, toState}:Properties) 
 
     function action(toState:ParticipantState) {
         if (participant.state === toState) {
-            // in this case, we want to "un-set" the change
-            // this is to handle miss-clicks
-            if (participant.prevState === undefined) {
-                alert("No Previous State, something's wrong")
-                return
-            }
-            toState = participant.prevState
+            // Clicking the currently selected state clears it back to no state ("waiting")
+            toState = "waiting"
         }
         switch (toState) {
             case "waiting":

@@ -1,4 +1,4 @@
-import { slotsTanCollection, participantsTanCollection, changesTanCollection } from "@/database";
+import { EVENT_ID, slotsTanCollection, participantsTanCollection, changesTanCollection } from "@/database";
 import type { SlotDocType } from "@/Schema";
 import { eq, inArray, queryOnce } from "@tanstack/react-db";
 
@@ -428,4 +428,76 @@ export async function setCompetitive(participantId:string) {
         isProcessed: false
     }]);
     await t2.isPersisted.promise
+}
+
+export interface NewParticipantInput {
+    name: string
+    course: string
+    club: string
+    epunch: string
+    isRental: boolean
+    isNonCompete: boolean
+    groupSize: number
+    targetSlotId?: string
+}
+
+export async function addNewParticipant(input: NewParticipantInput): Promise<string | undefined> {
+    const trimmedName = input.name.trim()
+    const trimmedCourse = input.course.trim()
+    if (trimmedName === '' || trimmedCourse === '') {
+        return undefined
+    }
+
+    let targetSlot: SlotDocType | undefined
+    if (input.targetSlotId !== undefined && input.targetSlotId !== '') {
+        targetSlot = slotsTanCollection.get(input.targetSlotId)
+    } else {
+        targetSlot = await queryOnce((q) =>
+            q
+                .from({ slot: slotsTanCollection })
+                .where(({ slot }) => eq(slot.course, trimmedCourse))
+                .where(({ slot }) => eq(slot.time, '_needsAssignment'))
+                .findOne()
+        )
+    }
+
+    if (targetSlot === undefined) {
+        console.log('Target slot not found for new participant')
+        return undefined
+    }
+
+    const participantId = `${EVENT_ID}-added-${crypto.randomUUID().slice(0, 8)}`
+    const inRealSlot = isRealStartTime(targetSlot)
+    const trimmedClub = input.club.trim()
+    const trimmedEpunch = input.epunch.trim()
+
+    const t1 = participantsTanCollection.insert([{
+        id: participantId,
+        name: trimmedName,
+        club: trimmedClub === '' ? 'unknown' : trimmedClub,
+        epunch: trimmedEpunch,
+        isRental: input.isRental,
+        isNonCompete: input.isNonCompete,
+        groupSize: Math.max(1, input.groupSize || 1),
+        state: inRealSlot ? 'waiting' : 'needsAssignment',
+        originalStartTime: inRealSlot ? targetSlot.time : '',
+        startChanged: false,
+    }])
+    await t1.isPersisted.promise
+
+    await addToSlot(participantId, targetSlot.id)
+
+    const t3 = changesTanCollection.insert([{
+        id: crypto.randomUUID(),
+        participantId,
+        changedAt: nextChangeTimestamp(),
+        changeType: 'addedParticipant',
+        old: '',
+        new: inRealSlot ? `${targetSlot.course} ${targetSlot.time}` : `${targetSlot.course} (needs time)`,
+        needsProcessing: true,
+        isProcessed: false,
+    }])
+    await t3.isPersisted.promise
+
+    return participantId
 }

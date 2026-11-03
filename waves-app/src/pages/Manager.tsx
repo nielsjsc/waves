@@ -8,14 +8,16 @@ import { Head } from "@/components/Head"
 import { Modal } from "@/components/Modal"
 import { EditEpunchModal } from "@/components/EditEpunchModal"
 import { ManagerActionButton } from "@/components/ManagerActionButton"
+import { SvgIcon } from "@/components/SvgIcon"
 import { StartGrid } from "@/components/grid/StartGrid"
 import { ManagerSearchBox } from "@/components/manager/ManagerSearchBox"
 import { AttentionQueue } from "@/components/manager/AttentionQueue"
 import { OpenTimesPicker } from "@/components/manager/OpenTimesPicker"
+import { AddParticipantModal, type AddParticipantPrefill } from "@/components/manager/AddParticipantModal"
 import { hydrateParticipant } from "@/utils/hydrateParticipant"
 import { populateSlotData } from "@/utils/populateSlotData"
 import { getOriginalEpunch, getOriginalStart } from "@/utils/originalValues"
-import { addMinutesToClock, formatSlotTime, isMagicTime } from "@/utils/slotLabels"
+import { addMinutesToClock, courseShortLabel, formatSlotTime, isMagicTime } from "@/utils/slotLabels"
 import { ParticipantStateStyles, getColorByIconName } from "@/utils/styleHelpers"
 import { keepOnlyInSlot, putInNeedsAssignment } from "@/actions/repairActions"
 import {
@@ -33,7 +35,7 @@ import {
 } from "@/actions/participantActions"
 
 // How long the Undo notice stays on screen before it fades away on its own.
-const UNDO_VISIBLE_MS = 3000
+const UNDO_VISIBLE_MS = 3500
 
 interface Properties {
     // Header clock ("13:09:17", already corrected by the volunteer) and the call-up
@@ -55,7 +57,7 @@ interface Snapshot {
 
 interface UndoInfo {
     message: string
-    run: () => Promise<void>
+    run?: () => Promise<void>
 }
 
 async function applyState(participantId: string, state: ParticipantState) {
@@ -92,6 +94,14 @@ async function restoreSnapshot(participantId: string, snapshot: Snapshot, curren
 
 function Pill({className, children}: {className: string, children: ReactNode}) {
     return <span className={`rounded px-2 py-0.5 text-xs font-medium ${className}`}>{children}</span>
+}
+
+function nextHarderCourse(currentCourse: string, courses: string[]): string {
+    const idx = courses.indexOf(currentCourse)
+    if (idx >= 0 && idx + 1 < courses.length) {
+        return courses[idx + 1]!
+    }
+    return currentCourse
 }
 
 function RecordProblem({name, slots, courses, onKeep, onPlace}: {
@@ -144,6 +154,7 @@ function RecordProblem({name, slots, courses, onKeep, onPlace}: {
 export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, setSelectedParticipantId}: Properties) {
 
     const [isEpunchEditOpen, setEpunchEditOpen] = useState(false)
+    const [addParticipantPrefill, setAddParticipantPrefill] = useState<AddParticipantPrefill | null | undefined>(undefined)
     const [confirmNotAttending, setConfirmNotAttending] = useState(false)
     const [timelineOpen, setTimelineOpen] = useState(false)
     const [focusToken, setFocusToken] = useState(0)
@@ -254,10 +265,12 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
     const undoBanner = undo === undefined ? null : (
         <div className="fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-center gap-3 rounded-lg border border-amber-600/60 bg-amber-950 px-4 py-3 text-amber-100 shadow-xl">
             <span className="flex-1">{undo.message}</span>
-            <button type="button" className="rounded bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-500"
-                onClick={async () => { await undo.run(); setUndo(undefined) }}>
-                Undo
-            </button>
+            {undo.run !== undefined && (
+                <button type="button" className="rounded bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-500"
+                    onClick={async () => { await undo.run?.(); setUndo(undefined) }}>
+                    Undo
+                </button>
+            )}
         </div>
     )
 
@@ -266,9 +279,11 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
         const style = ParticipantStateStyles.get(p.state)
         const inRealSlot = !isMagicTime(e.time)
         const club = p.club === '' || p.club === 'unknown' || p.club === 'None' ? '' : p.club
+        const courseHint = courseShortLabel(e.course)
+        const courseWithHint = courseHint !== '' ? `${e.course} (${courseHint})` : e.course
         const where = inRealSlot
-            ? `Course ${e.course} · starts ${e.time}`
-            : `${formatSlotTime(e.time)} · course ${e.course}`
+            ? `Course ${courseWithHint} · starts ${e.time}`
+            : `${formatSlotTime(e.time)} · course ${courseWithHint}`
         const originally = p.startChanged && p.originalStartTime !== '' && p.originalStartTime !== e.time
             ? `Originally ${p.originalStartTime}`
             : ''
@@ -337,8 +352,9 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
 
         return (
             <div className="flex flex-col gap-4">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
                     <div className="flex flex-col gap-4">
+                        {/* Participant Summary Card */}
                         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
                             <div className="flex flex-wrap items-center gap-2">
                                 <h2 className="text-2xl font-bold text-white">{p.name}</h2>
@@ -349,11 +365,16 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                                     <Pill className={`${style.bg} text-white`}>{style.friendlyName}</Pill>
                                 )}
                             </div>
-                            <div className="mt-1 text-gray-300">
-                                {club}{club !== '' && ' · '}E-punch {p.epunch === '' ? 'none' : p.epunch}
+                            <div className="mt-1.5 text-sm text-gray-300">
+                                {club !== '' ? club : 'Independent / No school'} · E-punch{' '}
+                                <strong className="font-bold text-amber-200">
+                                    {p.epunch === '' ? 'none' : p.epunch}
+                                </strong>
                             </div>
-                            <div className="mt-3 text-lg font-semibold text-gray-100">{where}</div>
-                            {originally !== '' && <div className="text-sm text-gray-400">{originally}</div>}
+                            <div className="mt-3 rounded-md border border-gray-700 bg-gray-900/80 px-3 py-2">
+                                <div className="text-lg font-bold text-gray-100">{where}</div>
+                                {originally !== '' && <div className="text-sm text-amber-300">{originally}</div>}
+                            </div>
                         </div>
 
                         {(startDiffers || epunchDiffers) && (
@@ -396,85 +417,111 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                             </div>
                         )}
 
-                        <div className="flex flex-col gap-3">
-                            <div className="flex flex-wrap gap-2">
-                                <ManagerActionButton
-                                    action={() => setEpunchEditOpen(true)}
-                                    text="Edit e-punch"
-                                    icon="pencil"
-                                    color={getColorByIconName("pencil")}
-                                    buttonStyle="outline" />
-                                {inRealSlot && p.state === 'wrongEpunch' && (
+                        {/* Grouped Actions Panel */}
+                        <div className="flex flex-col gap-3 rounded-lg border border-gray-700 bg-gray-900 p-4">
+                            <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                                    E-punch, Status &amp; 2nd Course
+                                </div>
+                                <div className="flex flex-wrap gap-2">
                                     <ManagerActionButton
-                                        action={() => void runWithUndo(`${p.name} marked Validated`, () => setStateValidated(p.id))}
-                                        text="Mark e-punch validated"
-                                        icon="check-badge"
-                                        color={getColorByIconName("check-badge")}
+                                        action={() => setEpunchEditOpen(true)}
+                                        text="Edit e-punch"
+                                        icon="pencil"
+                                        color={getColorByIconName("pencil")}
                                         buttonStyle="outline" />
-                                )}
-                                {p.isNonCompete ? (
+                                    {inRealSlot && p.state === 'wrongEpunch' && (
+                                        <ManagerActionButton
+                                            action={() => void runWithUndo(`${p.name} marked Validated`, () => setStateValidated(p.id))}
+                                            text="Mark e-punch validated"
+                                            icon="check-badge"
+                                            color={getColorByIconName("check-badge")}
+                                            buttonStyle="outline" />
+                                    )}
+                                    {p.isNonCompete ? (
+                                        <ManagerActionButton
+                                            action={() => setCompetitive(p.id)}
+                                            text="Set competitive"
+                                            icon="medal"
+                                            color="purple"
+                                            buttonStyle="outline" />
+                                    ) : (
+                                        <ManagerActionButton
+                                            action={() => setNonCompetitive(p.id)}
+                                            text="Set non-competitive"
+                                            icon="medal"
+                                            color="purple"
+                                            buttonStyle="outline" />
+                                    )}
                                     <ManagerActionButton
-                                        action={() => setCompetitive(p.id)}
-                                        text="Set competitive"
-                                        icon="medal"
-                                        color="purple"
+                                        action={() =>
+                                            setAddParticipantPrefill({
+                                                name: p.name,
+                                                club: p.club ?? '',
+                                                epunch: p.epunch ?? '',
+                                                isRental: p.isRental,
+                                                isNonCompete: true,
+                                                suggestedCourse: nextHarderCourse(e.course, courses),
+                                            })
+                                        }
+                                        text="Add 2nd course"
+                                        icon="plus"
+                                        color="emerald"
                                         buttonStyle="outline" />
-                                ) : (
-                                    <ManagerActionButton
-                                        action={() => setNonCompetitive(p.id)}
-                                        text="Set non-competitive"
-                                        icon="medal"
-                                        color="purple"
-                                        buttonStyle="outline" />
-                                )}
+                                </div>
                             </div>
 
-                            <div className="flex flex-wrap gap-2">
-                                {inRealSlot && p.state !== 'noShow' && (
-                                    <ManagerActionButton
-                                        action={() => void runWithUndo(`${p.name} marked No show`, () => setStateNoShow(p.id))}
-                                        text="No show"
-                                        icon="question-circle"
-                                        color={getColorByIconName("question-circle")}
-                                        buttonStyle="outline" />
-                                )}
-                                {inRealSlot && p.state !== 'waiting' && (
-                                    <ManagerActionButton
-                                        action={() => void runWithUndo(`${p.name} reset to waiting`, () => setStateWaiting(p.id))}
-                                        text="Reset to waiting"
-                                        icon="clock"
-                                        color={getColorByIconName("clock")}
-                                        buttonStyle="outline" />
-                                )}
-                                {e.time !== '_needsAssignment' && (
-                                    <ManagerActionButton
-                                        action={() => void runWithUndo(`${p.name} moved to needs a new time`, () => setStateNeedsAssignment(p.id))}
-                                        text="Needs new time"
-                                        icon="hourglass"
-                                        color={getColorByIconName("hourglass")}
-                                        buttonStyle="outline" />
-                                )}
-                                {e.time !== '_notAttending' && (
-                                    <ManagerActionButton
-                                        action={() => setConfirmNotAttending(true)}
-                                        text="Not attending"
-                                        icon="x"
-                                        color={getColorByIconName("x")}
-                                        buttonStyle="outline" />
-                                )}
+                            <div className="border-t border-gray-800 pt-3">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                                    Attendance &amp; Queue
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {inRealSlot && p.state !== 'noShow' && (
+                                        <ManagerActionButton
+                                            action={() => void runWithUndo(`${p.name} marked No show`, () => setStateNoShow(p.id))}
+                                            text="No show"
+                                            icon="question-circle"
+                                            color={getColorByIconName("question-circle")}
+                                            buttonStyle="outline" />
+                                    )}
+                                    {inRealSlot && p.state !== 'waiting' && (
+                                        <ManagerActionButton
+                                            action={() => void runWithUndo(`${p.name} reset to waiting`, () => setStateWaiting(p.id))}
+                                            text="Reset to waiting"
+                                            icon="clock"
+                                            color={getColorByIconName("clock")}
+                                            buttonStyle="outline" />
+                                    )}
+                                    {e.time !== '_needsAssignment' && (
+                                        <ManagerActionButton
+                                            action={() => void runWithUndo(`${p.name} moved to needs a new time`, () => setStateNeedsAssignment(p.id))}
+                                            text="Needs new time"
+                                            icon="hourglass"
+                                            color={getColorByIconName("hourglass")}
+                                            buttonStyle="outline" />
+                                    )}
+                                    {e.time !== '_notAttending' && (
+                                        <ManagerActionButton
+                                            action={() => setConfirmNotAttending(true)}
+                                            text="Not attending"
+                                            icon="x"
+                                            color="red"
+                                            buttonStyle="outline" />
+                                    )}
+                                </div>
                             </div>
 
                             {confirmNotAttending && (
                                 <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-600/60 bg-amber-950 px-3 py-2 text-amber-100">
-                                    <span className="flex-1">Mark {p.name} as not attending? This frees their start slot.</span>
-                                    <button type="button" className="rounded bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-500"
+                                    <span className="flex-1 text-sm">Mark {p.name} as not attending? This frees their start slot.</span>
+                                    <button type="button" className="rounded bg-amber-600 px-3 py-1 text-sm font-semibold text-white hover:bg-amber-500"
                                         onClick={() => {
                                             setConfirmNotAttending(false)
                                             void runWithUndo(`${p.name} marked Not attending`, () => setStateNotAttending(p.id))
                                         }}>
                                         Yes, not attending
                                     </button>
-                                    <button type="button" className="rounded border border-amber-600/60 px-3 py-1"
+                                    <button type="button" className="rounded border border-amber-600/60 px-3 py-1 text-sm"
                                         onClick={() => setConfirmNotAttending(false)}>
                                         Cancel
                                     </button>
@@ -553,8 +600,34 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                     />
                 )}
 
-                <div className="flex items-start gap-3">
-                    <div className="min-w-0 flex-1">
+                {addParticipantPrefill !== undefined && (
+                    <Modal
+                        title={
+                            addParticipantPrefill !== null
+                                ? `Add 2nd Course for ${addParticipantPrefill.name}`
+                                : 'Add Participant to Meet'
+                        }
+                        close={() => setAddParticipantPrefill(undefined)}
+                        content={
+                            <AddParticipantModal
+                                allParticipants={allParticipants}
+                                allSlots={allSlots}
+                                cutoff={cutoff}
+                                prefill={addParticipantPrefill ?? undefined}
+                                onCreated={(newId, summary) => {
+                                    setAddParticipantPrefill(undefined)
+                                    selectParticipant(newId)
+                                    setUndo({ message: summary })
+                                }}
+                                onClose={() => setAddParticipantPrefill(undefined)}
+                            />
+                        }
+                    />
+                )}
+
+                {/* Top Command Bar */}
+                <div className="flex flex-wrap items-stretch gap-3">
+                    <div className="min-w-[16rem] flex-1">
                         <ManagerSearchBox
                             participants={allParticipants}
                             slotsByParticipant={slotsByParticipant}
@@ -562,15 +635,23 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                             onEscapeWhenEmpty={clearSelection}
                             focusToken={focusToken} />
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={() => setAddParticipantPrefill(null)}
+                        className="flex shrink-0 items-center gap-2 rounded-lg border-2 border-emerald-500 bg-emerald-700 px-4 py-3 text-base font-bold text-white shadow-md transition hover:bg-emerald-600">
+                        <SvgIcon icon="plus" />
+                        <span>Add Participant</span>
+                    </button>
+
                     {selectedParticipantId !== '' && (
-                        <div className="pt-1">
-                            <ManagerActionButton
-                                action={clearSelection}
-                                text="Done"
-                                icon="x"
-                                color="mauve"
-                                buttonStyle="outline" />
-                        </div>
+                        <button
+                            type="button"
+                            onClick={clearSelection}
+                            className="flex shrink-0 items-center gap-2 rounded-lg border-2 border-red-500 bg-red-700 px-6 py-3 text-lg font-bold text-white shadow-md transition hover:bg-red-600">
+                            <SvgIcon icon="x" />
+                            <span>Done</span>
+                        </button>
                     )}
                 </div>
 

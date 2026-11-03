@@ -18,6 +18,7 @@ function categoryOf(changeType: string): CategoryFilter {
         case 'newTime':
         case 'newCourse':
         case 'needsAssignment':
+        case 'addedParticipant':
             return 'timeCourse'
         default:
             return 'attendance'

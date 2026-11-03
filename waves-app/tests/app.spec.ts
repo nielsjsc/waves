@@ -86,6 +86,13 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	const graceCardCallup = callupPage.locator('[data-participant-id="e2etest01-participant-c2-10:00"]')
 	const alanCardCallup = callupPage.locator('[data-participant-id="e2etest01-participant-c7-10:00"]')
 
+	// Verify that switching from No Show -> Present -> deselecting Present clears the state back to no state ("waiting")
+	await adaCardCallup.getByRole('button', { name: 'No Show' }).click()
+	await adaCardCallup.getByRole('button', { name: 'Present' }).click()
+	await adaCardCallup.getByRole('button', { name: 'Present' }).click()
+	await expect(adaCardCallup.getByRole('button', { name: 'Present' })).not.toHaveClass(/bg-/)
+	await expect(adaCardCallup.getByRole('button', { name: 'No Show' })).not.toHaveClass(/bg-/)
+
 	await adaCardCallup.getByRole('button', { name: 'Present' }).click()
 	await graceCardCallup.getByRole('button', { name: 'Present' }).click()
 	await alanCardCallup.getByRole('button', { name: 'No Show' }).click()
@@ -156,6 +163,14 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await managerPage.getByRole('button', { name: '10:04' }).click()
 	await expect(managerPage.getByText('Alan Turing moved to c7 · 10:04')).toBeVisible()
 	await expect(managerPage.getByText('Originally 10:00')).toBeVisible()
+
+	// Add a new participant / 2nd-course runner from Start Manager
+	await managerPage.getByRole('button', { name: 'Add Participant' }).click()
+	await managerPage.locator('#add-p-name').fill('Margaret Hamilton')
+	await managerPage.locator('#add-p-club').fill('Ingraham High')
+	await managerPage.locator('#add-p-epunch').fill('5551234')
+	await managerPage.getByRole('button', { name: 'Add to Meet' }).click()
+	await expect(managerPage.getByRole('heading', { name: 'Margaret Hamilton', exact: true })).toBeVisible()
 
 	// -------------------------------------------------------------------------
 	// 4. STATION 4: CHANGE LOG & CSV EXPORT

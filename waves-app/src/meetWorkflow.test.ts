@@ -17,6 +17,7 @@ import {
     type PdfStartListRecord,
 } from './dataImport'
 import {
+    addNewParticipant,
     setCompetitive,
     setNewEpunch,
     setNewStartTime,
@@ -350,6 +351,36 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             await setStateWaiting(pAlan)
             expect(participantsTanCollection.get(pAlan)?.state).toBe('waiting')
             assertEveryParticipantInExactlyOneSlot()
+        })
+
+        it('adds a new participant or 2nd-course school racer while preserving the 1-slot invariant', async () => {
+            const newId = await addNewParticipant({
+                name: 'Ada Lovelace',
+                course: 'c2',
+                club: 'Ingraham',
+                epunch: '100001',
+                isRental: false,
+                isNonCompete: true,
+                groupSize: 1,
+                targetSlotId: slotC2_1002,
+            })
+            expect(newId).toBeDefined()
+            assertEveryParticipantInExactlyOneSlot()
+
+            const created = participantsTanCollection.get(newId!)!
+            expect(created.name).toBe('Ada Lovelace')
+            expect(created.club).toBe('Ingraham')
+            expect(created.epunch).toBe('100001')
+            expect(created.isNonCompete).toBe(true)
+            expect(created.state).toBe('waiting')
+            expect(created.originalStartTime).toBe('10:02')
+            expect(slotsTanCollection.get(slotC2_1002)?.participants).toContain(newId)
+
+            const addedChange = [...changesTanCollection.values()].find(
+                (c) => c.participantId === newId && c.changeType === 'addedParticipant'
+            )
+            expect(addedChange).toBeDefined()
+            expect(addedChange?.new).toBe('c2 10:02')
         })
     })
 

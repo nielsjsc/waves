@@ -54,6 +54,7 @@ const CHANGE_LABELS: Record<string, string> = {
     epunch: 'E-punch',
     competitiveStatus: 'Competitive status',
     repair: 'Record repaired',
+    addedParticipant: 'Added participant',
 }
 
 export function changeTypeLabel(changeType: string): string {
