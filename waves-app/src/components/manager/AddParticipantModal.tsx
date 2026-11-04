@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ParticipantDocType, SlotDocType } from '@/Schema'
 import { addNewParticipant } from '@/actions/participantActions'
-import { courseShortLabel, isMagicTime } from '@/utils/slotLabels'
+import { courseShortLabel, evaluateStartTimesForSchool, isMagicTime } from '@/utils/slotLabels'
 
 export interface AddParticipantPrefill {
     name: string
@@ -74,14 +74,26 @@ export function AddParticipantModal({
         )
         .sort((a, b) => a.time.localeCompare(b.time))
 
-    // Default to the soonest open slot on the chosen course whenever course/cutoff changes
+    const recommendation = evaluateStartTimesForSchool({
+        openSlots,
+        allSlots,
+        allParticipants,
+        course,
+        participantClub: club,
+    })
+
+    const recommendedSlotId = recommendation.recommendedSlot?.slot.id
+
+    // Default to the recommended (10+ min spaced) open slot on the chosen course whenever course/school/cutoff changes
     useEffect(() => {
-        if (openSlots.length > 0) {
-            setSelectedSlotId((prev) => (openSlots.some((s) => s.id === prev) ? prev : openSlots[0]!.id))
+        if (recommendedSlotId !== undefined) {
+            setSelectedSlotId(recommendedSlotId)
+        } else if (openSlots.length > 0) {
+            setSelectedSlotId(openSlots[0]!.id)
         } else {
             setSelectedSlotId('QUEUE')
         }
-    }, [course, showEarlier, cutoff, openSlots.length])
+    }, [course, club, showEarlier, cutoff, recommendedSlotId, openSlots.length])
 
     // Find existing participants matching the typed name so volunteers can 1-click copy
     // school & e-punch when a school racer finishes their first course and runs a second one.
@@ -340,24 +352,41 @@ export function AddParticipantModal({
                     </button>
                 </div>
 
+                {recommendation.recommendedSlot !== undefined && (
+                    <p className="mt-1.5 text-xs text-emerald-300">
+                        <strong>★ Preferred ({recommendation.recommendedSlot.slot.time}):</strong> {recommendation.reason}
+                    </p>
+                )}
+
                 {openSlots.length === 0 ? (
                     <p className="mt-2 text-xs italic text-gray-400">
                         No open start slots on {course}{cutoff !== '' && !showEarlier ? ` after ${cutoff}` : ''}. Will be placed in the "Needs a new time" queue.
                     </p>
                 ) : (
                     <div className="mt-2 flex max-h-32 flex-wrap gap-1.5 overflow-auto">
-                        {openSlots.map((slot) => {
+                        {recommendation.evaluatedSlots.map(({ slot, isPreferred, closestConflict }) => {
                             const picked = slot.id === selectedSlotId
+                            const isRecommended = slot.id === recommendedSlotId
+                            const conflictTitle = closestConflict
+                                ? `Within 10 min of ${recommendation.school} teammate ${closestConflict.teammateName} (${closestConflict.teammateTime}, ${closestConflict.gapMinutes} min apart) — click to override`
+                                : '10+ min spacing from same-school teammates'
+
+                            let btnClass = 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
+                            if (picked) {
+                                btnClass = 'border-amber-400 bg-amber-600 text-white'
+                            } else if (isRecommended && isPreferred) {
+                                btnClass = 'border-emerald-500 bg-emerald-950/70 text-emerald-200 hover:bg-emerald-800'
+                            } else if (!isPreferred) {
+                                btnClass = 'border-dashed border-amber-700/80 bg-amber-950/25 text-amber-300/80 hover:bg-gray-700'
+                            }
+
                             return (
                                 <button
                                     key={slot.id}
                                     type="button"
+                                    title={conflictTitle}
                                     onClick={() => setSelectedSlotId(slot.id)}
-                                    className={`rounded border px-2.5 py-1 text-sm font-semibold tabular-nums ${
-                                        picked
-                                            ? 'border-amber-400 bg-amber-600 text-white'
-                                            : 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
-                                    }`}>
+                                    className={`rounded border px-2.5 py-1 text-sm font-semibold tabular-nums ${btnClass}`}>
                                     {slot.time}
                                 </button>
                             )

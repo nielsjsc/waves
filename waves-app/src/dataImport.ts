@@ -2,6 +2,7 @@ import Papa, { type ParseResult } from "papaparse"
 import type { ParticipantDocType, SlotDocType } from "./Schema"
 import {
     EVENT_ID,
+    cleanupLegacyDuplicateRecords,
     firstSyncDone,
     isEventEmpty,
     isStaleEvent,
@@ -175,6 +176,7 @@ export function ensureStartListLoaded(): Promise<void> {
         if (isStaleEvent()) {
             return
         }
+        await cleanupLegacyDuplicateRecords()
         if (await isEventEmpty()) {
             console.log(`rxdb: Event ${EVENT_ID} is empty after first sync; importing /startlist.csv...`)
             await readStartListCsv()

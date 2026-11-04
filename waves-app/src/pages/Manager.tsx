@@ -156,6 +156,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
     const [isEpunchEditOpen, setEpunchEditOpen] = useState(false)
     const [addParticipantPrefill, setAddParticipantPrefill] = useState<AddParticipantPrefill | null | undefined>(undefined)
     const [confirmNotAttending, setConfirmNotAttending] = useState(false)
+    const [timePickerOpen, setTimePickerOpen] = useState(true)
     const [timelineOpen, setTimelineOpen] = useState(false)
     const [focusToken, setFocusToken] = useState(0)
     const [undo, setUndo] = useState<UndoInfo | undefined>(undefined)
@@ -218,8 +219,9 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
         }
     }, [timelineOpen, selectedParticipantId, entry?.slotId])
 
-    function selectParticipant(id: string) {
+    function selectParticipant(id: string, openPicker = true) {
         setSelectedParticipantId(id)
+        setTimePickerOpen(openPicker)
     }
 
     function clearSelection() {
@@ -245,6 +247,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
 
     function handleAssign(slot: SlotDocType) {
         if (entry === undefined) {return}
+        setTimePickerOpen(false)
         void runWithUndo(
             `${entry.participant.name} moved to ${slot.course} · ${slot.time}`,
             () => setNewStartTime(entry.participant.id, entry.slotId, slot.id))
@@ -494,7 +497,10 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                                     )}
                                     {e.time !== '_needsAssignment' && (
                                         <ManagerActionButton
-                                            action={() => void runWithUndo(`${p.name} moved to needs a new time`, () => setStateNeedsAssignment(p.id))}
+                                            action={() => {
+                                                setTimePickerOpen(true)
+                                                void runWithUndo(`${p.name} moved to needs a new time`, () => setStateNeedsAssignment(p.id))
+                                            }}
                                             text="Needs new time"
                                             icon="hourglass"
                                             color={getColorByIconName("hourglass")}
@@ -530,14 +536,40 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                         </div>
                     </div>
 
-                    <OpenTimesPicker
-                        key={p.id}
-                        participantName={p.name}
-                        currentCourse={e.course}
-                        currentTime={e.time}
-                        allSlots={allSlots}
-                        cutoff={cutoff}
-                        onAssign={handleAssign} />
+                    {timePickerOpen ? (
+                        <OpenTimesPicker
+                            key={p.id}
+                            participantId={p.id}
+                            participantName={p.name}
+                            participantClub={p.club ?? ''}
+                            currentCourse={e.course}
+                            currentTime={e.time}
+                            allSlots={allSlots}
+                            allParticipants={allParticipants}
+                            cutoff={cutoff}
+                            onAssign={handleAssign}
+                            onClose={() => setTimePickerOpen(false)} />
+                    ) : (
+                        <section className="flex flex-col items-start justify-between gap-4 self-start rounded-lg border border-emerald-700/70 bg-emerald-950/30 p-5">
+                            <div className="flex items-start gap-3 text-emerald-200">
+                                <SvgIcon icon="check-badge" />
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">
+                                        Start time assigned: {e.course} · {formatSlotTime(e.time)}
+                                    </h3>
+                                    <p className="mt-0.5 text-sm text-emerald-300/90">
+                                        {p.name} is scheduled on course {courseWithHint} at {formatSlotTime(e.time)}.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setTimePickerOpen(true)}
+                                className="rounded-md border border-gray-600 bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-200 transition hover:bg-gray-700 hover:text-white">
+                                Change start time or course…
+                            </button>
+                        </section>
+                    )}
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -616,7 +648,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                                 prefill={addParticipantPrefill ?? undefined}
                                 onCreated={(newId, summary) => {
                                     setAddParticipantPrefill(undefined)
-                                    selectParticipant(newId)
+                                    selectParticipant(newId, false)
                                     setUndo({ message: summary })
                                 }}
                                 onClose={() => setAddParticipantPrefill(undefined)}

@@ -233,6 +233,13 @@ export function onSyncStatusChange(listener: (status: SyncStatus) => void): () =
     }
 }
 
+const IS_HOST_CLIENT =
+    typeof window === 'undefined' ||
+    window.location.hostname === '' ||
+    window.location.hostname === 'app.waves.local' ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+
 export const firstSyncDone: Promise<void> = replications === undefined
     ? Promise.resolve()
     : new Promise<void>((resolve) => {
@@ -252,12 +259,43 @@ export const firstSyncDone: Promise<void> = replications === undefined
               setSyncStatus('synced')
               finish()
           })
-          // If the sync server is unreachable on initial boot, allow local offline operation to proceed.
-          const sub = replications.slots.error$.subscribe(() => {
-              sub.unsubscribe()
-              finish()
-          })
+          // Only allow the host machine to fall back to local offline startup if the sync server is unreachable.
+          // Remote phones/tablets should wait until initial replication succeeds so they never import a separate copy offline.
+          if (IS_HOST_CLIENT) {
+              const sub = replications.slots.error$.subscribe(() => {
+                  sub.unsubscribe()
+                  finish()
+              })
+          }
       })
+
+export async function cleanupLegacyDuplicateRecords(): Promise<void> {
+    const [allParticipants, allSlots] = await Promise.all([
+        db.participants.find().exec(),
+        db.slots.find().exec(),
+    ])
+    const hasPrefixedParticipants = allParticipants.some((p) => p.id.startsWith(`${EVENT_ID}-`))
+    if (hasPrefixedParticipants) {
+        const legacyParticipantIds = allParticipants
+            .filter((p) => /^p-c\d+-/.test(p.id))
+            .map((p) => p.id)
+        if (legacyParticipantIds.length > 0) {
+            console.log(`rxdb: Removing ${legacyParticipantIds.length} legacy duplicate participants...`)
+            await db.participants.bulkRemove(legacyParticipantIds)
+        }
+    }
+
+    const hasPrefixedSlots = allSlots.some((s) => s.id.startsWith(`${EVENT_ID}-`))
+    if (hasPrefixedSlots) {
+        const legacySlotIds = allSlots
+            .filter((s) => /^s-c\d+-/.test(s.id))
+            .map((s) => s.id)
+        if (legacySlotIds.length > 0) {
+            console.log(`rxdb: Removing ${legacySlotIds.length} legacy duplicate slots...`)
+            await db.slots.bulkRemove(legacySlotIds)
+        }
+    }
+}
 
 export async function isEventEmpty(): Promise<boolean> {
     const [slot, participant] = await Promise.all([

@@ -163,6 +163,8 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await managerPage.getByRole('button', { name: '10:04' }).click()
 	await expect(managerPage.getByText('Alan Turing moved to c7 · 10:04')).toBeVisible()
 	await expect(managerPage.getByText('Originally 10:00')).toBeVisible()
+	await expect(managerPage.getByText('Start time assigned: c7 · 10:04')).toBeVisible()
+	await expect(managerPage.getByRole('button', { name: /Change start time or course/i })).toBeVisible()
 
 	// Add a new participant / 2nd-course runner from Start Manager
 	await managerPage.getByRole('button', { name: 'Add Participant' }).click()

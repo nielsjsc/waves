@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
     changesTanCollection,
+    cleanupLegacyDuplicateRecords,
     dropAllChanges,
     dropAllParticipants,
     dropAllSlots,
@@ -32,7 +33,7 @@ import {
 } from './actions/participantActions'
 import { keepOnlyInSlot, putInNeedsAssignment } from './actions/repairActions'
 import { getOriginalEpunch, getOriginalStart } from './utils/originalValues'
-import { addMinutesToClock, changeTypeLabel, formatSlotTime } from './utils/slotLabels'
+import { addMinutesToClock, changeTypeLabel, evaluateStartTimesForSchool, formatSlotTime } from './utils/slotLabels'
 
 function makeWaveRow(
     time: string,
@@ -398,6 +399,99 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             expect(formatSlotTime('10:04')).toBe('10:04')
             expect(changeTypeLabel('wrongEpunch')).toBe('Wrong e-punch')
             expect(changeTypeLabel('newCourse')).toBe('New course')
+        })
+
+        it('recommends 10-minute spacing between teammates from the same school on the same course', () => {
+            const allParticipants = [
+                { id: 'p-teammate', name: 'Ada Lovelace', club: 'Ingraham High' },
+                { id: 'p-late', name: 'Bob Smith', club: 'Ingraham High' },
+                { id: 'p-other-school', name: 'Alan Turing', club: 'Garfield High' },
+            ]
+            const allSlots = [
+                { id: 's-1000', course: 'c1', time: '10:00', participants: ['p-teammate'], isUsable: true },
+                { id: 's-1002', course: 'c1', time: '10:02', participants: ['p-other-school'], isUsable: true },
+                { id: 's-1004', course: 'c1', time: '10:04', participants: [], isUsable: true },
+                { id: 's-1006', course: 'c1', time: '10:06', participants: [], isUsable: true },
+                { id: 's-1008', course: 'c1', time: '10:08', participants: [], isUsable: true },
+                { id: 's-1010', course: 'c1', time: '10:10', participants: [], isUsable: true },
+                { id: 's-1012', course: 'c1', time: '10:12', participants: [], isUsable: true },
+            ]
+            const openSlots = allSlots.filter((s) => s.participants.length === 0)
+
+            const rec = evaluateStartTimesForSchool({
+                openSlots,
+                allSlots,
+                allParticipants,
+                course: 'c1',
+                participantClub: 'Ingraham High',
+                excludeParticipantId: 'p-late',
+            })
+
+            // 10:04, 10:06, 10:08 are within < 10 minutes of Ada at 10:00; 10:10 is >= 10 minutes apart
+            expect(rec.recommendedSlot?.slot.time).toBe('10:10')
+            expect(rec.recommendedSlot?.isPreferred).toBe(true)
+            expect(rec.skippedEarlierSlots.map((s) => s.slot.time)).toEqual(['10:04', '10:06', '10:08'])
+            expect(rec.reason).toContain('Ada Lovelace at 10:00')
+            expect(rec.reason).toContain('10 minutes')
+
+            // Fallback when only <10-min slots exist: picks the slot with the largest gap (10:08, 8 min apart)
+            const onlyCloseSlots = openSlots.filter((s) => s.time < '10:10')
+            const fallbackRec = evaluateStartTimesForSchool({
+                openSlots: onlyCloseSlots,
+                allSlots,
+                allParticipants,
+                course: 'c1',
+                participantClub: 'Ingraham High',
+                excludeParticipantId: 'p-late',
+            })
+            expect(fallbackRec.recommendedSlot?.slot.time).toBe('10:08')
+            expect(fallbackRec.recommendedSlot?.isPreferred).toBe(false)
+            expect(fallbackRec.reason).toContain('No open times on c1 have a full 10-minute gap')
+        })
+
+        it('removes legacy unprefixed p-* and s-* duplicate records when prefixed event records exist', async () => {
+            await insertStartListCsv([
+                makeWaveRow('10:00:00', {
+                    'ELEMENTARYBEGINNER.1': 'Ada Lovelace',
+                    'ELEMENTARYBEGINNER.2': 'Ingraham High',
+                    'ELEMENTARYBEGINNER.3': '100001',
+                }),
+            ])
+            const tx1 = participantsTanCollection.insert([
+                {
+                    id: 'p-c1-10:00',
+                    name: 'Ada Lovelace',
+                    club: 'Ingraham High',
+                    epunch: '100001',
+                    isRental: false,
+                    isNonCompete: false,
+                    state: 'waiting',
+                    groupSize: 1,
+                    originalStartTime: '10:00',
+                    startChanged: false,
+                },
+            ])
+            await tx1.isPersisted.promise
+            const tx2 = slotsTanCollection.insert([
+                {
+                    id: 's-c1-10:00',
+                    course: 'c1',
+                    time: '10:00',
+                    participants: ['p-c1-10:00'],
+                    isUsable: true,
+                },
+            ])
+            await tx2.isPersisted.promise
+
+            expect(participantsTanCollection.has('p-c1-10:00')).toBe(true)
+            expect(slotsTanCollection.has('s-c1-10:00')).toBe(true)
+
+            await cleanupLegacyDuplicateRecords()
+
+            expect(participantsTanCollection.has('p-c1-10:00')).toBe(false)
+            expect(slotsTanCollection.has('s-c1-10:00')).toBe(false)
+            expect(participantsTanCollection.has(participantIdFor('c1', '10:00'))).toBe(true)
+            expect(slotsTanCollection.has(slotIdFor('c1', '10:00'))).toBe(true)
         })
     })
 })
