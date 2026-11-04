@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ManagerActionButton } from "./ManagerActionButton";
 import { getUniqueTimesFromSlots } from "./grid/StartGrid";
 import { useLiveQuery } from "@tanstack/react-db";
@@ -31,14 +31,28 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
     // waveTimes is a new array on every render, so effects depend on this string instead.
     const waveKey = waveTimes.join(',')
 
-    // INITIAL SELECTION
+    const prevClockWaveRef = useRef(clockWave)
+
+    // INITIAL SELECTION & AUTO-ADVANCE WITH CLOCK
     // Start on the clock's wave if it exists, otherwise the first wave, so the
-    // page isn't empty until someone presses "Now". Waits for slots to load.
+    // page isn't empty until someone presses "Now". When the clock advances to a
+    // new wave, automatically move to that wave.
     useEffect(() => {
-        if (userWaveTime !== '' || waveTimes.length === 0) {
+        if (waveTimes.length === 0) {
             return
         }
-        setUserWaveTime(waveTimes.includes(clockWave) ? clockWave : waveTimes[0]!)
+        if (userWaveTime === '') {
+            prevClockWaveRef.current = clockWave
+            setUserWaveTime(waveTimes.includes(clockWave) ? clockWave : waveTimes[0]!)
+            return
+        }
+        if (prevClockWaveRef.current !== clockWave) {
+            prevClockWaveRef.current = clockWave
+            if (waveTimes.includes(clockWave)) {
+                setWaveNotice('')
+                setUserWaveTime(clockWave)
+            }
+        }
     }, [userWaveTime, clockWave, waveKey])
 
     // NEXT WAVE based on USER WAVE
