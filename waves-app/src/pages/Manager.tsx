@@ -156,7 +156,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
     const [isEpunchEditOpen, setEpunchEditOpen] = useState(false)
     const [addParticipantPrefill, setAddParticipantPrefill] = useState<AddParticipantPrefill | null | undefined>(undefined)
     const [confirmNotAttending, setConfirmNotAttending] = useState(false)
-    const [timePickerOpen, setTimePickerOpen] = useState(true)
+    const [timePickerOpen, setTimePickerOpen] = useState(false)
     const [timelineOpen, setTimelineOpen] = useState(false)
     const [focusToken, setFocusToken] = useState(0)
     const [undo, setUndo] = useState<UndoInfo | undefined>(undefined)
@@ -219,7 +219,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
         }
     }, [timelineOpen, selectedParticipantId, entry?.slotId])
 
-    function selectParticipant(id: string, openPicker = true) {
+    function selectParticipant(id: string, openPicker = false) {
         setSelectedParticipantId(id)
         setTimePickerOpen(openPicker)
     }
@@ -355,7 +355,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
 
         return (
             <div className="flex flex-col gap-4">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
+                <div className={timePickerOpen ? "grid gap-4 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]" : "flex max-w-2xl flex-col gap-4"}>
                     <div className="flex flex-col gap-4">
                         {/* Participant Summary Card */}
                         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
@@ -424,9 +424,15 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                         <div className="flex flex-col gap-3 rounded-lg border border-gray-700 bg-gray-900 p-4">
                             <div>
                                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
-                                    E-punch, Status &amp; 2nd Course
+                                    Start Time, E-punch, Status &amp; 2nd Course
                                 </div>
                                 <div className="flex flex-wrap gap-2">
+                                    <ManagerActionButton
+                                        action={() => setTimePickerOpen((open) => !open)}
+                                        text="Change start time"
+                                        icon="clock"
+                                        color="sky"
+                                        buttonStyle={timePickerOpen ? "solid" : "outline"} />
                                     <ManagerActionButton
                                         action={() => setEpunchEditOpen(true)}
                                         text="Edit e-punch"
@@ -536,7 +542,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                         </div>
                     </div>
 
-                    {timePickerOpen ? (
+                    {timePickerOpen && (
                         <OpenTimesPicker
                             key={p.id}
                             participantId={p.id}
@@ -549,26 +555,6 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                             cutoff={cutoff}
                             onAssign={handleAssign}
                             onClose={() => setTimePickerOpen(false)} />
-                    ) : (
-                        <section className="flex flex-col items-start justify-between gap-4 self-start rounded-lg border border-emerald-700/70 bg-emerald-950/30 p-5">
-                            <div className="flex items-start gap-3 text-emerald-200">
-                                <SvgIcon icon="check-badge" />
-                                <div>
-                                    <h3 className="text-lg font-bold text-white">
-                                        Start time assigned: {e.course} · {formatSlotTime(e.time)}
-                                    </h3>
-                                    <p className="mt-0.5 text-sm text-emerald-300/90">
-                                        {p.name} is scheduled on course {courseWithHint} at {formatSlotTime(e.time)}.
-                                    </p>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setTimePickerOpen(true)}
-                                className="rounded-md border border-gray-600 bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-200 transition hover:bg-gray-700 hover:text-white">
-                                Change start time or course…
-                            </button>
-                        </section>
                     )}
                 </div>
 

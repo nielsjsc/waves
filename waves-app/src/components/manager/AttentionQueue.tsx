@@ -7,7 +7,7 @@ interface Properties {
     participants: ParticipantDocType[]
     slotsByParticipant: Map<string, SlotDocType[]>
     changes: ChangesDocType[]
-    onSelect: (participantId: string) => void
+    onSelect: (participantId: string, openPicker?: boolean) => void
 }
 
 function TriageCard({
@@ -292,7 +292,7 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
                                 title={p.name}
                                 detail={[courseOf(p.id), clubOf(p), was].filter((x) => x !== '').join(' · ')}
                                 aside={at === undefined ? 'no start yet' : timeAgo(at)}
-                                onClick={() => onSelect(p.id)}
+                                onClick={() => onSelect(p.id, true)}
                             />
                         )
                     })}

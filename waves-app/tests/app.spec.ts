@@ -155,6 +155,11 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await managerPage.getByRole('button', { name: /^Garfield High/i }).click()
 	await managerPage.getByRole('button', { name: /Alan Turing/i }).first().click()
 
+	// Verify that clicking a person from the school page does NOT automatically show the time picker
+	await expect(managerPage.getByText('Assign Start Time for Alan Turing')).toHaveCount(0)
+	await managerPage.getByRole('button', { name: 'Change start time' }).click()
+	await expect(managerPage.getByText('Assign Start Time for Alan Turing')).toBeVisible()
+
 	// Reassign Alan Turing to 10:04 on c7 (enabling earlier times if current clock is past 10:04)
 	const includeEarlierCheckbox = managerPage.getByLabel(/Include times already past call-up/i)
 	if (await includeEarlierCheckbox.isVisible()) {
@@ -163,8 +168,7 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await managerPage.getByRole('button', { name: '10:04' }).click()
 	await expect(managerPage.getByText('Alan Turing moved to c7 · 10:04')).toBeVisible()
 	await expect(managerPage.getByText('Originally 10:00')).toBeVisible()
-	await expect(managerPage.getByText('Start time assigned: c7 · 10:04')).toBeVisible()
-	await expect(managerPage.getByRole('button', { name: /Change start time or course/i })).toBeVisible()
+	await expect(managerPage.getByText('Assign Start Time for Alan Turing')).toHaveCount(0)
 
 	// Add a new participant / 2nd-course runner from Start Manager
 	await managerPage.getByRole('button', { name: 'Add Participant' }).click()
