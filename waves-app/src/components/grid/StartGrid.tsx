@@ -1,16 +1,16 @@
 import { useEffect, useRef, type Ref } from 'react'
 import { type Slot as SlotType } from '@/api/slots'
-import type { ParticipantState } from '@/api/participants'
+import type { Participant as ParticipantType, ParticipantState } from '@/api/participants'
 import type { SlotDocType } from '@/Schema'
 import type { PopulatedEntry } from '@/utils/PopulatedEntry'
 import { GridSlot } from './GridSlot'
 import { courseShortLabel } from '@/utils/slotLabels'
 
-// Layout sizes, in rem. Tweak these to fit more or fewer waves on screen.
-const COL_REM = 9.5 // one wave (or one course)
-const BUTTON_COL_REM = 14 // first column when it carries state buttons (call-up, e-punch)
+// Layout sizes, in rem. Wide enough so full runner names are never cut off.
+const COL_REM = 13 // one wave (or one course)
+const BUTTON_COL_REM = 15 // first column when it carries state buttons (call-up, e-punch)
 // Sticky first column: narrow for course names (c1), a bit wider for times (09:42).
-const labelRemFor = (columns: 'time' | 'course') => (columns === 'time' ? 3.5 : 4.5)
+const labelRemFor = (columns: 'time' | 'course') => (columns === 'time' ? 4 : 4.5)
 
 // "station" variant (call-up, e-punch): fills the width, with the wave being
 // worked taking this share and the "up next" wave taking the rest.
@@ -34,6 +34,10 @@ interface Properties {
     variant?: 'grid' | 'station'
     // Optional text above each column's time, in column order (e.g. "Calling now", "Up next").
     columnLabels?: string[]
+    // Optional interactive handlers for FullGrid
+    onParticipantClick?: (participant: ParticipantType, slot: SlotType) => void
+    onOpenSlotClick?: (slot: SlotType) => void
+    onMoveParticipant?: (participantId: string, fromSlotId: string, toSlotId: string) => void
 }
 
 function getUniqueCoursesFromSlots(data: SlotType[]): string[] {
@@ -94,6 +98,9 @@ export function StartGrid({
     className,
     variant = 'grid',
     columnLabels,
+    onParticipantClick,
+    onOpenSlotClick,
+    onMoveParticipant,
 }: Properties) {
     const containerRef = useRef<HTMLDivElement>(null)
     const { columnKeys, rows } = buildTable(data, columns)
@@ -127,7 +134,7 @@ export function StartGrid({
     return (
         <div
             ref={containerRef}
-            className={`isolate overflow-auto rounded-lg border border-gray-800 bg-gray-900 text-gray-100 ${className ?? 'max-h-[calc(100vh_-_6rem)]'}`}>
+            className={`isolate overflow-auto border border-slate-300 bg-white text-slate-900 ${className ?? 'max-h-[calc(100vh_-_6rem)]'}`}>
             <table
                 className={`table-fixed border-separate border-spacing-0 ${isStation ? 'w-full' : ''}`}
                 style={isStation ? undefined : { width: `${totalRem}rem` }}>
@@ -139,7 +146,7 @@ export function StartGrid({
                 </colgroup>
                 <thead>
                     <tr>
-                        <th className="sticky left-0 top-0 z-30 border-b border-r border-gray-700 bg-gray-900 px-2 py-1 text-left text-xs font-normal text-gray-400">
+                        <th className="sticky left-0 top-0 z-30 border-b border-r border-slate-300 bg-slate-100 px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                             {columns === 'time' ? 'Course' : 'Time'}
                         </th>
                         {columnKeys.map((key, i) => {
@@ -149,22 +156,22 @@ export function StartGrid({
                                 <th
                                     key={key}
                                     data-wave={columns === 'time' ? key : undefined}
-                                    className={`sticky top-0 z-20 border-b border-gray-700 px-2 text-center tabular-nums leading-tight ${
-                                        isStation ? 'py-1 text-base' : 'py-1 text-sm'
+                                    className={`sticky top-0 z-20 border-b border-l border-slate-300 px-2 text-center tabular-nums leading-tight ${
+                                        isStation ? 'py-1.5 text-base' : 'py-1.5 text-sm'
                                     } ${
                                         current
-                                            ? 'bg-emerald-900 font-bold text-emerald-100'
-                                            : 'bg-gray-900 font-semibold text-gray-300'
+                                            ? 'bg-emerald-700 font-bold text-white'
+                                            : 'bg-slate-100 font-bold text-slate-800'
                                     }`}>
                                     {label && (
                                         <div
-                                            className={`text-xs font-normal ${current ? 'text-emerald-200' : 'text-gray-400'}`}>
+                                            className={`text-xs font-medium ${current ? 'text-emerald-100' : 'text-slate-500'}`}>
                                             {label}
                                         </div>
                                     )}
                                     <div>{key}</div>
                                     {columns === 'course' && courseShortLabel(key) !== '' && (
-                                        <div className="text-[11px] font-normal leading-tight text-gray-400">
+                                        <div className="text-[11px] font-normal leading-tight text-slate-600">
                                             {courseShortLabel(key)}
                                         </div>
                                     )}
@@ -185,16 +192,17 @@ export function StartGrid({
                         return (
                             <tr
                                 key={row.key}
+                                className="h-px"
                                 data-contains-selected-participant={containsSelected}
                                 ref={containsSelected ? scrollTo : undefined}>
                                 <th
                                     scope="row"
-                                    className={`sticky left-0 z-10 border-b border-r border-gray-800 bg-gray-900 px-2 py-1 text-center font-bold leading-tight text-gray-200 ${
+                                    className={`sticky left-0 z-10 border-b border-r border-slate-300 bg-slate-50 px-2 py-1 text-center font-bold tabular-nums leading-tight text-slate-900 ${
                                         isStation ? 'text-base' : 'text-sm'
                                     }`}>
                                     <div className="leading-tight">{row.key}</div>
                                     {columns === 'time' && courseShortLabel(row.key) !== '' && (
-                                        <div className="text-xs font-normal leading-tight text-gray-400">
+                                        <div className="text-xs font-normal leading-tight text-slate-600">
                                             {courseShortLabel(row.key)}
                                         </div>
                                     )}
@@ -202,12 +210,12 @@ export function StartGrid({
                                 {row.slots.map((slot, i) => (
                                     <td
                                         key={`${slot.time}-${slot.course}`}
-                                        className={`border-b border-l border-gray-800 align-top ${
+                                        className={`h-full border-b border-l border-slate-200 align-top ${
                                             isStation ? 'px-1 py-0.5' : 'p-0.5'
                                         } ${
                                             isCurrentColumn(columns === 'time' ? slot.time : '')
-                                                ? 'bg-emerald-950/40'
-                                                : ''
+                                                ? 'bg-emerald-50/70'
+                                                : 'bg-white'
                                         }`}>
                                         <GridSlot
                                             slot={slot}
@@ -219,6 +227,9 @@ export function StartGrid({
                                             toStateButtons={i === 0 ? toStateButtons : []}
                                             size={isStation && i === 0 ? 'large' : 'compact'}
                                             muted={isStation && i > 0}
+                                            onParticipantClick={onParticipantClick}
+                                            onOpenSlotClick={onOpenSlotClick}
+                                            onMoveParticipant={onMoveParticipant}
                                         />
                                     </td>
                                 ))}

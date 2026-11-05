@@ -11,6 +11,19 @@ function nextChangeTimestamp(): number {
     return lastChangeTimestamp
 }
 
+async function clearSupersededStateChanges(participantId: string, typesToClear: string[]) {
+    const existing = await queryOnce((q) =>
+        q
+            .from({ c: changesTanCollection })
+            .where(({ c }) => eq(c.participantId, participantId))
+    )
+    const ids = existing.filter((c) => typesToClear.includes(c.changeType)).map((c) => c.id)
+    for (const id of ids) {
+        const tx = changesTanCollection.delete(id)
+        await tx.isPersisted.promise
+    }
+}
+
 async function getSlotForParticipantId(participantId:string):Promise<SlotDocType|undefined> {
     const slots = await queryOnce((q) =>
         q
@@ -93,6 +106,7 @@ export async function setStateWaiting(participantId:string) {
         p.prevState = oldParticipant.state
     })
     await t1.isPersisted.promise
+    await clearSupersededStateChanges(participantId, ['noShow', 'wrongEpunch'])
 }
 
 export async function setStatePresent(participantId:string) {
@@ -111,14 +125,16 @@ export async function setStatePresent(participantId:string) {
         p.prevState = oldParticipant.state
     })
     await t1.isPersisted.promise
+    await clearSupersededStateChanges(participantId, ['noShow', 'wrongEpunch'])
 }
 
 export async function setStateValidated(participantId:string) {
     // must have a valid start time
-    // (any?) -> Validated
+    // (any?) -> Validated (cannot validate someone currently marked as a No Show)
 
     const oldParticipant = await participantsTanCollection.get(participantId)
     if (oldParticipant === undefined) {return;}
+    if (oldParticipant.state === "noShow") {return;}
      
     const slot = await getSlotForParticipantId(participantId)
     if (slot === undefined) {return;}
@@ -129,18 +145,22 @@ export async function setStateValidated(participantId:string) {
         p.prevState = oldParticipant.state
     })
     await t1.isPersisted.promise
+    await clearSupersededStateChanges(participantId, ['noShow', 'wrongEpunch'])
 }
 
 export async function setStateWrongEpunch(participantId:string) {
     // must have a valid start time; keeps the participant in their current slot
-    // (any?) -> WrongEpunch
+    // A participant marked No Show cannot simultaneously be flagged Wrong E-punch.
 
     const oldParticipant = await participantsTanCollection.get(participantId)
     if (oldParticipant === undefined) {return;}
+    if (oldParticipant.state === "noShow") {return;}
 
     const slot = await getSlotForParticipantId(participantId)
     if (slot === undefined) {return;}
     if (!isRealStartTime(slot)) {return;}
+
+    await clearSupersededStateChanges(participantId, ['noShow', 'wrongEpunch'])
 
     const t1 = participantsTanCollection.update(participantId, (p) => {
         p.state = "wrongEpunch"
@@ -163,14 +183,17 @@ export async function setStateWrongEpunch(participantId:string) {
 
 export async function setStateNoShow(participantId:string) {
     // must have a valid start time
-    // (any?) -> NoShow
+    // A participant already checked at E-punch Check (validated or wrongEpunch) is present and cannot be marked No Show.
 
     const oldParticipant = await participantsTanCollection.get(participantId)
     if (oldParticipant === undefined) {return;}
+    if (oldParticipant.state === "wrongEpunch" || oldParticipant.state === "validated") {return;}
 
     const slot = await getSlotForParticipantId(participantId)
     if (slot === undefined) {return;}
     if (!isRealStartTime(slot)) {return;}
+
+    await clearSupersededStateChanges(participantId, ['noShow', 'wrongEpunch'])
 
     const t1 = participantsTanCollection.update(participantId, (p) => {
         p.state = "noShow"
@@ -184,7 +207,7 @@ export async function setStateNoShow(participantId:string) {
         participantId: participantId,
         changedAt: nextChangeTimestamp(),
         changeType: 'noShow',
-        old: oldParticipant.state, //TODO CHECK THAT THIS WORKS, IT MIGHT LIVE UPDATE!
+        old: oldParticipant.state,
         new: 'noShow',
         needsProcessing: false,
         isProcessed: false
@@ -209,6 +232,8 @@ export async function setStateNotAttending(participantId:string) {
     if (newSlot === undefined) {
         throw("New Slot not found. Something wrong")
     }
+
+    await clearSupersededStateChanges(participantId, ['noShow', 'wrongEpunch'])
 
     // Update Participant State
     const preserveOriginalTime = isRealStartTime(oldSlot) && !oldParticipant.startChanged
@@ -248,6 +273,8 @@ export async function setStateNeedsAssignment(participantId:string) {
     if (oldSlot === undefined) {
         throw("Old slot not found. Something wrong")
     }
+
+    await clearSupersededStateChanges(participantId, ['noShow', 'wrongEpunch'])
 
     // Update Participant State
     if (isRealStartTime(oldSlot) && !oldParticipant.startChanged) {
@@ -301,7 +328,11 @@ export async function setNewEpunch(participantId:string, newEpunch:string, newEp
     });
     await t1.isPersisted.promise
 
-        // Record the change for stats
+    if (oldParticipant.state === "wrongEpunch") {
+        await clearSupersededStateChanges(participantId, ['wrongEpunch', 'noShow'])
+    }
+
+    // Record the change for stats
     const t4 = changesTanCollection.insert([{
         id: crypto.randomUUID(),
         participantId: participantId,

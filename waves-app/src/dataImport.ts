@@ -2,6 +2,8 @@ import Papa, { type ParseResult } from "papaparse"
 import type { ParticipantDocType, SlotDocType } from "./Schema"
 import {
     EVENT_ID,
+    bulkUpsertParticipants,
+    bulkUpsertSlots,
     cleanupLegacyDuplicateRecords,
     firstSyncDone,
     isEventEmpty,
@@ -276,14 +278,12 @@ export async function insertStartListCsv(data:PdfStartListRecord[]) {
 
     const newParticipants = participants.filter((p) => !participantsTanCollection.has(p.id))
     if (newParticipants.length > 0) {
-        const tx1 = participantsTanCollection.insert(newParticipants)
-        await tx1.isPersisted.promise
+        await bulkUpsertParticipants(newParticipants)
     }
 
     const newSlots = slots.filter((s) => !slotsTanCollection.has(s.id))
     if (newSlots.length > 0) {
-        const tx2 = slotsTanCollection.insert(newSlots)
-        await tx2.isPersisted.promise
+        await bulkUpsertSlots(newSlots)
     }
 
     console.log(`Start list loaded for event ${EVENT_ID} (${newParticipants.length} participants, ${newSlots.length} slots)`)

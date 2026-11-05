@@ -16,13 +16,13 @@ interface Properties {
 }
 
 function whereIs(slots: SlotDocType[] | undefined): string {
-    if (slots === undefined || slots.length === 0) {return 'not in any slot'}
-    if (slots.length > 1) {return 'in several slots'}
+    if (slots === undefined || slots.length === 0) { return 'not in any slot' }
+    if (slots.length > 1) { return 'in several slots' }
     const slot = slots[0]!
     return `${slot.course} · ${formatSlotTime(slot.time)}`
 }
 
-export function ManagerSearchBox({participants, slotsByParticipant, onSelect, onEscapeWhenEmpty, focusToken}: Properties) {
+export function ManagerSearchBox({ participants, slotsByParticipant, onSelect, onEscapeWhenEmpty, focusToken }: Properties) {
     const [query, setQuery] = useState('')
     const [active, setActive] = useState(0)
     const inputRef = useRef<HTMLInputElement>(null)
@@ -38,7 +38,6 @@ export function ManagerSearchBox({participants, slotsByParticipant, onSelect, on
     const q = query.trim().toLowerCase()
     let matches: ParticipantDocType[] = []
     if (q.length >= 2) {
-        // Every word typed must appear in the name, club or e-punch number.
         const words = q.split(/\s+/)
         matches = participants
             .filter((p) => {
@@ -63,9 +62,9 @@ export function ManagerSearchBox({participants, slotsByParticipant, onSelect, on
             setActive((i) => Math.max(i - 1, 0))
         } else if (e.key === 'Enter') {
             const pick = shown[active]
-            if (pick !== undefined) {choose(pick.id)}
+            if (pick !== undefined) { choose(pick.id) }
         } else if (e.key === 'Escape') {
-            if (query === '') {onEscapeWhenEmpty?.()} else {setQuery('')}
+            if (query === '') { onEscapeWhenEmpty?.() } else { setQuery('') }
         }
     }
 
@@ -76,16 +75,16 @@ export function ManagerSearchBox({participants, slotsByParticipant, onSelect, on
                 type="text"
                 aria-label="Search participants"
                 autoComplete="off"
-                className="w-full rounded-lg border-2 border-gray-600 bg-gray-800 px-4 py-3 text-xl text-white placeholder-gray-400 focus:border-pink-500 focus:outline-none"
+                className="w-full rounded-none border border-slate-400 bg-white px-4 py-3 text-xl text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
                 placeholder="Search by name, club or e-punch number"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
             />
             {q.length >= 2 && (
-                <ul className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-gray-600 bg-gray-900 shadow-xl">
+                <ul className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden border border-slate-400 bg-white shadow-lg">
                     {shown.length === 0 && (
-                        <li className="px-4 py-3 text-gray-400">No one matches "{query.trim()}"</li>
+                        <li className="px-4 py-3 text-slate-500">No one matches "{query.trim()}"</li>
                     )}
                     {shown.map((p, i) => {
                         const style = ParticipantStateStyles.get(p.state)
@@ -96,23 +95,25 @@ export function ManagerSearchBox({participants, slotsByParticipant, onSelect, on
                                     type="button"
                                     onMouseEnter={() => setActive(i)}
                                     onClick={() => choose(p.id)}
-                                    className={`flex w-full items-center gap-3 px-4 py-2 text-left ${i === active ? 'bg-gray-700' : 'bg-gray-900'}`}>
+                                    className={`flex w-full items-center gap-3 px-4 py-2 text-left ${
+                                        i === active ? 'bg-slate-100' : 'bg-white'
+                                    }`}>
                                     <span className="min-w-0 flex-1">
-                                        <span className="font-semibold text-gray-100">{p.name}</span>
+                                        <span className="font-semibold text-slate-900">{p.name}</span>
                                         {p.groupSize > 1 && (
-                                            <span className="ml-2 text-xs text-emerald-300">group of {p.groupSize}</span>
+                                            <span className="ml-2 text-xs font-medium text-emerald-700">group of {p.groupSize}</span>
                                         )}
-                                        <span className="block truncate text-sm text-gray-400">
+                                        <span className="block truncate text-sm text-slate-600">
                                             {club}
                                             {club !== '' && ' · '}
                                             {p.epunch ? `E-punch ${p.epunch}` : 'no e-punch'}
                                         </span>
                                     </span>
-                                    <span className="shrink-0 text-right text-sm text-gray-300">
+                                    <span className="shrink-0 text-right text-sm font-medium text-slate-700">
                                         {whereIs(slotsByParticipant.get(p.id))}
                                     </span>
                                     {p.state !== 'waiting' && style !== undefined && (
-                                        <span className={`shrink-0 rounded px-1.5 text-xs font-medium text-white ${style.bg}`}>
+                                        <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold text-white ${style.bg}`}>
                                             {style.friendlyName}
                                         </span>
                                     )}
@@ -121,7 +122,7 @@ export function ManagerSearchBox({participants, slotsByParticipant, onSelect, on
                         )
                     })}
                     {matches.length > MAX_RESULTS && (
-                        <li className="px-4 py-2 text-sm text-gray-500">
+                        <li className="border-t border-slate-200 px-4 py-2 text-sm text-slate-500">
                             {matches.length - MAX_RESULTS} more. Keep typing to narrow it down.
                         </li>
                     )}

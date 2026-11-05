@@ -52,19 +52,19 @@ export function EditEpunchModal({ participant, closeModal }: Properties) {
     }
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 text-slate-900">
             <p className="text-lg">
                 Current e-punch:{" "}
-                <span className="font-bold tabular-nums text-white">
+                <span className="font-bold tabular-nums text-slate-900">
                     {participant.participant.epunch || "none"}
                 </span>{" "}
-                <span className="text-gray-400">
+                <span className="text-slate-600">
                     {participant.participant.isRental ? "(Rental)" : "(Owned)"}
                 </span>
             </p>
 
             <div className="mt-2 flex flex-col gap-1">
-                <label htmlFor="new-si" className="text-base font-medium text-gray-200">
+                <label htmlFor="new-si" className="text-base font-semibold text-slate-800">
                     New e-punch number
                 </label>
                 <input
@@ -75,7 +75,7 @@ export function EditEpunchModal({ participant, closeModal }: Properties) {
                     pattern="[0-9]{5,9}"
                     minLength={5}
                     maxLength={9}
-                    className="rounded-md border-2 border-gray-600 bg-gray-900 px-3 py-2 text-xl font-bold tabular-nums text-white placeholder-gray-500 focus:border-sky-500 focus:outline-none"
+                    className="rounded-none border border-slate-400 bg-white px-3 py-2 text-xl font-bold tabular-nums text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
                     placeholder="1234567"
                     onChange={handleNewEpunchInput}
                     onKeyDown={handleKeyDown}
@@ -84,7 +84,7 @@ export function EditEpunchModal({ participant, closeModal }: Properties) {
             </div>
 
             <div className="flex flex-row items-center gap-2">
-                <span className="text-base text-gray-200">Type:</span>
+                <span className="text-base font-medium text-slate-800">Type:</span>
                 <ManagerActionButton
                     text="Rental"
                     action={handleRentClick}
@@ -92,7 +92,7 @@ export function EditEpunchModal({ participant, closeModal }: Properties) {
                     color="amber"
                     buttonStyle={isRental === "true" ? "solid" : "outline"}
                 />
-                <span className="text-gray-400">or</span>
+                <span className="text-slate-500">or</span>
                 <ManagerActionButton
                     text="Owned"
                     action={handleOwnClick}
@@ -105,7 +105,7 @@ export function EditEpunchModal({ participant, closeModal }: Properties) {
             {errorMessage !== '' && (
                 <div
                     role="alert"
-                    className="rounded-md border border-amber-600/80 bg-amber-950 px-3 py-2 text-sm font-medium text-amber-100">
+                    className="border border-amber-600 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-950">
                     {errorMessage}
                 </div>
             )}

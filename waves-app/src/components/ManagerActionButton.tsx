@@ -12,30 +12,29 @@ interface Properties {
 
 function buttonStyleClasses(buttonStyle:string, color:string):string {
     if (buttonStyle === 'outline') {
-        let style = []
+        const style = []
+        style.push("bg-white")
         style.push(ColorStyles.get(color)?.border)
         style.push(ColorStyles.get(color)?.text)
         style.push(ColorStyles.get(color)?.bgHover)
-        style.push("hover:"+"text-white")
+        style.push("hover:text-white")
         return style.join(" ")
-
     } else { // solid
-        let style = []
+        const style = []
         style.push(ColorStyles.get(color)?.borderDark)
         style.push(ColorStyles.get(color)?.bg)
         style.push("text-white")
         style.push(ColorStyles.get(color)?.bgDarkHover)
-        style.push("hover:"+"border-white")
         return style.join(" ")
     }
 }
 
 export function ManagerActionButton({text, action, icon, color, buttonStyle}: Properties) {
-
-    const styling = "rounded border px-2 py-1" + " " + buttonStyleClasses(buttonStyle, color)
+    const styling = "rounded-sm border px-2.5 py-1 font-medium transition-colors " + buttonStyleClasses(buttonStyle, color)
 
     return(
     <button 
+        type="button"
         className={styling}
         onClick={action}
     >

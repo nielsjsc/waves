@@ -13,7 +13,6 @@ import {
 import { useLiveQuery } from "@tanstack/react-db"
 import { useState, useEffect } from "react"
 import { getUniqueTimesFromSlots } from "./grid/StartGrid"
-import { SvgIcon } from "./SvgIcon"
 import { Modal } from "./Modal"
 import { WaveOffsetEditor } from "./WaveOffsetEditor"
 import { ClockOffsetEditor } from "./ClockOffsetEditor"
@@ -102,7 +101,7 @@ function HeaderClock({
     }, [clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
 
     return (
-        <span className="px-2 cursor-pointer tabular-nums" onClick={onClick}>
+        <span className="cursor-pointer border border-slate-300 bg-slate-50 px-2.5 py-1 text-sm font-bold tabular-nums text-slate-900 hover:bg-slate-100" onClick={onClick}>
             {clockTime}
         </span>
     )
@@ -189,11 +188,11 @@ export function HeaderWithWaveTime() {
     const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus())
 
     const [appPage, setAppPage] = useState(readSavedPage)
-    
-    const {data: allSlots} = useLiveQuery((q) =>
-        q.from({slot: slotsTanCollection})
+
+    const { data: allSlots } = useLiveQuery((q) =>
+        q.from({ slot: slotsTanCollection })
     )
-    
+
     const waveTimes = getUniqueTimesFromSlots(allSlots)
 
     // Auto-import startlist.csv once the first sync with the server finishes and the event is still empty.
@@ -232,10 +231,8 @@ export function HeaderWithWaveTime() {
             localStorage.setItem(STORAGE_WAVE_OFFSET_KEY, String(waveOffsetMinutes))
         } catch { /* ignore */ }
     }, [waveOffsetMinutes])
-    
+
     // CLOCK BASED CURRENT WAVE TIME & MINUTE
-    // Checks every second in background, but only updates state when the wave or
-    // the minute changes, preventing constant re-renders across the whole page.
     useEffect(() => {
         function updateWaveAndMinute() {
             const nowEpoch = Date.now()
@@ -275,7 +272,7 @@ export function HeaderWithWaveTime() {
         if (clockWaveTime !== '') {
             return <span>{clockWaveTime}</span>
         } else {
-            return <span className="italic">No Wave</span>
+            return <span className="italic text-slate-500">No Wave</span>
         }
     }
 
@@ -283,17 +280,20 @@ export function HeaderWithWaveTime() {
         setWaveOffsetModalOpen((prev) => !prev)
     }
 
-    const waveOffsetModal = isWaveOffsetModalOpen ?
-        <Modal 
-            close={()=>{handleOffsetEditClick()}} 
+    const waveOffsetModal = isWaveOffsetModalOpen ? (
+        <Modal
+            close={() => { handleOffsetEditClick() }}
             title="Wave Offset"
-            content={<WaveOffsetEditor 
-                waveOffsetMinutes={waveOffsetMinutes}
-                handleWaveOffsetPlus={()=>setWaveOffsetMinutes((prev) => {return prev + 1})}
-                handleWaveOffsetMinus={()=>setWaveOffsetMinutes((prev) => {return prev > 0 ? prev - 1 : 0})} />
+            content={
+                <WaveOffsetEditor
+                    waveOffsetMinutes={waveOffsetMinutes}
+                    handleWaveOffsetPlus={() => setWaveOffsetMinutes((prev) => prev + 1)}
+                    handleWaveOffsetMinus={() => setWaveOffsetMinutes((prev) => (prev > 0 ? prev - 1 : 0))}
+                />
             }
-        /> : <></>
-    
+        />
+    ) : null
+
     function handleClockEditClick() {
         setClockOffsetModalOpen((prev) => !prev)
     }
@@ -312,7 +312,7 @@ export function HeaderWithWaveTime() {
             handleSecondsMinus={() => setClockOffsetSeconds((prev) => prev - 1)}
         />
     ) : null
-    
+
     const isOrganizer = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('organizer')
 
     async function handleOrganizerReimportClick() {
@@ -328,33 +328,54 @@ export function HeaderWithWaveTime() {
         await readStartListCsv()
     }
 
-    function handleNavPageClick(page:string) {
+    function handleNavPageClick(page: string) {
         setAppPage(page)
     }
 
     function pageContent() {
         switch (appPage) {
             case 'grid':
-                return <FullGrid />
+                return (
+                    <FullGrid
+                        clockTime={currentMinuteTime}
+                        waveOffsetMinutes={waveOffsetMinutes}
+                        onOpenInManager={(pid) => {
+                            setManagerSelectedId(pid)
+                            setAppPage('manager')
+                        }}
+                    />
+                )
             case 'manager':
-                return <Manager
-                    clockTime={currentMinuteTime}
-                    waveOffsetMinutes={waveOffsetMinutes}
-                    selectedParticipantId={managerSelectedId}
-                    setSelectedParticipantId={setManagerSelectedId} />
+                return (
+                    <Manager
+                        clockTime={currentMinuteTime}
+                        waveOffsetMinutes={waveOffsetMinutes}
+                        selectedParticipantId={managerSelectedId}
+                        setSelectedParticipantId={setManagerSelectedId}
+                    />
+                )
             case 'call-up':
-                return <CallUp clockWave={clockWaveTime}/>
+                return <CallUp clockWave={clockWaveTime} />
             case 'epunch':
                 return <EpunchVerify clockWave={clockWaveTime} />
             case 'changes':
                 return <Changes />
             default:
-                return <FullGrid />
+                return (
+                    <FullGrid
+                        clockTime={currentMinuteTime}
+                        waveOffsetMinutes={waveOffsetMinutes}
+                        onOpenInManager={(pid) => {
+                            setManagerSelectedId(pid)
+                            setAppPage('manager')
+                        }}
+                    />
+                )
         }
     }
 
     function pageName() {
-        switch(appPage) {
+        switch (appPage) {
             case 'grid':
                 return "Full Grid"
             case 'manager':
@@ -371,43 +392,41 @@ export function HeaderWithWaveTime() {
         }
     }
 
-
-
     const syncBadge = syncStatus === 'synced' ? (
         <span
             title="Synced with the Waves server"
-            className="flex items-center gap-1.5 rounded-full bg-emerald-950/80 px-2.5 py-0.5 text-xs font-medium text-emerald-300 border border-emerald-700/60">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            className="flex items-center gap-1.5 border border-emerald-600 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-900">
+            <span className="h-2 w-2 bg-emerald-600" />
             Synced
         </span>
     ) : syncStatus === 'offline' ? (
         <span
             title="Cannot reach the Waves sync server. Changes are saved on this laptop and will sync when reconnected."
-            className="flex items-center gap-1.5 rounded-full bg-amber-950 px-2.5 py-0.5 text-xs font-semibold text-amber-200 border border-amber-500">
-            <span className="h-2 w-2 rounded-full bg-amber-400" />
+            className="flex items-center gap-1.5 border border-amber-600 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900">
+            <span className="h-2 w-2 bg-amber-600" />
             Offline (saved locally)
         </span>
     ) : (
         <span
             title="Connecting to the Waves sync server..."
-            className="flex items-center gap-1.5 rounded-full bg-gray-800 px-2.5 py-0.5 text-xs font-medium text-gray-300 border border-gray-600">
-            <span className="h-2 w-2 rounded-full bg-sky-400" />
+            className="flex items-center gap-1.5 border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+            <span className="h-2 w-2 bg-sky-600" />
             Syncing…
         </span>
     )
 
     if (staleEvent) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-gray-900 p-6 text-gray-100">
-                <div className="flex max-w-md flex-col gap-4 rounded-lg border border-amber-600 bg-amber-950 p-6 text-amber-100 shadow-xl">
-                    <h1 className="text-2xl font-bold text-white">New event loaded</h1>
+            <div className="flex min-h-screen items-center justify-center bg-white p-6 text-slate-900">
+                <div className="flex max-w-md flex-col gap-4 border-2 border-amber-600 bg-amber-50 p-6 text-slate-900 shadow-lg">
+                    <h1 className="text-2xl font-bold text-slate-900">New event loaded</h1>
                     <p>
                         This tab is still open from a previous event. Reload the page to switch to the current event's start list.
                     </p>
                     <button
                         type="button"
                         onClick={() => window.location.reload()}
-                        className="self-start rounded-md bg-amber-600 px-4 py-2 font-semibold text-white hover:bg-amber-500">
+                        className="self-start border border-amber-700 bg-amber-600 px-4 py-2 font-semibold text-white hover:bg-amber-700">
                         Reload for new event
                     </button>
                 </div>
@@ -415,65 +434,71 @@ export function HeaderWithWaveTime() {
         )
     }
 
-    return <div className="">
-        <header className="text-gray-400 bg-gray-900 body-font fixed min-w-full max-w-full z-10">
-            {waveOffsetModal}
-            {clockOffsetModal}
+    return (
+        <div className="bg-white text-slate-900">
+            <header className="body-font fixed z-30 min-w-full max-w-full border-b border-slate-300 bg-white text-slate-800">
+                {waveOffsetModal}
+                {clockOffsetModal}
 
-            <div className="container mx-auto flex flex-wrap px-4 py-1.5 flex-row items-center">
-                <SvgIconWithText 
-                    icon="waves-logo"
-                    text="Waves" />
-                <div className='title-font text-xl px-2 flex flex-row gap-2'>
-                    <span>{pageName()}</span>
-                    <span className="font-black text-white">{displayWaveTime()}</span>
-                    <span className="cursor-pointer" onClick={handleOffsetEditClick}>(+{waveOffsetMinutes})</span>
+                <div className="container mx-auto flex flex-row flex-wrap items-center px-4 py-1.5">
+                    <div className="font-bold text-slate-900">
+                        <SvgIconWithText icon="waves-logo" text="Waves" />
+                    </div>
+                    <div className="title-font flex flex-row items-center gap-2 px-3 text-lg">
+                        <span className="font-semibold text-slate-700">{pageName()}</span>
+                        <span className="font-black tabular-nums text-slate-900">{displayWaveTime()}</span>
+                        <span
+                            className="cursor-pointer border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                            onClick={handleOffsetEditClick}>
+                            (+{waveOffsetMinutes})
+                        </span>
+                    </div>
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                        <nav className="flex flex-wrap items-center border border-slate-300 bg-slate-100 p-0.5">
+                            {[
+                                { id: 'call-up', label: 'Call-up' },
+                                { id: 'epunch', label: 'Epunch Check' },
+                                { id: 'manager', label: 'Start Manager' },
+                                { id: 'grid', label: 'Full Grid' },
+                                { id: 'changes', label: 'Change Log' },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => handleNavPageClick(tab.id)}
+                                    className={`px-3 py-1 text-xs font-semibold transition ${
+                                        appPage === tab.id
+                                            ? 'bg-slate-900 text-white'
+                                            : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                                    }`}>
+                                    {tab.label}
+                                </button>
+                            ))}
+                            {isOrganizer && (
+                                <button
+                                    type="button"
+                                    onClick={() => void handleOrganizerReimportClick()}
+                                    className="border-l border-slate-300 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50">
+                                    Re-import start list
+                                </button>
+                            )}
+                        </nav>
+                        {syncBadge}
+                        <HeaderClock
+                            clockOffsetHours={clockOffsetHours}
+                            clockOffsetMinutes={clockOffsetMinutes}
+                            clockOffsetSeconds={clockOffsetSeconds}
+                            onClick={handleClockEditClick}
+                        />
+                    </div>
                 </div>
-                <div className="ml-auto flex flex-wrap items-center gap-2">
-                    <nav className="flex flex-wrap items-center gap-1 rounded-lg border border-gray-800 bg-gray-950/60 p-1">
-                        {[
-                            { id: 'call-up', label: 'Call-up' },
-                            { id: 'epunch', label: 'Epunch Check' },
-                            { id: 'manager', label: 'Start Manager' },
-                            { id: 'grid', label: 'Full Grid' },
-                            { id: 'changes', label: 'Change Log' },
-                        ].map((tab) => (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => handleNavPageClick(tab.id)}
-                                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
-                                    appPage === tab.id
-                                        ? 'bg-pink-700 text-white'
-                                        : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                                }`}>
-                                {tab.label}
-                            </button>
-                        ))}
-                        {isOrganizer && (
-                            <button
-                                type="button"
-                                onClick={() => void handleOrganizerReimportClick()}
-                                className="rounded-md px-2.5 py-1 text-xs font-semibold text-amber-300 hover:bg-gray-800 hover:text-white">
-                                Re-import start list
-                            </button>
-                        )}
-                    </nav>
-                    {syncBadge}
-                    <HeaderClock
-                        clockOffsetHours={clockOffsetHours}
-                        clockOffsetMinutes={clockOffsetMinutes}
-                        clockOffsetSeconds={clockOffsetSeconds}
-                        onClick={handleClockEditClick}
-                    />
+            </header>
+
+            <div className="relative mx-auto min-w-full max-w-full md:px-4">
+                <div className="absolute inset-x-0 top-12 md:px-4">
+                    {pageContent()}
                 </div>
-            </div>
-        </header>
-        
-        <div className="relative min-w-full max-w-full mx-auto md:px-6">
-            <div className="absolute top-12 inset-x-0 md:px-6">
-            {pageContent()}
             </div>
         </div>
-    </div>
+    )
 }

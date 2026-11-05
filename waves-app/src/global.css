@@ -3,3 +3,8 @@
 @theme {
 	--font-sans: Inter, sans-serif;
 }
+
+body {
+	background-color: #ffffff;
+	color: #0f172a;
+}

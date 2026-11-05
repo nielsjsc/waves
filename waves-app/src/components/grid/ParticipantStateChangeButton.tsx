@@ -1,53 +1,50 @@
 import { setStateNeedsAssignment, setStateNoShow, setStateNotAttending, setStatePresent, setStateValidated, setStateWaiting, setStateWrongEpunch } from "@/actions/participantActions"
-import {type Participant as ParticipantType,  type ParticipantState } from "@/api/participants"
+import { type Participant as ParticipantType, type ParticipantState } from "@/api/participants"
 import { SvgIconWithText } from "../SvgIconWithText"
 import { ParticipantStateStyles } from "@/utils/styleHelpers"
-
 
 interface Properties {
     participant: ParticipantType
     toState: ParticipantState
 }
 
-
-export function ParticipantStateChangeButton({participant, toState}:Properties) {
-
-    function action(toState:ParticipantState) {
-        if (participant.state === toState) {
+export function ParticipantStateChangeButton({ participant, toState }: Properties) {
+    function action(nextState: ParticipantState) {
+        if (participant.state === nextState) {
             // Clicking the currently selected state clears it back to no state ("waiting")
-            toState = "waiting"
+            nextState = "waiting"
         }
-        switch (toState) {
+        switch (nextState) {
             case "waiting":
-                return ()=>setStateWaiting(participant.id)
+                return () => setStateWaiting(participant.id)
             case "present":
-                return ()=>setStatePresent(participant.id)
+                return () => setStatePresent(participant.id)
             case "noShow":
-                return ()=>setStateNoShow(participant.id)
+                return () => setStateNoShow(participant.id)
             case "validated":
-                return ()=>setStateValidated(participant.id)
+                return () => setStateValidated(participant.id)
             case "wrongEpunch":
-                return ()=>setStateWrongEpunch(participant.id)
+                return () => setStateWrongEpunch(participant.id)
             case "notAttending":
-                return ()=>setStateNotAttending(participant.id)
+                return () => setStateNotAttending(participant.id)
             case "needsAssignment":
-                return ()=>setStateNeedsAssignment(participant.id)
+                return () => setStateNeedsAssignment(participant.id)
             case "started":
-                return ()=>{alert("Not Implemented")}
+                return () => { alert("Not Implemented") }
             default:
-                return ()=>{alert("Not Implemented")}
+                return () => { alert("Not Implemented") }
         }
     }
 
     function buttonStyle() {
         if (participant.state === toState) {
-            let styles = []
+            const styles = []
             styles.push(ParticipantStateStyles.get(toState)!.bg)
             styles.push(ParticipantStateStyles.get(toState)!.borderDark)
             styles.push("text-white")
             return styles.join(" ")
         } else {
-            return ""
+            return "border-slate-300 text-slate-800 hover:border-slate-600"
         }
     }
 
@@ -58,14 +55,18 @@ export function ParticipantStateChangeButton({participant, toState}:Properties) 
         return ParticipantStateStyles.get(toState)!.friendlyName
     }
 
-    return(
-        <button 
-            className={`border border-1 rounded-sm p-1 ${buttonStyle()}`}
-            onClick={action(toState)} 
+    return (
+        <button
+            type="button"
+            className={`border rounded-none px-2 py-1 font-medium transition-colors ${buttonStyle()}`}
+            onClick={(e) => {
+                e.stopPropagation()
+                action(toState)()
+            }}
             key={`participant-state-change-${toState}-${participant.id}`}>
-            <SvgIconWithText 
+            <SvgIconWithText
                 icon={ParticipantStateStyles.get(toState)!.iconName}
-                text={buttonLabel()}/>
+                text={buttonLabel()} />
         </button>
     )
 }

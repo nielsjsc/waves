@@ -34,20 +34,14 @@ import {
     setStateWrongEpunch,
 } from "@/actions/participantActions"
 
-// How long the Undo notice stays on screen before it fades away on its own.
 const UNDO_VISIBLE_MS = 3500
 
 interface Properties {
-    // Header clock ("13:09:17", already corrected by the volunteer) and the call-up
-    // offset, used to hide start times that are already past call-up.
     clockTime: string
     waveOffsetMinutes: number
-    // Selection lives in the header so it survives switching to another page.
     selectedParticipantId: string
     setSelectedParticipantId: (id: string) => void
 }
-
-//// Undo ////
 
 interface Snapshot {
     slotId: string
@@ -73,27 +67,22 @@ async function applyState(participantId: string, state: ParticipantState) {
     }
 }
 
-// Put a participant back where (and as what) they were before an action.
 async function restoreSnapshot(participantId: string, snapshot: Snapshot, current: PopulatedEntry | undefined) {
     if (current === undefined) {
         alert("Can't undo right now: this record isn't in exactly one slot. Wait a moment and try again.")
         return
     }
     if (current.slotId === snapshot.slotId && current.participant.state === snapshot.state) {
-        return // slot and state are unchanged, so there is nothing to put back
+        return
     }
     if (!isMagicTime(snapshot.slotTime) && current.slotId !== snapshot.slotId) {
-        // Back to a real start time: move there (this also resets them to waiting)...
         await setNewStartTime(participantId, current.slotId, snapshot.slotId)
     }
-    // ...then restore the state. For a queue slot this moves them back into the queue.
     await applyState(participantId, snapshot.state)
 }
 
-//// Small pieces ////
-
-function Pill({className, children}: {className: string, children: ReactNode}) {
-    return <span className={`rounded px-2 py-0.5 text-xs font-medium ${className}`}>{children}</span>
+function Pill({ className, children }: { className: string; children: ReactNode }) {
+    return <span className={`border px-2 py-0.5 text-xs font-semibold ${className}`}>{children}</span>
 }
 
 function nextHarderCourse(currentCourse: string, courses: string[]): string {
@@ -104,7 +93,7 @@ function nextHarderCourse(currentCourse: string, courses: string[]): string {
     return currentCourse
 }
 
-function RecordProblem({name, slots, courses, onKeep, onPlace}: {
+function RecordProblem({ name, slots, courses, onKeep, onPlace }: {
     name: string
     slots: SlotDocType[]
     courses: string[]
@@ -112,8 +101,8 @@ function RecordProblem({name, slots, courses, onKeep, onPlace}: {
     onPlace: (course: string) => void
 }) {
     return (
-        <div className="flex flex-col gap-3 rounded-lg border border-red-700 bg-red-950 p-4 text-red-100">
-            <h3 className="text-lg font-semibold">Problem with {name}'s record</h3>
+        <div className="flex flex-col gap-3 border-2 border-red-600 bg-red-50 p-4 text-red-950">
+            <h3 className="text-lg font-bold">Problem with {name}'s record</h3>
             {slots.length === 0 ? (
                 <>
                     <p>
@@ -122,8 +111,11 @@ function RecordProblem({name, slots, courses, onKeep, onPlace}: {
                     </p>
                     <div className="flex flex-wrap gap-2">
                         {courses.map((c) => (
-                            <button key={c} type="button" onClick={() => onPlace(c)}
-                                className="rounded-md bg-red-800 px-3 py-1 font-semibold hover:bg-red-700">
+                            <button
+                                key={c}
+                                type="button"
+                                onClick={() => onPlace(c)}
+                                className="border border-red-700 bg-red-700 px-3 py-1 font-semibold text-white hover:bg-red-800">
                                 {c}
                             </button>
                         ))}
@@ -135,9 +127,11 @@ function RecordProblem({name, slots, courses, onKeep, onPlace}: {
                     <div className="flex flex-col gap-2">
                         {slots.map((slot) => (
                             <div key={slot.id} className="flex items-center gap-3">
-                                <span className="flex-1">{slot.course} · {formatSlotTime(slot.time)}</span>
-                                <button type="button" onClick={() => onKeep(slot)}
-                                    className="rounded-md bg-red-800 px-3 py-1 font-semibold hover:bg-red-700">
+                                <span className="flex-1 font-medium">{slot.course} · {formatSlotTime(slot.time)}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => onKeep(slot)}
+                                    className="border border-red-700 bg-red-700 px-3 py-1 font-semibold text-white hover:bg-red-800">
                                     Keep this one
                                 </button>
                             </div>
@@ -149,10 +143,7 @@ function RecordProblem({name, slots, courses, onKeep, onPlace}: {
     )
 }
 
-//// Page ////
-
-export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, setSelectedParticipantId}: Properties) {
-
+export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, setSelectedParticipantId }: Properties) {
     const [isEpunchEditOpen, setEpunchEditOpen] = useState(false)
     const [addParticipantPrefill, setAddParticipantPrefill] = useState<AddParticipantPrefill | null | undefined>(undefined)
     const [confirmNotAttending, setConfirmNotAttending] = useState(false)
@@ -162,31 +153,29 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
     const [undo, setUndo] = useState<UndoInfo | undefined>(undefined)
     const [restoreNote, setRestoreNote] = useState('')
 
-    const {data: allParticipants} = useLiveQuery((q) =>
-        q.from({participant: participantsTanCollection})
+    const { data: allParticipants } = useLiveQuery((q) =>
+        q.from({ participant: participantsTanCollection })
     )
-    const {data: allSlots} = useLiveQuery((q) =>
-        q.from({slot: slotsTanCollection})
+    const { data: allSlots } = useLiveQuery((q) =>
+        q.from({ slot: slotsTanCollection })
     )
-    const {data: allChanges} = useLiveQuery((q) =>
-        q.from({changes: changesTanCollection})
+    const { data: allChanges } = useLiveQuery((q) =>
+        q.from({ changes: changesTanCollection })
     )
 
     const DATA = {
         participants: allParticipants,
         slots: allSlots,
-        changes: allChanges
+        changes: allChanges,
     }
-    // Undo runs later, so it reads the data as it is then, not as it was when the action ran.
     const dataRef = useRef(DATA)
     dataRef.current = DATA
 
-    // Which slot(s) each participant is in. Exactly one is healthy.
     const slotsByParticipant = new Map<string, SlotDocType[]>()
     for (const slot of allSlots) {
         for (const pid of slot.participants) {
             const list = slotsByParticipant.get(pid)
-            if (list === undefined) {slotsByParticipant.set(pid, [slot])} else {list.push(slot)}
+            if (list === undefined) { slotsByParticipant.set(pid, [slot]) } else { list.push(slot) }
         }
     }
     const courses = [...new Set(allSlots.map((s) => s.course))].sort()
@@ -197,25 +186,22 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
 
     const cutoff = addMinutesToClock(clockTime, waveOffsetMinutes)
 
-    // Changing who is selected closes anything that was open for the previous person.
     useEffect(() => {
         setConfirmNotAttending(false)
         setEpunchEditOpen(false)
         setRestoreNote('')
     }, [selectedParticipantId])
 
-    // The Undo notice fades away by itself; a newer action replaces it and restarts the timer.
     useEffect(() => {
-        if (undo === undefined) {return}
+        if (undo === undefined) { return }
         const timer = setTimeout(() => setUndo(undefined), UNDO_VISIBLE_MS)
         return () => clearTimeout(timer)
     }, [undo])
 
-    // Scroll the timeline to the selected participant when it's open.
     const scrollToRef = useRef<HTMLTableRowElement>(null)
     useEffect(() => {
         if (timelineOpen && scrollToRef.current !== null) {
-            scrollToRef.current.scrollIntoView({behavior: 'smooth', block: 'nearest'})
+            scrollToRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         }
     }, [timelineOpen, selectedParticipantId, entry?.slotId])
 
@@ -229,28 +215,27 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
         setFocusToken((t) => t + 1)
     }
 
-    // Run an action and offer a one-click undo afterwards. alsoUndo adds a step to the undo,
-    // for changes the slot/state snapshot can't cover (like the e-punch number).
     async function runWithUndo(message: string, action: () => Promise<unknown>, alsoUndo?: () => Promise<unknown>) {
-        if (entry === undefined) {return}
+        if (entry === undefined) { return }
         const id = entry.participant.id
-        const snapshot: Snapshot = {slotId: entry.slotId, slotTime: entry.time, state: entry.participant.state}
+        const snapshot: Snapshot = { slotId: entry.slotId, slotTime: entry.time, state: entry.participant.state }
         await action()
         setUndo({
             message,
             run: async () => {
                 await restoreSnapshot(id, snapshot, hydrateParticipant(id, dataRef.current))
                 await alsoUndo?.()
-            }
+            },
         })
     }
 
     function handleAssign(slot: SlotDocType) {
-        if (entry === undefined) {return}
+        if (entry === undefined) { return }
         setTimePickerOpen(false)
         void runWithUndo(
             `${entry.participant.name} moved to ${slot.course} · ${slot.time}`,
-            () => setNewStartTime(entry.participant.id, entry.slotId, slot.id))
+            () => setNewStartTime(entry.participant.id, entry.slotId, slot.id)
+        )
     }
 
     function handlePlaceInQueue(course: string) {
@@ -262,14 +247,13 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
         void putInNeedsAssignment(selectedDoc.id, magic)
     }
 
-    //// Rendering ////
-
-    // A toast pinned to the bottom of the screen: it never pushes the page around and fades on its own.
     const undoBanner = undo === undefined ? null : (
-        <div className="fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-center gap-3 rounded-lg border border-amber-600/60 bg-amber-950 px-4 py-3 text-amber-100 shadow-xl">
-            <span className="flex-1">{undo.message}</span>
+        <div className="fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-center gap-3 border-2 border-slate-900 bg-white px-4 py-3 text-slate-900 shadow-xl">
+            <span className="flex-1 font-medium">{undo.message}</span>
             {undo.run !== undefined && (
-                <button type="button" className="rounded bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-500"
+                <button
+                    type="button"
+                    className="border border-slate-900 bg-slate-900 px-3 py-1 font-semibold text-white hover:bg-slate-800"
                     onClick={async () => { await undo.run?.(); setUndo(undefined) }}>
                     Undo
                 </button>
@@ -291,7 +275,6 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
             ? `Originally ${p.originalStartTime}`
             : ''
 
-        // What would "restore original" change for this person?
         const originalStart = getOriginalStart(p.id, p.originalStartTime, e.course, allChanges)
         const startDiffers = originalStart !== undefined && (e.course !== originalStart.course || e.time !== originalStart.time)
         const originalEpunch = getOriginalEpunch(p.id, allChanges)
@@ -299,9 +282,8 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
             (originalEpunch.epunch !== p.epunch || (originalEpunch.isRental !== undefined && originalEpunch.isRental !== p.isRental))
         const noEpunch = (value: string) => (value === '' ? 'none' : value)
 
-        // The original slot, if it can be moved back into. Otherwise says why not.
         function findRestorableSlot(): SlotDocType | undefined {
-            if (originalStart === undefined) {return undefined}
+            if (originalStart === undefined) { return undefined }
             const label = `${originalStart.course} · ${originalStart.time}`
             const target = allSlots.find((s) => s.course === originalStart.course && s.time === originalStart.time)
             if (target === undefined || target.isUsable === false) {
@@ -320,37 +302,40 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
         function handleRestoreStart() {
             setRestoreNote('')
             const target = findRestorableSlot()
-            if (target === undefined || originalStart === undefined) {return}
+            if (target === undefined || originalStart === undefined) { return }
             void runWithUndo(
                 `${p.name} restored to ${originalStart.course} · ${originalStart.time}`,
-                () => setNewStartTime(p.id, e.slotId, target.id))
+                () => setNewStartTime(p.id, e.slotId, target.id)
+            )
         }
 
         function handleRestoreEpunch() {
-            if (originalEpunch === undefined) {return}
-            const before = {epunch: p.epunch, isRental: p.isRental}
+            if (originalEpunch === undefined) { return }
+            const before = { epunch: p.epunch, isRental: p.isRental }
             void runWithUndo(
                 `${p.name}'s e-punch restored to ${noEpunch(originalEpunch.epunch)}`,
                 () => setNewEpunch(p.id, originalEpunch.epunch, originalEpunch.isRental ?? p.isRental),
-                () => setNewEpunch(p.id, before.epunch, before.isRental))
+                () => setNewEpunch(p.id, before.epunch, before.isRental)
+            )
         }
 
         function handleRestoreAll() {
             setRestoreNote('')
             const target = startDiffers ? findRestorableSlot() : undefined
             const epunchTarget = epunchDiffers ? originalEpunch : undefined
-            if (target === undefined && epunchTarget === undefined) {return}
-            const before = {epunch: p.epunch, isRental: p.isRental}
+            if (target === undefined && epunchTarget === undefined) { return }
+            const before = { epunch: p.epunch, isRental: p.isRental }
             const parts: string[] = []
-            if (target !== undefined && originalStart !== undefined) {parts.push(`${originalStart.course} · ${originalStart.time}`)}
-            if (epunchTarget !== undefined) {parts.push(`e-punch ${noEpunch(epunchTarget.epunch)}`)}
+            if (target !== undefined && originalStart !== undefined) { parts.push(`${originalStart.course} · ${originalStart.time}`) }
+            if (epunchTarget !== undefined) { parts.push(`e-punch ${noEpunch(epunchTarget.epunch)}`) }
             void runWithUndo(
                 `${p.name} restored to the original: ${parts.join(', ')}`,
                 async () => {
-                    if (target !== undefined) {await setNewStartTime(p.id, e.slotId, target.id)}
-                    if (epunchTarget !== undefined) {await setNewEpunch(p.id, epunchTarget.epunch, epunchTarget.isRental ?? p.isRental)}
+                    if (target !== undefined) { await setNewStartTime(p.id, e.slotId, target.id) }
+                    if (epunchTarget !== undefined) { await setNewEpunch(p.id, epunchTarget.epunch, epunchTarget.isRental ?? p.isRental) }
                 },
-                epunchTarget === undefined ? undefined : () => setNewEpunch(p.id, before.epunch, before.isRental))
+                epunchTarget === undefined ? undefined : () => setNewEpunch(p.id, before.epunch, before.isRental)
+            )
         }
 
         return (
@@ -358,46 +343,48 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                 <div className={timePickerOpen ? "grid gap-4 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]" : "flex max-w-2xl flex-col gap-4"}>
                     <div className="flex flex-col gap-4">
                         {/* Participant Summary Card */}
-                        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+                        <div className="border border-slate-300 bg-white p-4">
                             <div className="flex flex-wrap items-center gap-2">
-                                <h2 className="text-2xl font-bold text-white">{p.name}</h2>
-                                {p.groupSize > 1 && <Pill className="bg-emerald-800 text-emerald-100">Group {p.groupSize}</Pill>}
-                                {p.isNonCompete && <Pill className="bg-indigo-800 text-indigo-100">Non-competitive</Pill>}
-                                {p.isRental && <Pill className="bg-orange-800 text-orange-100">Rental e-punch</Pill>}
+                                <h2 className="text-2xl font-bold text-slate-900">{p.name}</h2>
+                                {p.groupSize > 1 && <Pill className="border-emerald-600 bg-emerald-50 text-emerald-800">Group {p.groupSize}</Pill>}
+                                {p.isNonCompete && <Pill className="border-indigo-600 bg-indigo-50 text-indigo-800">Non-competitive</Pill>}
+                                {p.isRental && <Pill className="border-orange-600 bg-orange-50 text-orange-800">Rental e-punch</Pill>}
                                 {style !== undefined && p.state !== 'waiting' && (
-                                    <Pill className={`${style.bg} text-white`}>{style.friendlyName}</Pill>
+                                    <Pill className={`border-transparent ${style.bg} text-white`}>{style.friendlyName}</Pill>
                                 )}
                             </div>
-                            <div className="mt-1.5 text-sm text-gray-300">
+                            <div className="mt-1.5 text-sm text-slate-600">
                                 {club !== '' ? club : 'Independent / No school'} · E-punch{' '}
-                                <strong className="font-bold text-amber-200">
+                                <strong className="font-bold text-slate-900">
                                     {p.epunch === '' ? 'none' : p.epunch}
                                 </strong>
                             </div>
-                            <div className="mt-3 rounded-md border border-gray-700 bg-gray-900/80 px-3 py-2">
-                                <div className="text-lg font-bold text-gray-100">{where}</div>
-                                {originally !== '' && <div className="text-sm text-amber-300">{originally}</div>}
+                            <div className="mt-3 border border-slate-300 bg-slate-50 px-3 py-2">
+                                <div className="text-lg font-bold text-slate-900">{where}</div>
+                                {originally !== '' && <div className="text-sm font-medium text-amber-800">{originally}</div>}
                             </div>
                         </div>
 
                         {(startDiffers || epunchDiffers) && (
-                            <div className="flex flex-col gap-2 rounded-lg border border-gray-700 bg-gray-900 p-3">
+                            <div className="flex flex-col gap-2 border border-slate-300 bg-slate-50 p-3">
                                 <div className="flex items-center gap-3">
-                                    <h3 className="flex-1 text-sm font-semibold text-gray-300">Changed from the original</h3>
+                                    <h3 className="flex-1 text-sm font-semibold text-slate-700">Changed from the original</h3>
                                     {startDiffers && epunchDiffers && (
-                                        <button type="button" className="text-sm text-sky-300 underline" onClick={handleRestoreAll}>
+                                        <button type="button" className="text-sm font-medium text-sky-700 underline" onClick={handleRestoreAll}>
                                             Restore all
                                         </button>
                                     )}
                                 </div>
                                 {startDiffers && originalStart !== undefined && (
                                     <div className="flex items-center gap-3 text-sm">
-                                        <span className="flex-1 text-gray-300">
+                                        <span className="flex-1 text-slate-700">
                                             Start: {originalStart.course} · {originalStart.time}
-                                            <span className="text-gray-500"> → now </span>
+                                            <span className="text-slate-400"> → now </span>
                                             {e.course} · {formatSlotTime(e.time)}
                                         </span>
-                                        <button type="button" className="rounded border border-sky-500 px-2 py-0.5 text-sky-300 hover:bg-sky-600 hover:text-white"
+                                        <button
+                                            type="button"
+                                            className="border border-sky-600 bg-white px-2 py-0.5 font-medium text-sky-700 hover:bg-sky-600 hover:text-white"
                                             onClick={handleRestoreStart}>
                                             Restore
                                         </button>
@@ -405,25 +392,27 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                                 )}
                                 {epunchDiffers && originalEpunch !== undefined && (
                                     <div className="flex items-center gap-3 text-sm">
-                                        <span className="flex-1 text-gray-300">
+                                        <span className="flex-1 text-slate-700">
                                             E-punch: {noEpunch(originalEpunch.epunch)}{originalEpunch.isRental ? ' (rental)' : ''}
-                                            <span className="text-gray-500"> → now </span>
+                                            <span className="text-slate-400"> → now </span>
                                             {noEpunch(p.epunch)}{p.isRental ? ' (rental)' : ''}
                                         </span>
-                                        <button type="button" className="rounded border border-sky-500 px-2 py-0.5 text-sky-300 hover:bg-sky-600 hover:text-white"
+                                        <button
+                                            type="button"
+                                            className="border border-sky-600 bg-white px-2 py-0.5 font-medium text-sky-700 hover:bg-sky-600 hover:text-white"
                                             onClick={handleRestoreEpunch}>
                                             Restore
                                         </button>
                                     </div>
                                 )}
-                                {restoreNote !== '' && <p className="text-sm text-amber-300">{restoreNote}</p>}
+                                {restoreNote !== '' && <p className="text-sm font-medium text-amber-800">{restoreNote}</p>}
                             </div>
                         )}
 
                         {/* Grouped Actions Panel */}
-                        <div className="flex flex-col gap-3 rounded-lg border border-gray-700 bg-gray-900 p-4">
+                        <div className="flex flex-col gap-3 border border-slate-300 bg-white p-4">
                             <div>
-                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Start Time, E-punch, Status &amp; 2nd Course
                                 </div>
                                 <div className="flex flex-wrap gap-2">
@@ -468,7 +457,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                                                 name: p.name,
                                                 club: p.club ?? '',
                                                 epunch: p.epunch ?? '',
-                                                isRental: p.isRental,
+                                                isRental: true,
                                                 isNonCompete: true,
                                                 suggestedCourse: nextHarderCourse(e.course, courses),
                                             })
@@ -480,12 +469,12 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                                 </div>
                             </div>
 
-                            <div className="border-t border-gray-800 pt-3">
-                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                            <div className="border-t border-slate-200 pt-3">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Attendance &amp; Queue
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    {inRealSlot && p.state !== 'noShow' && (
+                                    {inRealSlot && p.state !== 'noShow' && p.state !== 'wrongEpunch' && p.state !== 'validated' && (
                                         <ManagerActionButton
                                             action={() => void runWithUndo(`${p.name} marked No show`, () => setStateNoShow(p.id))}
                                             text="No show"
@@ -524,16 +513,20 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                             </div>
 
                             {confirmNotAttending && (
-                                <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-600/60 bg-amber-950 px-3 py-2 text-amber-100">
+                                <div className="flex flex-wrap items-center gap-3 border border-amber-600 bg-amber-50 px-3 py-2 text-amber-950">
                                     <span className="flex-1 text-sm">Mark {p.name} as not attending? This frees their start slot.</span>
-                                    <button type="button" className="rounded bg-amber-600 px-3 py-1 text-sm font-semibold text-white hover:bg-amber-500"
+                                    <button
+                                        type="button"
+                                        className="border border-amber-700 bg-amber-600 px-3 py-1 text-sm font-semibold text-white hover:bg-amber-700"
                                         onClick={() => {
                                             setConfirmNotAttending(false)
                                             void runWithUndo(`${p.name} marked Not attending`, () => setStateNotAttending(p.id))
                                         }}>
                                         Yes, not attending
                                     </button>
-                                    <button type="button" className="rounded border border-amber-600/60 px-3 py-1 text-sm"
+                                    <button
+                                        type="button"
+                                        className="border border-slate-300 bg-white px-3 py-1 text-sm text-slate-800 hover:bg-slate-100"
                                         onClick={() => setConfirmNotAttending(false)}>
                                         Cancel
                                     </button>
@@ -559,7 +552,9 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                 </div>
 
                 <div className="flex flex-col gap-2">
-                    <button type="button" className="self-start text-sm text-sky-300 underline"
+                    <button
+                        type="button"
+                        className="self-start text-sm font-medium text-sky-700 underline"
                         onClick={() => setTimelineOpen((open) => !open)}>
                         {timelineOpen ? 'Hide' : 'Show'} full timeline for {e.course}
                     </button>
@@ -582,7 +577,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
         body = (
             <>
                 {selectedParticipantId !== '' && (
-                    <p className="text-gray-400">
+                    <p className="text-slate-600">
                         That participant isn't in the data yet. If you just selected them, changes may still be syncing.
                     </p>
                 )}
@@ -609,7 +604,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
     return (
         <>
             <Head title='Start Manager' />
-            <div className="mx-auto flex max-w-6xl flex-col gap-4 pb-8">
+            <div className="mx-auto flex max-w-6xl flex-col gap-4 pb-8 text-slate-900">
                 {isEpunchEditOpen && entry !== undefined && (
                     <Modal
                         title={`Edit e-punch for ${entry.participant.name}`}
@@ -657,7 +652,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                     <button
                         type="button"
                         onClick={() => setAddParticipantPrefill(null)}
-                        className="flex shrink-0 items-center gap-2 rounded-lg border-2 border-emerald-500 bg-emerald-700 px-4 py-3 text-base font-bold text-white shadow-md transition hover:bg-emerald-600">
+                        className="flex shrink-0 items-center gap-2 border border-emerald-700 bg-emerald-600 px-4 py-3 text-base font-bold text-white transition hover:bg-emerald-700">
                         <SvgIcon icon="plus" />
                         <span>Add Participant</span>
                     </button>
@@ -666,7 +661,7 @@ export function Manager({clockTime, waveOffsetMinutes, selectedParticipantId, se
                         <button
                             type="button"
                             onClick={clearSelection}
-                            className="flex shrink-0 items-center gap-2 rounded-lg border-2 border-red-500 bg-red-700 px-6 py-3 text-lg font-bold text-white shadow-md transition hover:bg-red-600">
+                            className="flex shrink-0 items-center gap-2 border border-slate-900 bg-slate-900 px-6 py-3 text-lg font-bold text-white transition hover:bg-slate-800">
                             <SvgIcon icon="x" />
                             <span>Done</span>
                         </button>

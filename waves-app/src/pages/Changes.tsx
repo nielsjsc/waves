@@ -94,10 +94,14 @@ export function Changes() {
         }
     }
 
-    // Newest first so volunteers immediately see the most recent changes at the top.
     const hydratedChanges = allChanges
         .map((x) => hydrateChange(x.id, DATA))
         .filter((x) => x !== undefined)
+        .filter((c) => {
+            if (c.changeType === 'noShow' && c.participant.state !== 'noShow') return false
+            if (c.changeType === 'wrongEpunch' && c.participant.state !== 'wrongEpunch') return false
+            return true
+        })
         .sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime())
 
     const epunchCount = hydratedChanges.filter((c) => categoryOf(c.changeType) === 'epunch').length
@@ -201,18 +205,18 @@ export function Changes() {
     return (
         <>
             <Head title="Change Log" />
-            <div className="mx-auto flex max-w-6xl flex-col gap-4 pb-8">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-800 bg-gray-900 p-4">
-                    <div className="flex flex-wrap items-center gap-2">
+            <div className="mx-auto flex max-w-6xl flex-col gap-4 pb-8 text-slate-900">
+                <div className="flex flex-wrap items-center justify-between gap-3 border border-slate-300 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-center gap-1.5">
                         {filterTabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setCategory(tab.id)}
-                                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                                className={`border px-3 py-1.5 text-sm font-semibold transition ${
                                     category === tab.id
-                                        ? 'bg-pink-700 text-white'
-                                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                                        ? 'border-slate-900 bg-slate-900 text-white'
+                                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
                                 }`}>
                                 {tab.label} ({tab.count})
                             </button>
@@ -226,25 +230,25 @@ export function Changes() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Filter by name, school, or e-punch…"
                             aria-label="Filter changes"
-                            className="w-64 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white placeholder-gray-400 focus:border-pink-500 focus:outline-none"
+                            className="w-64 rounded-none border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
                         />
                         <button
                             type="button"
                             onClick={handleExportChangesCsv}
-                            className="rounded-md border border-sky-600 bg-sky-950/60 px-3 py-1.5 text-sm font-semibold text-sky-200 hover:bg-sky-800 hover:text-white">
+                            className="border border-sky-700 bg-white px-3 py-1.5 text-sm font-semibold text-sky-800 hover:bg-sky-700 hover:text-white">
                             Export Changes CSV
                         </button>
                         <button
                             type="button"
                             onClick={handleExportRosterCsv}
-                            className="rounded-md border border-emerald-600 bg-emerald-950/60 px-3 py-1.5 text-sm font-semibold text-emerald-200 hover:bg-emerald-800 hover:text-white">
+                            className="border border-emerald-700 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-700 hover:text-white">
                             Export Full Roster CSV
                         </button>
                     </div>
                 </div>
 
                 {visibleChanges.length === 0 ? (
-                    <div className="rounded-lg border border-gray-800 bg-gray-900 p-8 text-center text-gray-400">
+                    <div className="border border-slate-300 bg-white p-8 text-center text-slate-500">
                         No changes recorded in this view yet.
                     </div>
                 ) : (
@@ -264,36 +268,36 @@ export function Changes() {
                             return (
                                 <div
                                     key={c.id}
-                                    className="flex flex-col justify-between gap-2 rounded-lg border border-gray-800 bg-gray-800 px-4 py-3 sm:flex-row sm:items-center">
+                                    className="flex flex-col justify-between gap-2 border border-slate-300 bg-white px-4 py-3 sm:flex-row sm:items-center">
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <span className="text-lg font-bold text-white">
+                                            <span className="text-lg font-bold text-slate-900">
                                                 {c.participant.name}
                                             </span>
-                                            <span className="rounded bg-gray-700 px-2 py-0.5 text-xs font-semibold text-gray-200">
+                                            <span className="border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-800">
                                                 {changeTypeLabel(c.changeType)}
                                             </span>
                                             {c.participant.isNonCompete && (
-                                                <span className="rounded bg-indigo-800 px-2 py-0.5 text-xs font-medium text-indigo-100">
+                                                <span className="border border-indigo-600 bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-800">
                                                     NC
                                                 </span>
                                             )}
                                             {c.participant.isRental && (
-                                                <span className="rounded bg-orange-800 px-2 py-0.5 text-xs font-medium text-orange-100">
+                                                <span className="border border-orange-600 bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-800">
                                                     Rental
                                                 </span>
                                             )}
-                                            <span className="text-xs text-gray-400">
+                                            <span className="text-xs text-slate-500">
                                                 {clockHHMM(c.changedAt.getTime())} ({timeAgo(c.changedAt.getTime())})
                                             </span>
                                         </div>
 
-                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-300">
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-600">
                                             <span>{where}</span>
                                             {club !== '' && <span>· {club}</span>}
                                             <span>
                                                 · E-punch:{' '}
-                                                <strong className="font-semibold text-white">
+                                                <strong className="font-semibold text-slate-900">
                                                     {c.participant.epunch || 'none'}
                                                 </strong>
                                             </span>
@@ -303,13 +307,13 @@ export function Changes() {
                                     <div className="flex shrink-0 items-center gap-2 text-base">
                                         {c.old !== '' && (
                                             <>
-                                                <span className="text-gray-400 line-through">
+                                                <span className="text-slate-400 line-through">
                                                     {oldFormatted}
                                                 </span>
                                                 <SvgIcon icon="right" />
                                             </>
                                         )}
-                                        <span className="font-semibold text-amber-300">
+                                        <span className="font-bold text-slate-900">
                                             {newFormatted}
                                         </span>
                                     </div>

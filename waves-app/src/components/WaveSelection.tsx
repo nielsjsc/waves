@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { ManagerActionButton } from "./ManagerActionButton";
-import { getUniqueTimesFromSlots } from "./grid/StartGrid";
-import { useLiveQuery } from "@tanstack/react-db";
-import { slotsTanCollection } from "@/database";
-
+import { useEffect, useRef, useState } from "react"
+import { ManagerActionButton } from "./ManagerActionButton"
+import { getUniqueTimesFromSlots } from "./grid/StartGrid"
+import { useLiveQuery } from "@tanstack/react-db"
+import { slotsTanCollection } from "@/database"
 
 interface Properties {
     clockWave: string
@@ -13,7 +12,7 @@ interface Properties {
     setNextWaveTime: (wave: string) => void
 }
 
-export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWaveTime, setNextWaveTime}:Properties) {
+export function WaveSelection({ clockWave, userWaveTime, setUserWaveTime, nextWaveTime, setNextWaveTime }: Properties) {
     const [waveNotice, setWaveNotice] = useState('')
 
     useEffect(() => {
@@ -24,19 +23,15 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
         return () => clearTimeout(timer)
     }, [waveNotice])
 
-    const {data: allSlots} = useLiveQuery((q) =>
-        q.from({slot: slotsTanCollection})
+    const { data: allSlots } = useLiveQuery((q) =>
+        q.from({ slot: slotsTanCollection })
     )
     const waveTimes = getUniqueTimesFromSlots(allSlots)
-    // waveTimes is a new array on every render, so effects depend on this string instead.
     const waveKey = waveTimes.join(',')
 
     const prevClockWaveRef = useRef(clockWave)
 
     // INITIAL SELECTION & AUTO-ADVANCE WITH CLOCK
-    // Start on the clock's wave if it exists, otherwise the first wave, so the
-    // page isn't empty until someone presses "Now". When the clock advances to a
-    // new wave, automatically move to that wave.
     useEffect(() => {
         if (waveTimes.length === 0) {
             return
@@ -56,28 +51,24 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
     }, [userWaveTime, clockWave, waveKey])
 
     // NEXT WAVE based on USER WAVE
-    // Always set it (blank on the last wave) so a stale value never lingers.
     useEffect(() => {
         setNextWaveTime(getNextWave() ?? '')
     }, [userWaveTime, waveKey])
 
-
-    function getNextWave():string|undefined {
+    function getNextWave(): string | undefined {
         const currentIndex = waveTimes.indexOf(userWaveTime)
         if (currentIndex === -1) {
             return
         }
-        // past the end of the array this is undefined, i.e. no more waves
-        return waveTimes[currentIndex+1]
+        return waveTimes[currentIndex + 1]
     }
 
-    function getPrevWave():string|undefined {
+    function getPrevWave(): string | undefined {
         const currentIndex = waveTimes.indexOf(userWaveTime)
         if (currentIndex <= 0) {
-            // not found, or already the first wave
             return
         }
-        return waveTimes[currentIndex-1]
+        return waveTimes[currentIndex - 1]
     }
 
     function handleGoToCurrentWaveClick() {
@@ -88,6 +79,7 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
             setUserWaveTime(waveTimes[0] ?? '')
         }
     }
+
     function handleNextWaveClick() {
         const next = getNextWave()
         if (next === undefined) {
@@ -97,6 +89,7 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
             setUserWaveTime(next)
         }
     }
+
     function handlePrevWaveClick() {
         const prev = getPrevWave()
         if (prev === undefined) {
@@ -107,62 +100,69 @@ export function WaveSelection({clockWave, userWaveTime, setUserWaveTime, nextWav
         }
     }
 
-    const userWaveFormat = (clockWave === userWaveTime) ? 'text-emerald-500' :
-    (userWaveTime > clockWave) ? 'text-sky-500' : 'text-red-500'
+    const userWaveFormat =
+        clockWave === userWaveTime
+            ? 'text-emerald-700'
+            : userWaveTime > clockWave
+              ? 'text-sky-700'
+              : 'text-red-700'
 
-    return(
-    <div className="container mx-auto flex flex-wrap px-5 items-center gap-2">
-        <ManagerActionButton
+    return (
+        <div className="container mx-auto flex flex-wrap items-center gap-2 border border-slate-300 bg-slate-50 px-3 py-1.5 text-slate-900">
+            <ManagerActionButton
                 text=""
                 icon="left"
                 color="mauve"
                 action={handlePrevWaveClick}
-                buttonStyle="outline" />
-        <div className="flex flex-row gap-2">
-            <ManagerActionButton
-                text={nextWaveTime === '' ? 'Next' : `Next (${nextWaveTime})`}
-                icon="right"
-                color="sky"
-                action={handleNextWaveClick}
-                buttonStyle={clockWave !== '' && clockWave === nextWaveTime ? "solid" : "outline"} />
-            <ManagerActionButton
-                text={clockWave === '' ? 'Now' : `Now (${clockWave})`}
-                icon="signal"
-                color="emerald"
-                action={handleGoToCurrentWaveClick}
-                buttonStyle={clockWave !== userWaveTime ? "solid" : "outline"} />
-        </div>
-        <label className="flex items-center gap-2 ml-1">
-            <span>Selected Wave:</span>
-            <select
-                aria-label="Select wave time"
-                value={userWaveTime}
-                onChange={(e) => {
-                    setWaveNotice('')
-                    setUserWaveTime(e.target.value)
-                }}
-                className={`cursor-pointer rounded-md border border-gray-700 bg-gray-800 px-2.5 py-1 text-xl font-bold tabular-nums focus:border-pink-500 focus:outline-none ${userWaveFormat}`}>
-                {waveTimes.map((wt) => (
-                    <option key={wt} value={wt} className="bg-gray-900 text-base text-gray-100">
-                        {wt}{wt === clockWave ? ' (Now)' : ''}
-                    </option>
-                ))}
-            </select>
-        </label>
-        {waveNotice !== '' && (
-            <div
-                role="status"
-                className="flex items-center gap-2 rounded-md border border-amber-600/70 bg-amber-950 px-3 py-1.5 text-sm font-medium text-amber-100 shadow-md">
-                <span>{waveNotice}</span>
-                <button
-                    type="button"
-                    onClick={() => setWaveNotice('')}
-                    aria-label="Dismiss notice"
-                    className="rounded px-1 text-amber-300 hover:bg-amber-900 hover:text-white">
-                    ×
-                </button>
+                buttonStyle="outline"
+            />
+            <div className="flex flex-row gap-2">
+                <ManagerActionButton
+                    text={nextWaveTime === '' ? 'Next' : `Next (${nextWaveTime})`}
+                    icon="right"
+                    color="sky"
+                    action={handleNextWaveClick}
+                    buttonStyle={clockWave !== '' && clockWave === nextWaveTime ? "solid" : "outline"}
+                />
+                <ManagerActionButton
+                    text={clockWave === '' ? 'Now' : `Now (${clockWave})`}
+                    icon="signal"
+                    color="emerald"
+                    action={handleGoToCurrentWaveClick}
+                    buttonStyle={clockWave !== userWaveTime ? "solid" : "outline"}
+                />
             </div>
-        )}
-    </div>
+            <label className="ml-1 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <span>Selected Wave:</span>
+                <select
+                    aria-label="Select wave time"
+                    value={userWaveTime}
+                    onChange={(e) => {
+                        setWaveNotice('')
+                        setUserWaveTime(e.target.value)
+                    }}
+                    className={`cursor-pointer rounded-none border border-slate-300 bg-white px-2.5 py-1 text-lg font-bold tabular-nums focus:border-slate-900 focus:outline-none ${userWaveFormat}`}>
+                    {waveTimes.map((wt) => (
+                        <option key={wt} value={wt} className="bg-white text-base text-slate-900">
+                            {wt}{wt === clockWave ? ' (Now)' : ''}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            {waveNotice !== '' && (
+                <div
+                    role="status"
+                    className="flex items-center gap-2 border border-amber-600 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-950">
+                    <span>{waveNotice}</span>
+                    <button
+                        type="button"
+                        onClick={() => setWaveNotice('')}
+                        aria-label="Dismiss notice"
+                        className="px-1 text-amber-800 hover:bg-amber-100 hover:text-amber-950">
+                        ×
+                    </button>
+                </div>
+            )}
+        </div>
     )
 }

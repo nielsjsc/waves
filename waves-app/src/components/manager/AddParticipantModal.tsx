@@ -10,6 +10,8 @@ export interface AddParticipantPrefill {
     isRental: boolean
     isNonCompete: boolean
     suggestedCourse?: string
+    targetSlotId?: string
+    targetTime?: string
 }
 
 interface Properties {
@@ -30,21 +32,27 @@ export function AddParticipantModal({
     onClose,
 }: Properties) {
     const courses = [...new Set(allSlots.map((s) => s.course))].sort()
-    const defaultCourse = prefill?.suggestedCourse && courses.includes(prefill.suggestedCourse)
-        ? prefill.suggestedCourse
-        : (courses[0] ?? 'c1')
+    const defaultCourse =
+        prefill?.suggestedCourse && courses.includes(prefill.suggestedCourse)
+            ? prefill.suggestedCourse
+            : (courses[0] ?? 'c1')
 
     const [name, setName] = useState(prefill?.name ?? '')
     const [club, setClub] = useState(
         prefill?.club && prefill.club !== 'unknown' && prefill.club !== 'None' ? prefill.club : ''
     )
     const [epunch, setEpunch] = useState(prefill?.epunch ?? '')
-    const [isRental, setIsRental] = useState(prefill?.isRental ?? false)
+    const [isRental, setIsRental] = useState(prefill?.isRental ?? (prefill?.isNonCompete ? true : false))
     const [isNonCompete, setIsNonCompete] = useState(prefill?.isNonCompete ?? false)
     const [groupSize, setGroupSize] = useState(1)
     const [course, setCourse] = useState(defaultCourse)
-    const [showEarlier, setShowEarlier] = useState(false)
-    const [selectedSlotId, setSelectedSlotId] = useState<string>('')
+    const [showEarlier, setShowEarlier] = useState(() => {
+        if (prefill?.targetTime && cutoff !== '' && prefill.targetTime < cutoff) {
+            return true
+        }
+        return false
+    })
+    const [selectedSlotId, setSelectedSlotId] = useState<string>(prefill?.targetSlotId ?? '')
     const [errorMsg, setErrorMsg] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -70,7 +78,7 @@ export function AddParticipantModal({
                 !isMagicTime(s.time) &&
                 s.isUsable !== false &&
                 s.participants.length === 0 &&
-                (showEarlier || cutoff === '' || s.time >= cutoff)
+                (showEarlier || cutoff === '' || s.time >= cutoff || s.id === prefill?.targetSlotId)
         )
         .sort((a, b) => a.time.localeCompare(b.time))
 
@@ -84,22 +92,24 @@ export function AddParticipantModal({
 
     const recommendedSlotId = recommendation.recommendedSlot?.slot.id
 
-    // Default to the recommended (10+ min spaced) open slot on the chosen course whenever course/school/cutoff changes
+    // Default to explicit targetSlotId (when clicked on FullGrid) or the recommended open slot
     useEffect(() => {
-        if (recommendedSlotId !== undefined) {
+        if (prefill?.targetSlotId && course === prefill.suggestedCourse && openSlots.some((s) => s.id === prefill.targetSlotId)) {
+            setSelectedSlotId(prefill.targetSlotId)
+        } else if (recommendedSlotId !== undefined) {
             setSelectedSlotId(recommendedSlotId)
         } else if (openSlots.length > 0) {
             setSelectedSlotId(openSlots[0]!.id)
         } else {
             setSelectedSlotId('QUEUE')
         }
-    }, [course, club, showEarlier, cutoff, recommendedSlotId, openSlots.length])
+    }, [course, club, showEarlier, cutoff, recommendedSlotId, openSlots.length, prefill?.targetSlotId, prefill?.suggestedCourse])
 
     // Find existing participants matching the typed name so volunteers can 1-click copy
     // school & e-punch when a school racer finishes their first course and runs a second one.
     const trimmedQuery = name.trim().toLowerCase()
     const matchingExisting =
-        prefill !== undefined || trimmedQuery.length < 2
+        (prefill?.name ?? '') !== '' || trimmedQuery.length < 2
             ? []
             : allParticipants
                   .filter((p) => p.name.toLowerCase().includes(trimmedQuery))
@@ -109,7 +119,8 @@ export function AddParticipantModal({
         setName(p.name)
         setClub(p.club && p.club !== 'unknown' && p.club !== 'None' ? p.club : '')
         setEpunch(p.epunch ?? '')
-        setIsRental(p.isRental)
+        // Default to rental e-punch for a 2nd course
+        setIsRental(true)
         setIsNonCompete(true)
         setErrorMsg('')
     }
@@ -161,17 +172,22 @@ export function AddParticipantModal({
     }
 
     return (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-left">
-            {prefill !== undefined && (
-                <div className="rounded-md border border-sky-700/70 bg-sky-950/60 px-3 py-2 text-sm text-sky-200">
-                    Adding another course entry for <strong>{prefill.name}</strong>. Their school and e-punch are pre-filled below.
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-left text-slate-900">
+            {prefill !== undefined && prefill.name !== '' && (
+                <div className="border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                    Adding another course entry for <strong>{prefill.name}</strong>. Their school and e-punch are pre-filled below (defaulted to Rental e-punch).
+                </div>
+            )}
+            {prefill?.targetSlotId !== undefined && prefill.name === '' && (
+                <div className="border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                    Adding participant directly to open start slot <strong>{prefill.suggestedCourse} · {prefill.targetTime}</strong>.
                 </div>
             )}
 
             {/* 1. Name & School */}
             <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                    <label htmlFor="add-p-name" className="block text-sm font-semibold text-gray-200">
+                    <label htmlFor="add-p-name" className="block text-sm font-semibold text-slate-800">
                         Runner Name *
                     </label>
                     <input
@@ -184,12 +200,12 @@ export function AddParticipantModal({
                             if (errorMsg) setErrorMsg('')
                         }}
                         placeholder="e.g. Alex Smith"
-                        className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-base text-white placeholder-gray-500 focus:border-pink-500 focus:outline-none"
+                        className="mt-1 w-full rounded-none border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
                     />
                 </div>
 
                 <div>
-                    <label htmlFor="add-p-club" className="block text-sm font-semibold text-gray-200">
+                    <label htmlFor="add-p-club" className="block text-sm font-semibold text-slate-800">
                         School / Club
                     </label>
                     <input
@@ -199,7 +215,7 @@ export function AddParticipantModal({
                         value={club}
                         onChange={(e) => setClub(e.target.value)}
                         placeholder="e.g. Ingraham High (or leave blank)"
-                        className="mt-1 w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-base text-white placeholder-gray-500 focus:border-pink-500 focus:outline-none"
+                        className="mt-1 w-full rounded-none border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
                     />
                     <datalist id="existing-schools-list">
                         {existingSchools.map((s) => (
@@ -211,8 +227,8 @@ export function AddParticipantModal({
 
             {/* Quick-fill from existing racer if name matches */}
             {matchingExisting.length > 0 && (
-                <div className="flex flex-col gap-1.5 rounded-md border border-gray-700 bg-gray-900/90 p-2.5">
-                    <span className="text-xs font-semibold text-gray-400">
+                <div className="flex flex-col gap-1.5 border border-slate-300 bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-slate-600">
                         Already in meet? Click to copy their school &amp; e-punch for a 2nd course:
                     </span>
                     <div className="flex flex-wrap gap-1.5">
@@ -223,7 +239,7 @@ export function AddParticipantModal({
                                     key={m.id}
                                     type="button"
                                     onClick={() => applyExistingRacer(m)}
-                                    className="rounded border border-sky-600/70 bg-sky-950/60 px-2.5 py-1 text-xs font-medium text-sky-200 hover:bg-sky-800 hover:text-white">
+                                    className="border border-sky-600 bg-white px-2.5 py-1 text-xs font-medium text-sky-800 hover:bg-sky-600 hover:text-white">
                                     {m.name} ({mClub}{m.epunch ? ` · E-punch ${m.epunch}` : ''})
                                 </button>
                             )
@@ -235,7 +251,7 @@ export function AddParticipantModal({
             {/* 2. E-punch, Rental, Non-Compete, Group Size */}
             <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                    <label htmlFor="add-p-epunch" className="block text-sm font-semibold text-gray-200">
+                    <label htmlFor="add-p-epunch" className="block text-sm font-semibold text-slate-800">
                         E-punch Number
                     </label>
                     <div className="mt-1 flex gap-2">
@@ -249,25 +265,25 @@ export function AddParticipantModal({
                                 if (errorMsg) setErrorMsg('')
                             }}
                             placeholder="e.g. 8654321"
-                            className="min-w-0 flex-1 rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-base tabular-nums text-white placeholder-gray-500 focus:border-pink-500 focus:outline-none"
+                            className="min-w-0 flex-1 rounded-none border border-slate-300 bg-white px-3 py-2 text-base tabular-nums text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
                         />
                         <button
                             type="button"
                             onClick={() => setIsRental(false)}
-                            className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold ${
+                            className={`border px-2.5 py-1.5 text-xs font-semibold ${
                                 !isRental
-                                    ? 'border-sky-500 bg-sky-800 text-white'
-                                    : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'
+                                    ? 'border-sky-700 bg-sky-700 text-white'
+                                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
                             }`}>
                             Own
                         </button>
                         <button
                             type="button"
                             onClick={() => setIsRental(true)}
-                            className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold ${
+                            className={`border px-2.5 py-1.5 text-xs font-semibold ${
                                 isRental
-                                    ? 'border-orange-500 bg-orange-700 text-white'
-                                    : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'
+                                    ? 'border-orange-700 bg-orange-600 text-white'
+                                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
                             }`}>
                             Rental
                         </button>
@@ -275,20 +291,26 @@ export function AddParticipantModal({
                 </div>
 
                 <div className="flex flex-col justify-end gap-2">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-200">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-800">
                         <input
                             type="checkbox"
                             checked={isNonCompete}
-                            onChange={(e) => setIsNonCompete(e.target.checked)}
-                            className="size-4 rounded"
+                            onChange={(e) => {
+                                const checked = e.target.checked
+                                setIsNonCompete(checked)
+                                if (checked) {
+                                    setIsRental(true)
+                                }
+                            }}
+                            className="size-4"
                         />
                         <span>
                             <strong>Non-competitive (NC)</strong>{' '}
-                            <span className="text-xs text-gray-400">(use for 2nd course)</span>
+                            <span className="text-xs text-slate-500">(use for 2nd course)</span>
                         </span>
                     </label>
 
-                    <div className="flex items-center gap-2 text-sm text-gray-200">
+                    <div className="flex items-center gap-2 text-sm text-slate-800">
                         <label htmlFor="add-p-groupsize" className="font-medium">
                             Group size:
                         </label>
@@ -299,7 +321,7 @@ export function AddParticipantModal({
                             max={50}
                             value={groupSize}
                             onChange={(e) => setGroupSize(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                            className="w-16 rounded border border-gray-600 bg-gray-900 px-2 py-1 text-center text-sm text-white"
+                            className="w-16 rounded-none border border-slate-300 bg-white px-2 py-1 text-center text-sm text-slate-900"
                         />
                     </div>
                 </div>
@@ -307,7 +329,7 @@ export function AddParticipantModal({
 
             {/* 3. Course Selection */}
             <div>
-                <span className="block text-sm font-semibold text-gray-200">Select Course *</span>
+                <span className="block text-sm font-semibold text-slate-800">Select Course *</span>
                 <div className="mt-1.5 grid grid-cols-3 gap-1.5 sm:grid-cols-5">
                     {courses.map((c) => {
                         const hint = courseShortLabel(c)
@@ -317,14 +339,14 @@ export function AddParticipantModal({
                                 key={c}
                                 type="button"
                                 onClick={() => setCourse(c)}
-                                className={`flex flex-col items-start rounded-md border px-2.5 py-1.5 text-left transition ${
+                                className={`flex flex-col items-start border px-2.5 py-1.5 text-left transition ${
                                     active
-                                        ? 'border-pink-500 bg-pink-800 text-white'
-                                        : 'border-gray-700 bg-gray-900 text-gray-200 hover:bg-gray-700'
+                                        ? 'border-slate-900 bg-slate-900 text-white'
+                                        : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
                                 }`}>
                                 <span className="text-sm font-bold leading-tight">{c}</span>
                                 {hint !== '' && (
-                                    <span className={`truncate text-[11px] leading-tight ${active ? 'text-pink-100' : 'text-gray-400'}`}>
+                                    <span className={`truncate text-[11px] leading-tight ${active ? 'text-slate-200' : 'text-slate-500'}`}>
                                         {hint}
                                     </span>
                                 )}
@@ -335,31 +357,31 @@ export function AddParticipantModal({
             </div>
 
             {/* 4. Start Time Selection */}
-            <div className="rounded-md border border-gray-700 bg-gray-900 p-3">
+            <div className="border border-slate-300 bg-slate-50 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-gray-200">
+                    <span className="text-sm font-semibold text-slate-800">
                         Assign Start Time on {course}
                     </span>
                     <button
                         type="button"
                         onClick={() => setSelectedSlotId('QUEUE')}
-                        className={`rounded border px-2.5 py-1 text-xs font-semibold ${
+                        className={`border px-2.5 py-1 text-xs font-semibold ${
                             selectedSlotId === 'QUEUE'
-                                ? 'border-orange-500 bg-orange-700 text-white'
-                                : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'
+                                ? 'border-orange-700 bg-orange-600 text-white'
+                                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
                         }`}>
                         Assign later (Needs new time queue)
                     </button>
                 </div>
 
                 {recommendation.recommendedSlot !== undefined && (
-                    <p className="mt-1.5 text-xs text-emerald-300">
-                        <strong>★ Preferred ({recommendation.recommendedSlot.slot.time}):</strong> {recommendation.reason}
+                    <p className="mt-1.5 text-xs text-emerald-800">
+                        <strong>Preferred ({recommendation.recommendedSlot.slot.time}):</strong> {recommendation.reason}
                     </p>
                 )}
 
                 {openSlots.length === 0 ? (
-                    <p className="mt-2 text-xs italic text-gray-400">
+                    <p className="mt-2 text-xs italic text-slate-600">
                         No open start slots on {course}{cutoff !== '' && !showEarlier ? ` after ${cutoff}` : ''}. Will be placed in the "Needs a new time" queue.
                     </p>
                 ) : (
@@ -371,13 +393,13 @@ export function AddParticipantModal({
                                 ? `Within 10 min of ${recommendation.school} teammate ${closestConflict.teammateName} (${closestConflict.teammateTime}, ${closestConflict.gapMinutes} min apart) — click to override`
                                 : '10+ min spacing from same-school teammates'
 
-                            let btnClass = 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
+                            let btnClass = 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
                             if (picked) {
-                                btnClass = 'border-amber-400 bg-amber-600 text-white'
+                                btnClass = 'border-slate-900 bg-slate-900 text-white'
                             } else if (isRecommended && isPreferred) {
-                                btnClass = 'border-emerald-500 bg-emerald-950/70 text-emerald-200 hover:bg-emerald-800'
+                                btnClass = 'border-emerald-600 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
                             } else if (!isPreferred) {
-                                btnClass = 'border-dashed border-amber-700/80 bg-amber-950/25 text-amber-300/80 hover:bg-gray-700'
+                                btnClass = 'border-dashed border-amber-600 bg-amber-50 text-amber-900 hover:bg-amber-100'
                             }
 
                             return (
@@ -386,7 +408,7 @@ export function AddParticipantModal({
                                     type="button"
                                     title={conflictTitle}
                                     onClick={() => setSelectedSlotId(slot.id)}
-                                    className={`rounded border px-2.5 py-1 text-sm font-semibold tabular-nums ${btnClass}`}>
+                                    className={`border px-2.5 py-1 text-sm font-semibold tabular-nums ${btnClass}`}>
                                     {slot.time}
                                 </button>
                             )
@@ -395,7 +417,7 @@ export function AddParticipantModal({
                 )}
 
                 {cutoff !== '' && (
-                    <label className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+                    <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
                         <input
                             type="checkbox"
                             checked={showEarlier}
@@ -407,7 +429,7 @@ export function AddParticipantModal({
             </div>
 
             {errorMsg !== '' && (
-                <div role="alert" className="rounded-md border border-red-600 bg-red-950/90 px-3 py-2 text-sm text-red-200">
+                <div role="alert" className="border border-red-600 bg-red-50 px-3 py-2 text-sm text-red-900">
                     {errorMsg}
                 </div>
             )}
@@ -416,13 +438,13 @@ export function AddParticipantModal({
                 <button
                     type="button"
                     onClick={onClose}
-                    className="rounded-md border border-gray-600 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700">
+                    className="border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
                     Cancel
                 </button>
                 <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="rounded-md bg-emerald-600 px-5 py-2 text-sm font-bold text-white shadow hover:bg-emerald-500 disabled:opacity-50">
+                    className="border border-emerald-700 bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
                     {isSubmitting ? 'Adding…' : 'Add to Meet'}
                 </button>
             </div>

@@ -1,4 +1,3 @@
-
 import { createRxDatabase, addRxPlugin } from 'rxdb/plugins/core';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 import { getRxStorageMemory } from 'rxdb/plugins/storage-memory';
@@ -8,7 +7,7 @@ import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv';
 
 import { RxDBCleanupPlugin } from 'rxdb/plugins/cleanup';
 
-import { changesSchema, participantSchema, slotSchema, type ChangesCollection, type ChangesCollectionMethods, type ParticipantCollection, type ParticipantCollectionMethods, type SlotCollection, type SlotCollectionMethods, type WavesDbCollections } from './Schema';
+import { changesSchema, participantSchema, slotSchema, type ChangesCollection, type ChangesCollectionMethods, type ParticipantCollection, type ParticipantCollectionMethods, type ParticipantDocType, type SlotCollection, type SlotCollectionMethods, type SlotDocType, type WavesDbCollections } from './Schema';
 
 import { createCollection as createTanDbCollection } from '@tanstack/react-db'
 import { rxdbCollectionOptions } from '@tanstack/rxdb-db-collection';
@@ -37,11 +36,11 @@ function showStartupProblem(message: string): never {
     if (typeof document !== 'undefined') {
         const container = document.querySelector('#root') ?? document.body
         container.innerHTML = `
-            <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#111827;color:#f3f4f6;font-family:system-ui,sans-serif;padding:1.5rem;">
-                <div style="max-width:32rem;border:1px solid #b91c1c;background:#450a0a;border-radius:0.5rem;padding:1.5rem;">
-                    <h1 style="font-size:1.25rem;font-weight:700;margin:0 0 0.75rem 0;color:#fecaca;">Waves cannot start yet</h1>
-                    <p style="margin:0 0 1rem 0;line-height:1.5;color:#fee2e2;">${message}</p>
-                    <button onclick="window.location.reload()" style="background:#dc2626;color:#ffffff;border:none;border-radius:0.375rem;padding:0.5rem 1rem;font-weight:600;cursor:pointer;">
+            <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#ffffff;color:#0f172a;font-family:system-ui,sans-serif;padding:1.5rem;">
+                <div style="max-width:32rem;border:2px solid #dc2626;background:#fef2f2;padding:1.5rem;">
+                    <h1 style="font-size:1.25rem;font-weight:700;margin:0 0 0.75rem 0;color:#7f1d1d;">Waves cannot start yet</h1>
+                    <p style="margin:0 0 1rem 0;line-height:1.5;color:#991b1b;">${message}</p>
+                    <button onclick="window.location.reload()" style="background:#dc2626;color:#ffffff;border:none;padding:0.5rem 1rem;font-weight:600;cursor:pointer;">
                         Reload
                     </button>
                 </div>
@@ -97,7 +96,9 @@ console.log(`rxdb: Created database wavesAppDb_${EVENT_ID}.`)
 const slotCollectionMethods: SlotCollectionMethods = {
     dropAllDocs: async function(this: SlotCollection) {
         await this.find().remove()
-        await this.cleanup(0)
+        if (IS_TEST_ENV) {
+            await this.cleanup(0)
+        }
         return
     }
 }
@@ -105,7 +106,9 @@ const slotCollectionMethods: SlotCollectionMethods = {
 const participantCollectionMethods: ParticipantCollectionMethods  = {
     dropAllDocs: async function(this: ParticipantCollection) {
         await this.find().remove()
-        await this.cleanup(0)
+        if (IS_TEST_ENV) {
+            await this.cleanup(0)
+        }
         return
     }
 }
@@ -113,7 +116,9 @@ const participantCollectionMethods: ParticipantCollectionMethods  = {
 const changesCollectionMethods: ChangesCollectionMethods  = {
     dropAllDocs: async function(this: ChangesCollection) {
         await this.find().remove()
-        await this.cleanup(0)
+        if (IS_TEST_ENV) {
+            await this.cleanup(0)
+        }
         return
     }
 }
@@ -409,84 +414,36 @@ export const changesTanCollection = createTanDbCollection(rxdbCollectionOptions(
         })
     )
 
+async function tryWaitForSync(rep: { awaitInSync: () => Promise<unknown> } | undefined, timeoutMs = 1500) {
+    if (rep === undefined || currentSyncStatus === 'offline') {
+        return
+    }
+    await Promise.race([
+        rep.awaitInSync().catch(() => {}),
+        new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+    ])
+}
+
 export async function dropAllSlots() {
-    return db.slots.dropAllDocs()
+    await db.slots.dropAllDocs()
+    await tryWaitForSync(replications?.slots)
 }
 export async function dropAllParticipants() {
-    return db.participants.dropAllDocs()
+    await db.participants.dropAllDocs()
+    await tryWaitForSync(replications?.participants)
 }
 
 export async function dropAllChanges() {
-    return db.changes.dropAllDocs()
+    await db.changes.dropAllDocs()
+    await tryWaitForSync(replications?.changes)
 }
 
-// export async function insertMockData() {
-//     const MRid = crypto.randomUUID()
-//     const NJid = crypto.randomUUID()
-//     const TWid = crypto.randomUUID()
-//     const TKid = crypto.randomUUID()
-//     const VMid = crypto.randomUUID()
-//     const GWid = crypto.randomUUID()
-//     const DBid = crypto.randomUUID()
-//     const EJid = crypto.randomUUID()
-//     const WEid = crypto.randomUUID()
-//     const BFid = crypto.randomUUID()
-//     const IUid = crypto.randomUUID()
-//     const GNid = crypto.randomUUID()
-//     const MBid = crypto.randomUUID()
-//     const LBid = crypto.randomUUID()
-//     const MFid = crypto.randomUUID()
-//     const LTid = crypto.randomUUID()
+export async function bulkUpsertParticipants(docs: ParticipantDocType[]) {
+    await db.participants.bulkUpsert(docs)
+    await tryWaitForSync(replications?.participants)
+}
 
-//     const tx1 = participantsTanCollection.insert([
-//         // {id: MRid, name: 'Marissa Roecks Group(4)', club: 'Cascade OC', state: 'waiting'},
-//         // {id: NJid, name: 'Nate Jergensen', club: 'Summit Trails Middle', state: 'waiting'},
-//         // {id: TWid, name: 'Traci Weygandt', club: 'Cascade OC', state: 'waiting'},
-//         // {id: TKid, name: 'Thomas Kornelis', club: 'Bremerton', state: 'waiting'},
-//         // {id: VMid, name: 'Venna Menzie', club: 'Tahoma', state: 'waiting'},
-//         // {id: GWid, name: 'Graham Winters', club: 'Tahoma', state: 'waiting'},
-//         // {id: DBid, name: 'Danny Buchholz', club: 'Shorewood', state: 'waiting'},
-//         // {id: IUid, name: 'Ing Uhlin', club: "Cascade OC", state: 'waiting'},
-//         // {id: EJid, name: 'Eric Jones', club: "Cascade OC", state: 'waiting'},
-
-//         // {id: MBid, name: 'Millie Rebbeck', club: 'Seattle Country Day', state: 'waiting'},
-//         // {id: LBid, name: 'Logan Burdette', club: 'Northwood Middle', state: 'present'},
-//         // {id: MFid, name: 'Maria Franzie Ventolero', club: 'Oak Harbor', state: 'validated'},
-//         // {id: LTid, name: 'Logan Taylor', club: 'Arlington', state: 'noShow'},
-        
-//         // {id: BFid, name: 'Bob Forgrave', club: "Cascade OC", state: 'notAttending'},
-//         // {id: GNid, name: 'Gina Nuss', club: "Orienteer Kansas", state: 'needsAssignment'},
-//         // {id: WEid, name: 'Will Enger', club: "Sammamish River", state: 'waiting'},
-//     ])
-//     await tx1.isPersisted.promise
-
-//     const tx2 = slotsTanCollection.insert([
-//         {id: crypto.randomUUID(), time: '10:02', course: 'c1', participants: [MRid]},
-//         {id: crypto.randomUUID(), time: '10:02', course: 'c2', participants: [NJid]},
-//         {id: crypto.randomUUID(), time: '10:02', course: 'c3', participants: [TWid]},
-//         {id: crypto.randomUUID(), time: '10:02', course: 'c4', participants: [TKid]},
-//         {id: crypto.randomUUID(), time: '10:02', course: 'c5', participants: [VMid]},
-//         {id: crypto.randomUUID(), time: '10:02', course: 'c6', participants: [GWid]},
-//         {id: crypto.randomUUID(), time: '10:02', course: 'c7', participants: [DBid]},
-//         {id: crypto.randomUUID(), time: '10:02', course: 'c8', participants: [IUid]},
-//         {id: crypto.randomUUID(), time: '10:02', course: 'c9', participants: [EJid]},
-
-//         {id: crypto.randomUUID(), time: '10:04', course: 'c1', participants: [MBid]},
-//         {id: crypto.randomUUID(), time: '10:06', course: 'c2', participants: [LBid]},
-//         {id: crypto.randomUUID(), time: '10:08', course: 'c3', participants: [MFid]},
-//         {id: crypto.randomUUID(), time: '10:10', course: 'c4', participants: [LTid]},
-//         {id: crypto.randomUUID(), time: '10:12', course: 'c5', participants: [BFid]},
-//         // {id: crypto.randomUUID(), time: '10:04', course: 'c6', participants: []},
-//         {id: crypto.randomUUID(), time: '10:14', course: 'c7', participants: []},
-//         {id: crypto.randomUUID(), time: '10:16', course: 'c8', participants: [GNid]},
-//         {id: crypto.randomUUID(), time: '10:18', course: 'c9', participants: [WEid]},
-
-//         // {id: crypto.randomUUID(), time: '10:06', course: 'c8', participants: [GNid]},
-//         // {id: crypto.randomUUID(), time: '10:06', course: 'c9', participants: [WEid]},
-//     ])
-//     await tx2.isPersisted.promise
-
-//     Promise.all([tx1, tx2]).then(() => {
-//         console.log("Mock Data Loaded")
-//     })
-// }
+export async function bulkUpsertSlots(docs: SlotDocType[]) {
+    await db.slots.bulkUpsert(docs)
+    await tryWaitForSync(replications?.slots)
+}

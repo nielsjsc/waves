@@ -107,9 +107,14 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 
 	const adaCardEpunch = epunchPage.locator('[data-participant-id="e2etest01-participant-c1-10:00"]')
 	const graceCardEpunch = epunchPage.locator('[data-participant-id="e2etest01-participant-c2-10:00"]')
+	const alanCardEpunch = epunchPage.locator('[data-participant-id="e2etest01-participant-c7-10:00"]')
 
 	// Verify Call-up's "Present" state synced to the E-punch Check tab
 	await expect(adaCardEpunch).toContainText('Present')
+
+	// Verify Alan Turing (marked No Show at Call-up) cannot be flagged as Wrong E-punch at the same time
+	await expect(alanCardEpunch).toContainText('No Show')
+	await expect(alanCardEpunch.getByRole('button', { name: 'Wrong E-punch' })).toHaveCount(0)
 
 	// Verify the button says "Validate" BEFORE clicking, and changes to "Validated" AFTER clicking
 	const adaValidateBtn = adaCardEpunch.getByRole('button', { name: 'Validate', exact: true })
@@ -150,7 +155,9 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await managerPage.getByRole('button', { name: 'Done' }).click()
 	await expect(managerPage.getByRole('heading', { name: /Wrong e-punch/i })).toContainText('(0)')
 
-	// Use the Schools & Clubs directory to find Garfield High -> Alan Turing
+	// Expand the Schools & Clubs directory (starts closed) to find Garfield High -> Alan Turing
+	await expect(managerPage.getByPlaceholder('Filter schools…')).toHaveCount(0)
+	await managerPage.getByRole('button', { name: /Schools & Clubs/i }).click()
 	await managerPage.getByPlaceholder('Filter schools…').fill('Garfield')
 	await managerPage.getByRole('button', { name: /^Garfield High/i }).click()
 	await managerPage.getByRole('button', { name: /Alan Turing/i }).first().click()

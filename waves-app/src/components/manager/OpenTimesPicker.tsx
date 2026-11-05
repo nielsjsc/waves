@@ -67,20 +67,20 @@ export function OpenTimesPicker({
     const activeHint = courseShortLabel(course)
 
     return (
-        <section className="flex flex-col gap-3 rounded-lg border border-gray-700 bg-gray-900 p-4">
-            <div className="flex items-center justify-between gap-2 border-b border-gray-800 pb-2">
-                <h3 className="text-lg font-bold text-gray-100">
+        <section className="flex flex-col gap-3 border border-slate-300 bg-white p-4 text-slate-900">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                <h3 className="text-lg font-bold text-slate-900">
                     Assign Start Time for {participantName}
                 </h3>
                 <div className="flex items-center gap-2">
-                    <span className="rounded bg-gray-800 px-2.5 py-0.5 text-xs font-medium text-gray-300">
+                    <span className="border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
                         Currently: {currentCourse} · {formatSlotTime(currentTime)}
                     </span>
                     {onClose !== undefined && (
                         <button
                             type="button"
                             onClick={onClose}
-                            className="rounded border border-gray-600 px-2 py-0.5 text-xs font-medium text-gray-300 hover:bg-gray-700 hover:text-white">
+                            className="border border-slate-300 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100">
                             Hide
                         </button>
                     )}
@@ -88,7 +88,7 @@ export function OpenTimesPicker({
             </div>
 
             <div>
-                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
                     1. Choose Course
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
@@ -102,21 +102,21 @@ export function OpenTimesPicker({
                                 type="button"
                                 onClick={() => { setCourse(c); setPending(undefined) }}
                                 title={isCurrent ? 'Their current course' : undefined}
-                                className={`flex flex-col items-start rounded-md border px-2.5 py-1.5 text-left transition ${
+                                className={`flex flex-col items-start border px-2.5 py-1.5 text-left transition ${
                                     isSelected
-                                        ? 'border-pink-500 bg-pink-700 text-white'
-                                        : 'border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700'
-                                } ${isCurrent && !isSelected ? 'ring-1 ring-gray-500' : ''}`}>
+                                        ? 'border-slate-900 bg-slate-900 text-white'
+                                        : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
+                                } ${isCurrent && !isSelected ? 'ring-1 ring-slate-400' : ''}`}>
                                 <div className="flex w-full items-center justify-between gap-1">
                                     <span className="text-sm font-bold leading-tight">{c}</span>
                                     {isCurrent && (
-                                        <span className={`text-[10px] font-medium ${isSelected ? 'text-pink-200' : 'text-gray-400'}`}>
+                                        <span className={`text-[10px] font-medium ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
                                             current
                                         </span>
                                     )}
                                 </div>
                                 {hint !== '' && (
-                                    <span className={`truncate text-[11px] leading-tight ${isSelected ? 'text-pink-100' : 'text-gray-400'}`}>
+                                    <span className={`truncate text-[11px] leading-tight ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>
                                         {hint}
                                     </span>
                                 )}
@@ -129,30 +129,30 @@ export function OpenTimesPicker({
             {/* Recommendation Banner (10-minute same-school spacing rule) */}
             {recommendation.recommendedSlot !== undefined && (
                 <div
-                    className={`flex flex-wrap items-center justify-between gap-3 rounded-md border px-3.5 py-2.5 ${
+                    className={`flex flex-wrap items-center justify-between gap-3 border px-3.5 py-2.5 ${
                         recommendation.recommendedSlot.isPreferred
-                            ? 'border-emerald-600/80 bg-emerald-950/40 text-emerald-100'
-                            : 'border-amber-600/80 bg-amber-950/40 text-amber-100'
+                            ? 'border-emerald-600 bg-emerald-50 text-emerald-950'
+                            : 'border-amber-600 bg-amber-50 text-amber-950'
                     }`}>
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
                                 {recommendation.recommendedSlot.isPreferred
-                                    ? '★ Preferred Start Time'
+                                    ? 'Preferred Start Time'
                                     : 'Closest to 10-min Spacing'}
                             </span>
-                            <span className="rounded bg-emerald-700 px-2 py-0.5 text-base font-bold tabular-nums text-white">
+                            <span className="bg-emerald-700 px-2 py-0.5 text-base font-bold tabular-nums text-white">
                                 {recommendation.recommendedSlot.slot.time}
                             </span>
                         </div>
-                        <p className="mt-1 text-xs leading-relaxed text-gray-200">
+                        <p className="mt-1 text-xs leading-relaxed text-slate-700">
                             {recommendation.reason}
                         </p>
                     </div>
                     <button
                         type="button"
                         onClick={() => handlePick(recommendation.recommendedSlot!.slot)}
-                        className="shrink-0 rounded-md bg-emerald-600 px-3.5 py-2 text-sm font-bold text-white shadow hover:bg-emerald-500">
+                        className="shrink-0 border border-emerald-700 bg-emerald-600 px-3.5 py-2 text-sm font-bold text-white hover:bg-emerald-700">
                         Assign recommended
                     </button>
                 </div>
@@ -160,13 +160,13 @@ export function OpenTimesPicker({
 
             <div>
                 <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                         2. Pick Open Time on {course}{activeHint !== '' ? ` (${activeHint})` : ''}
                         {cutoff !== '' && !showEarlier ? ` from ${cutoff}` : ''}
                     </span>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                         {hasAnyConflictSlots && (
-                            <span className="text-amber-300/90">
+                            <span className="text-amber-800">
                                 Dashed = &lt;10 min from {recommendation.school} teammate (click to override)
                             </span>
                         )}
@@ -177,11 +177,11 @@ export function OpenTimesPicker({
                 </div>
 
                 {openSlots.length === 0 ? (
-                    <p className="rounded-md border border-dashed border-gray-700 p-4 text-center text-sm italic text-gray-400">
+                    <p className="border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm italic text-slate-500">
                         No open times here. Try another course{cutoff !== '' && !showEarlier ? ' or include earlier times below' : ''}.
                     </p>
                 ) : (
-                    <div className="flex max-h-64 flex-wrap gap-2 overflow-auto rounded-md border border-gray-800 bg-gray-950/60 p-3">
+                    <div className="flex max-h-64 flex-wrap gap-2 overflow-auto border border-slate-300 bg-slate-50 p-3">
                         {recommendation.evaluatedSlots.map(({ slot, isPreferred, closestConflict }) => {
                             const isRecommended = slot.id === recommendedId
                             const conflictTitle = closestConflict
@@ -190,11 +190,11 @@ export function OpenTimesPicker({
                                   ? 'Preferred start time (10+ min spacing from same-school teammates)'
                                   : '10+ min spacing from same-school teammates'
 
-                            let btnStyle = 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-amber-600 hover:text-white'
+                            let btnStyle = 'border-slate-300 bg-white text-slate-900 hover:bg-slate-900 hover:text-white'
                             if (isRecommended && isPreferred) {
-                                btnStyle = 'border-2 border-emerald-400 bg-emerald-950/80 text-emerald-100 ring-1 ring-emerald-400/50 hover:bg-emerald-600 hover:text-white'
+                                btnStyle = 'border-2 border-emerald-600 bg-emerald-50 text-emerald-950 hover:bg-emerald-600 hover:text-white'
                             } else if (!isPreferred) {
-                                btnStyle = 'border-dashed border-amber-700/80 bg-amber-950/25 text-amber-300/80 hover:bg-amber-600 hover:text-white'
+                                btnStyle = 'border-dashed border-amber-600 bg-amber-50 text-amber-900 hover:bg-amber-600 hover:text-white'
                             }
 
                             return (
@@ -203,7 +203,7 @@ export function OpenTimesPicker({
                                     type="button"
                                     title={conflictTitle}
                                     onClick={() => handlePick(slot)}
-                                    className={`rounded-md border px-3.5 py-2 text-lg font-semibold tabular-nums transition ${btnStyle}`}>
+                                    className={`border px-3.5 py-2 text-lg font-semibold tabular-nums transition ${btnStyle}`}>
                                     {slot.time}
                                 </button>
                             )
@@ -213,32 +213,32 @@ export function OpenTimesPicker({
             </div>
 
             {cutoff !== '' && (
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-300">
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
                     <input
                         type="checkbox"
                         checked={showEarlier}
                         onChange={(e) => setShowEarlier(e.target.checked)}
-                        className="size-4 rounded"
+                        className="size-4"
                     />
                     Include times already past call-up (before {cutoff})
                 </label>
             )}
 
             {pending !== undefined && (
-                <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-600/60 bg-amber-950 px-3 py-2.5 text-amber-100">
+                <div className="flex flex-wrap items-center gap-3 border border-amber-600 bg-amber-50 px-3 py-2.5 text-amber-950">
                     <span className="flex-1 text-sm">
                         Move <strong>{participantName}</strong> from <strong>{currentCourse} · {formatSlotTime(currentTime)}</strong> to <strong>{pending.course} · {pending.time}</strong>?
                         This changes their course.
                     </span>
                     <button
                         type="button"
-                        className="rounded bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-500"
+                        className="border border-amber-700 bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700"
                         onClick={() => { const slot = pending; setPending(undefined); onAssign(slot) }}>
                         Confirm move
                     </button>
                     <button
                         type="button"
-                        className="rounded border border-amber-600/60 px-3 py-1.5 text-sm hover:bg-amber-900"
+                        className="border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-100"
                         onClick={() => setPending(undefined)}>
                         Cancel
                     </button>

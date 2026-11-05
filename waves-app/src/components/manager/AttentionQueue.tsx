@@ -27,10 +27,10 @@ function TriageCard({
 }) {
     const activeBorder =
         accent === 'amber'
-            ? 'border-amber-600/80 bg-amber-950/20'
+            ? 'border-amber-600 bg-amber-50/50'
             : accent === 'orange'
-              ? 'border-orange-600/80 bg-orange-950/20'
-              : 'border-red-600/80 bg-red-950/20'
+              ? 'border-orange-600 bg-orange-50/50'
+              : 'border-red-600 bg-red-50/50'
     const badgeColor =
         accent === 'amber'
             ? 'bg-amber-600 text-white'
@@ -40,25 +40,25 @@ function TriageCard({
 
     return (
         <section
-            className={`flex min-w-0 flex-col gap-2.5 rounded-lg border p-3.5 ${
-                count > 0 ? activeBorder : 'border-gray-800 bg-gray-900/70'
+            className={`flex min-w-0 flex-col gap-2.5 border p-3.5 ${
+                count > 0 ? activeBorder : 'border-slate-300 bg-white'
             }`}>
             <div>
                 <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-base font-bold text-gray-100">
+                    <h3 className="text-base font-bold text-slate-900">
                         {title}{' '}
                         <span
-                            className={`ml-1 inline-block rounded-full px-2 py-0.5 text-xs font-bold ${
-                                count > 0 ? badgeColor : 'bg-gray-800 text-gray-400'
+                            className={`ml-1 inline-block px-2 py-0.5 text-xs font-bold ${
+                                count > 0 ? badgeColor : 'bg-slate-200 text-slate-700'
                             }`}>
                             ({count})
                         </span>
                     </h3>
                 </div>
-                <p className="mt-0.5 text-xs text-gray-400">{subtitle}</p>
+                <p className="mt-0.5 text-xs text-slate-600">{subtitle}</p>
             </div>
             {count === 0 ? (
-                <p className="py-2 text-sm italic text-gray-500">{empty}</p>
+                <p className="py-2 text-sm italic text-slate-500">{empty}</p>
             ) : (
                 <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto pr-0.5">{children}</div>
             )}
@@ -66,17 +66,17 @@ function TriageCard({
     )
 }
 
-function Row({title, detail, aside, onClick}: {title: string, detail: string, aside: string, onClick: () => void}) {
+function Row({ title, detail, aside, onClick }: { title: string; detail: string; aside: string; onClick: () => void }) {
     return (
         <button
             type="button"
             onClick={onClick}
-            className="flex w-full items-center gap-3 rounded-md border border-gray-700/80 bg-gray-800 px-3 py-2 text-left transition hover:border-gray-500 hover:bg-gray-700">
+            className="flex w-full items-center gap-3 border border-slate-300 bg-white px-3 py-2 text-left transition hover:border-slate-500 hover:bg-slate-50">
             <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold text-gray-100">{title}</span>
-                <span className="block truncate text-xs text-gray-400">{detail}</span>
+                <span className="block truncate font-semibold text-slate-900">{title}</span>
+                <span className="block truncate text-xs text-slate-600">{detail}</span>
             </span>
-            <span className="shrink-0 text-xs text-gray-400">{aside}</span>
+            <span className="shrink-0 text-xs text-slate-500">{aside}</span>
         </button>
     )
 }
@@ -90,7 +90,8 @@ interface SchoolSummary {
     notAttending: number
 }
 
-export function AttentionQueue({participants, slotsByParticipant, changes, onSelect}: Properties) {
+export function AttentionQueue({ participants, slotsByParticipant, changes, onSelect }: Properties) {
+    const [schoolsExpanded, setSchoolsExpanded] = useState(false)
     const [selectedSchool, setSelectedSchool] = useState<string | undefined>(undefined)
     const [schoolFilter, setSchoolFilter] = useState('')
     const openSchoolRef = useRef<HTMLDivElement>(null)
@@ -109,6 +110,7 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
             lastChange.set(key, c.changedAt)
         }
     }
+    const participantById = new Map(participants.map((p) => [p.id, p]))
     const nameById = new Map(participants.map((p) => [p.id, p.name]))
 
     const courseOf = (id: string) => slotsByParticipant.get(id)?.[0]?.course ?? '?'
@@ -123,16 +125,25 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
     const wrongEpunch = participants
         .filter((p) => p.state === 'wrongEpunch')
         .sort((a, b) => timeOf(a.id).localeCompare(timeOf(b.id)) || courseOf(a.id).localeCompare(courseOf(b.id)) || a.name.localeCompare(b.name))
+    const wrongEpunchIds = new Set(wrongEpunch.map((p) => p.id))
 
     // Oldest start first: the people who have been waiting longest to be dealt with.
+    // Never allow someone who is in wrongEpunch to also appear in noShows.
     const noShows = participants
-        .filter((p) => p.state === 'noShow')
+        .filter((p) => p.state === 'noShow' && !wrongEpunchIds.has(p.id))
         .sort((a, b) => timeOf(a.id).localeCompare(timeOf(b.id)) || courseOf(a.id).localeCompare(courseOf(b.id)))
 
-    const recent = [...changes].sort((a, b) => b.changedAt - a.changedAt).slice(0, 6)
+    // Filter out superseded noShow / wrongEpunch change records that no longer match the participant's current state
+    const activeChanges = changes.filter((c) => {
+        const p = participantById.get(c.participantId)
+        if (!p) return true
+        if (c.changeType === 'noShow' && p.state !== 'noShow') return false
+        if (c.changeType === 'wrongEpunch' && p.state !== 'wrongEpunch') return false
+        return true
+    })
+    const recent = [...activeChanges].sort((a, b) => b.changedAt - a.changedAt).slice(0, 6)
 
     // Surface any participant who is in 0 slots or 2+ slots (once slots have loaded)
-    // so the Start Manager spots and repairs sync anomalies without having to search for them.
     const brokenRecords = slotsByParticipant.size === 0
         ? []
         : participants
@@ -156,7 +167,7 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
         }
     }
 
-    // Group participants by school/club so volunteers can browse any school's roster without typing names.
+    // Group participants by school/club
     const bySchool = new Map<string, ParticipantDocType[]>()
     for (const p of participants) {
         const schoolName = clubOf(p) || 'Independent / No school'
@@ -199,14 +210,14 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
         : schools.filter((s) => s.name.toLowerCase().includes(filterText))
 
     return (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5 text-slate-900">
             {brokenRecords.length > 0 && (
-                <section className="flex flex-col gap-3 rounded-lg border border-red-700 bg-red-950 p-4 text-red-100">
+                <section className="flex flex-col gap-3 border-2 border-red-600 bg-red-50 p-4 text-red-950">
                     <div>
-                        <h3 className="text-lg font-semibold text-white">
+                        <h3 className="text-lg font-bold text-red-950">
                             Records needing repair ({brokenRecords.length})
                         </h3>
-                        <p className="text-sm text-red-200">
+                        <p className="text-sm text-red-800">
                             Every participant should be in exactly one slot. Click a record below to fix it:
                         </p>
                     </div>
@@ -219,9 +230,9 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
                                     key={p.id}
                                     type="button"
                                     onClick={() => onSelect(p.id)}
-                                    className="flex items-center justify-between gap-2 rounded-md border border-red-700 bg-red-900/70 px-3 py-2 text-left hover:bg-red-800">
-                                    <span className="truncate font-semibold text-white">{p.name}</span>
-                                    <span className="shrink-0 rounded bg-red-800 px-2 py-0.5 text-xs font-semibold text-red-100">
+                                    className="flex items-center justify-between gap-2 border border-red-600 bg-white px-3 py-2 text-left hover:bg-red-100">
+                                    <span className="truncate font-semibold text-slate-900">{p.name}</span>
+                                    <span className="shrink-0 bg-red-700 px-2 py-0.5 text-xs font-semibold text-white">
                                         {issue}
                                     </span>
                                 </button>
@@ -232,22 +243,22 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
             )}
 
             {/* Meet Status Overview Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-800 bg-gray-900/90 px-4 py-2.5 text-sm">
-                <span className="font-semibold text-gray-200">
-                    Meet Overview: <strong className="text-white">{participants.length}</strong> entries
+            <div className="flex flex-wrap items-center justify-between gap-3 border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm">
+                <span className="font-semibold text-slate-800">
+                    Meet Overview: <strong className="text-slate-900">{participants.length}</strong> entries
                 </span>
                 <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm">
-                    <span className="text-emerald-400">
+                    <span className="text-emerald-700">
                         <strong>{totalCheckedIn}</strong> checked in
                     </span>
-                    <span className="text-gray-300">
+                    <span className="text-slate-700">
                         <strong>{totalWaiting}</strong> waiting
                     </span>
-                    <span className={totalAttention > 0 ? 'font-bold text-amber-400' : 'text-gray-400'}>
+                    <span className={totalAttention > 0 ? 'font-bold text-amber-700' : 'text-slate-500'}>
                         <strong>{totalAttention}</strong> need attention
                     </span>
                     {totalNotAttending > 0 && (
-                        <span className="text-gray-400">
+                        <span className="text-slate-500">
                             <strong>{totalNotAttending}</strong> not attending
                         </span>
                     )}
@@ -319,137 +330,145 @@ export function AttentionQueue({participants, slotsByParticipant, changes, onSel
                 </TriageCard>
             </div>
 
-            {/* 2. Schools & Clubs Directory (with inline expansion right where the school button is) */}
-            <section className="flex flex-col gap-3 rounded-lg border border-gray-800 bg-gray-900/60 p-4">
+            {/* 2. Expandable Schools & Clubs Directory (starts closed) */}
+            <section className="flex flex-col gap-3 border border-slate-300 bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h3 className="text-lg font-bold text-gray-100">
-                            Schools &amp; Clubs <span className="text-gray-400">({schools.length})</span>
+                    <button
+                        type="button"
+                        onClick={() => setSchoolsExpanded((open) => !open)}
+                        className="flex items-center gap-2 text-left">
+                        <h3 className="text-lg font-bold text-slate-900">
+                            Schools &amp; Clubs <span className="text-slate-500">({schools.length})</span>
                         </h3>
-                        <p className="text-xs text-gray-400">
-                            Click any school to expand its roster right in place
-                        </p>
-                    </div>
-                    <input
-                        type="text"
-                        value={schoolFilter}
-                        onChange={(e) => setSchoolFilter(e.target.value)}
-                        placeholder="Filter schools…"
-                        aria-label="Filter schools"
-                        className="w-60 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white placeholder-gray-400 focus:border-pink-500 focus:outline-none"
-                    />
+                        <span className="border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-800 hover:bg-slate-200">
+                            {schoolsExpanded ? 'Hide schools' : 'Show schools'}
+                        </span>
+                    </button>
+
+                    {schoolsExpanded && (
+                        <input
+                            type="text"
+                            value={schoolFilter}
+                            onChange={(e) => setSchoolFilter(e.target.value)}
+                            placeholder="Filter schools…"
+                            aria-label="Filter schools"
+                            className="w-60 rounded-none border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
+                        />
+                    )}
                 </div>
 
-                {visibleSchools.length === 0 ? (
-                    <p className="text-sm italic text-gray-500">No schools match "{schoolFilter.trim()}".</p>
-                ) : (
-                    <div className="grid gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                        {visibleSchools.map((s) => {
-                            const isSelected = s.name === selectedSchool
-                            if (!isSelected) {
-                                return (
-                                    <button
-                                        key={s.name}
-                                        type="button"
-                                        onClick={() => setSelectedSchool(s.name)}
-                                        className="flex flex-col gap-1 rounded-md border border-gray-800 bg-gray-800/80 px-3 py-2.5 text-left transition hover:border-gray-600 hover:bg-gray-800">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <span className="truncate font-semibold text-gray-100">{s.name}</span>
-                                            <span className="shrink-0 rounded bg-gray-700 px-1.5 py-0.5 text-xs font-bold text-gray-200">
-                                                {s.members.length}
-                                            </span>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2 text-xs">
-                                            <span className="text-emerald-400">{s.checkedIn} in</span>
-                                            <span className="text-gray-400">{s.waiting} waiting</span>
-                                            {s.attention > 0 && (
-                                                <span className="font-semibold text-amber-400">{s.attention} alert</span>
-                                            )}
-                                        </div>
-                                    </button>
+                {schoolsExpanded && (
+                    visibleSchools.length === 0 ? (
+                        <p className="text-sm italic text-slate-500">No schools match "{schoolFilter.trim()}".</p>
+                    ) : (
+                        <div className="grid gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                            {visibleSchools.map((s) => {
+                                const isSelected = s.name === selectedSchool
+                                if (!isSelected) {
+                                    return (
+                                        <button
+                                            key={s.name}
+                                            type="button"
+                                            onClick={() => setSelectedSchool(s.name)}
+                                            className="flex flex-col gap-1 border border-slate-300 bg-white px-3 py-2.5 text-left transition hover:border-slate-600 hover:bg-slate-50">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="truncate font-semibold text-slate-900">{s.name}</span>
+                                                <span className="shrink-0 bg-slate-200 px-1.5 py-0.5 text-xs font-bold text-slate-800">
+                                                    {s.members.length}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 text-xs">
+                                                <span className="text-emerald-700">{s.checkedIn} in</span>
+                                                <span className="text-slate-600">{s.waiting} waiting</span>
+                                                {s.attention > 0 && (
+                                                    <span className="font-semibold text-amber-700">{s.attention} alert</span>
+                                                )}
+                                            </div>
+                                        </button>
+                                    )
+                                }
+
+                                const sortedMembers = [...s.members].sort(
+                                    (a, b) =>
+                                        timeOf(a.id).localeCompare(timeOf(b.id)) ||
+                                        courseOf(a.id).localeCompare(courseOf(b.id)) ||
+                                        a.name.localeCompare(b.name)
                                 )
-                            }
 
-                            const sortedMembers = [...s.members].sort(
-                                (a, b) =>
-                                    timeOf(a.id).localeCompare(timeOf(b.id)) ||
-                                    courseOf(a.id).localeCompare(courseOf(b.id)) ||
-                                    a.name.localeCompare(b.name)
-                            )
+                                return (
+                                    <div
+                                        key={s.name}
+                                        ref={openSchoolRef}
+                                        className="col-span-full flex flex-col gap-3 border-2 border-slate-900 bg-slate-50 p-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300 pb-2.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedSchool(undefined)}
+                                                className="text-left">
+                                                <h4 className="text-xl font-bold text-slate-900 hover:text-sky-700">
+                                                    {s.name}
+                                                </h4>
+                                                <p className="text-sm text-slate-600">
+                                                    {s.members.length} starter{s.members.length === 1 ? '' : 's'} ·{' '}
+                                                    <span className="font-medium text-emerald-700">{s.checkedIn} checked in</span> ·{' '}
+                                                    <span>{s.waiting} waiting</span>
+                                                    {s.attention > 0 ? ` · ${s.attention} need attention` : ''}
+                                                    {s.notAttending > 0 ? ` · ${s.notAttending} not attending` : ''}
+                                                </p>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedSchool(undefined)}
+                                                className="border border-slate-400 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-100">
+                                                Close school
+                                            </button>
+                                        </div>
 
-                            return (
-                                <div
-                                    key={s.name}
-                                    ref={openSchoolRef}
-                                    className="col-span-full flex flex-col gap-3 rounded-lg border-2 border-sky-500 bg-gray-900 p-4 shadow-lg">
-                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 pb-2.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedSchool(undefined)}
-                                            className="text-left">
-                                            <h4 className="text-xl font-bold text-white hover:text-sky-300">
-                                                {s.name}
-                                            </h4>
-                                            <p className="text-sm text-gray-400">
-                                                {s.members.length} starter{s.members.length === 1 ? '' : 's'} ·{' '}
-                                                <span className="text-emerald-400">{s.checkedIn} checked in</span> ·{' '}
-                                                <span>{s.waiting} waiting</span>
-                                                {s.attention > 0 ? ` · ${s.attention} need attention` : ''}
-                                                {s.notAttending > 0 ? ` · ${s.notAttending} not attending` : ''}
-                                            </p>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedSchool(undefined)}
-                                            className="rounded-md border border-red-500/80 bg-red-900/60 px-3 py-1.5 text-sm font-semibold text-red-100 hover:bg-red-700 hover:text-white">
-                                            Close school
-                                        </button>
+                                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                            {sortedMembers.map((p) => {
+                                                const style = ParticipantStateStyles.get(p.state)
+                                                const slotTime = formatSlotTime(timeOf(p.id))
+                                                return (
+                                                    <button
+                                                        key={p.id}
+                                                        type="button"
+                                                        onClick={() => onSelect(p.id)}
+                                                        className="flex items-center justify-between gap-2 border border-slate-300 bg-white px-3 py-2 text-left transition hover:border-slate-600 hover:bg-slate-50">
+                                                        <span className="min-w-0 flex-1">
+                                                            <span className="block truncate font-semibold text-slate-900">
+                                                                {p.name}
+                                                                {p.groupSize > 1 ? ` (Group ${p.groupSize})` : ''}
+                                                                {p.isNonCompete ? ' (NC)' : ''}
+                                                            </span>
+                                                            <span className="block truncate text-xs text-slate-600">
+                                                                {courseOf(p.id)} · {slotTime}
+                                                                {p.epunch ? ` · E-punch ${p.epunch}` : ''}
+                                                            </span>
+                                                        </span>
+                                                        {style !== undefined && (
+                                                            <span className={`shrink-0 px-2 py-0.5 text-xs font-semibold text-white ${style.bg}`}>
+                                                                {style.friendlyName}
+                                                            </span>
+                                                        )}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
                                     </div>
-
-                                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                        {sortedMembers.map((p) => {
-                                            const style = ParticipantStateStyles.get(p.state)
-                                            const slotTime = formatSlotTime(timeOf(p.id))
-                                            return (
-                                                <button
-                                                    key={p.id}
-                                                    type="button"
-                                                    onClick={() => onSelect(p.id)}
-                                                    className="flex items-center justify-between gap-2 rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-left transition hover:border-sky-500 hover:bg-gray-700">
-                                                    <span className="min-w-0 flex-1">
-                                                        <span className="block truncate font-semibold text-gray-100">
-                                                            {p.name}
-                                                            {p.groupSize > 1 ? ` (Group ${p.groupSize})` : ''}
-                                                            {p.isNonCompete ? ' (NC)' : ''}
-                                                        </span>
-                                                        <span className="block truncate text-xs text-gray-400">
-                                                            {courseOf(p.id)} · {slotTime}
-                                                            {p.epunch ? ` · E-punch ${p.epunch}` : ''}
-                                                        </span>
-                                                    </span>
-                                                    {style !== undefined && (
-                                                        <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium text-white ${style.bg}`}>
-                                                            {style.friendlyName}
-                                                        </span>
-                                                    )}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
+                                )
+                            })}
+                        </div>
+                    )
                 )}
             </section>
 
             {/* 3. Recent Changes Strip */}
-            <section className="flex flex-col gap-2.5 rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-                <h3 className="text-base font-bold text-gray-200">
-                    Recent changes <span className="text-gray-500">({recent.length})</span>
+            <section className="flex flex-col gap-2.5 border border-slate-300 bg-white p-4">
+                <h3 className="text-base font-bold text-slate-900">
+                    Recent changes <span className="text-slate-500">({recent.length})</span>
                 </h3>
                 {recent.length === 0 ? (
-                    <p className="text-sm italic text-gray-500">Nothing has changed yet.</p>
+                    <p className="text-sm italic text-slate-500">Nothing has changed yet.</p>
                 ) : (
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         {recent.map((c) => (
