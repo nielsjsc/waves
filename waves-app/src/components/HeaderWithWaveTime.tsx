@@ -29,6 +29,16 @@ import { SvgIconWithText } from "./SvgIconWithText"
 const STORAGE_PAGE_KEY = 'waves.appPage'
 const STORAGE_CLOCK_OFFSET_KEY = `waves.clockOffset.${EVENT_ID}`
 const STORAGE_WAVE_OFFSET_KEY = `waves.waveOffset.${EVENT_ID}`
+const STORAGE_VOLUNTEER_UNLOCKED_KEY = 'waves.volunteerUnlocked'
+const VOLUNTEER_PIN = '9465'
+
+function readSavedVolunteerUnlocked(): boolean {
+    try {
+        return localStorage.getItem(STORAGE_VOLUNTEER_UNLOCKED_KEY) === 'true'
+    } catch {
+        return false
+    }
+}
 
 function readSavedClockOffset(): { hours: number, minutes: number, seconds: number } {
     try {
@@ -205,6 +215,10 @@ export function HeaderWithWaveTime() {
     const [staleEvent, setStaleEvent] = useState(() => isStaleEvent())
     const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus())
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+    const [isUnlocked, setIsUnlocked] = useState(readSavedVolunteerUnlocked)
+    const [isPinModalOpen, setIsPinModalOpen] = useState(false)
+    const [pinInput, setPinInput] = useState('')
+    const [pinError, setPinError] = useState('')
 
     const [appPage, setAppPage] = useState(readSavedPage)
 
@@ -252,7 +266,37 @@ export function HeaderWithWaveTime() {
     }, [waveOffsetMinutes])
 
     // E-punch Check runs 2 minutes after Call-up (e.g., +6 min vs +8 min ahead of clock time)
-    const activeWaveOffsetMinutes = appPage === 'epunch' ? Math.max(0, waveOffsetMinutes - 2) : waveOffsetMinutes
+    const activeWaveOffsetMinutes = isUnlocked && appPage === 'epunch' ? Math.max(0, waveOffsetMinutes - 2) : waveOffsetMinutes
+
+    function openPinModal() {
+        setPinInput('')
+        setPinError('')
+        setIsPinModalOpen(true)
+    }
+
+    function handlePinSubmit(e: React.FormEvent) {
+        e.preventDefault()
+        if (pinInput.trim() === VOLUNTEER_PIN) {
+            setIsUnlocked(true)
+            setIsPinModalOpen(false)
+            setPinInput('')
+            setPinError('')
+            try {
+                localStorage.setItem(STORAGE_VOLUNTEER_UNLOCKED_KEY, 'true')
+            } catch { /* ignore */ }
+        } else {
+            setPinError('Incorrect PIN. Please try again.')
+        }
+    }
+
+    function handleLockClick() {
+        setIsUnlocked(false)
+        setIsMobileMenuOpen(false)
+        setManagerSelectedId('')
+        try {
+            localStorage.removeItem(STORAGE_VOLUNTEER_UNLOCKED_KEY)
+        } catch { /* ignore */ }
+    }
 
     // CLOCK BASED CURRENT MINUTE
     useEffect(() => {
@@ -302,10 +346,14 @@ export function HeaderWithWaveTime() {
     }
 
     function handleOffsetEditClick() {
+        if (!isUnlocked) {
+            openPinModal()
+            return
+        }
         setWaveOffsetModalOpen((prev) => !prev)
     }
 
-    const waveOffsetModal = isWaveOffsetModalOpen ? (
+    const waveOffsetModal = isWaveOffsetModalOpen && isUnlocked ? (
         <Modal
             close={() => { handleOffsetEditClick() }}
             title="Wave Offset"
@@ -320,10 +368,14 @@ export function HeaderWithWaveTime() {
     ) : null
 
     function handleClockEditClick() {
+        if (!isUnlocked) {
+            openPinModal()
+            return
+        }
         setClockOffsetModalOpen((prev) => !prev)
     }
 
-    const clockOffsetModal = isClockOffsetModalOpen ? (
+    const clockOffsetModal = isClockOffsetModalOpen && isUnlocked ? (
         <ClockOffsetModalWrapper
             close={() => setClockOffsetModalOpen(false)}
             clockOffsetHours={clockOffsetHours}
@@ -335,6 +387,57 @@ export function HeaderWithWaveTime() {
             handleMinutesMinus={() => setClockOffsetMinutes((prev) => prev - 1)}
             handleSecondsPlus={() => setClockOffsetSeconds((prev) => prev + 1)}
             handleSecondsMinus={() => setClockOffsetSeconds((prev) => prev - 1)}
+        />
+    ) : null
+
+    const pinModal = isPinModalOpen ? (
+        <Modal
+            close={() => setIsPinModalOpen(false)}
+            title="Volunteer Login"
+            content={
+                <form onSubmit={handlePinSubmit} className="flex flex-col gap-3 text-slate-900">
+                    <p className="text-sm text-slate-700">
+                        Enter the 4-digit volunteer PIN to unlock station views and editing.
+                    </p>
+                    <div>
+                        <label htmlFor="volunteer-pin-input" className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                            Volunteer PIN
+                        </label>
+                        <input
+                            id="volunteer-pin-input"
+                            type="password"
+                            inputMode="numeric"
+                            maxLength={4}
+                            autoFocus
+                            value={pinInput}
+                            onChange={(e) => {
+                                setPinInput(e.target.value)
+                                if (pinError) setPinError('')
+                            }}
+                            placeholder="••••"
+                            className="w-full border border-slate-400 bg-white px-3 py-2 text-lg font-bold tracking-widest text-slate-900 focus:border-slate-900 focus:outline-none"
+                        />
+                        {pinError !== '' && (
+                            <p role="alert" className="mt-1.5 text-xs font-semibold text-red-700">
+                                {pinError}
+                            </p>
+                        )}
+                    </div>
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                            type="button"
+                            onClick={() => setIsPinModalOpen(false)}
+                            className="border border-slate-300 bg-white px-4 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="border border-slate-900 bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800">
+                            Unlock
+                        </button>
+                    </div>
+                </form>
+            }
         />
     ) : null
 
@@ -359,6 +462,16 @@ export function HeaderWithWaveTime() {
     }
 
     function pageContent() {
+        if (!isUnlocked) {
+            return (
+                <FullGrid
+                    clockTime={currentMinuteTime}
+                    waveOffsetMinutes={waveOffsetMinutes}
+                    readOnly={true}
+                    onRequestUnlock={openPinModal}
+                />
+            )
+        }
         switch (appPage) {
             case 'grid':
                 return (
@@ -403,6 +516,9 @@ export function HeaderWithWaveTime() {
     }
 
     function pageName() {
+        if (!isUnlocked) {
+            return "Full Grid (View Only)"
+        }
         switch (appPage) {
             case 'grid':
                 return "Full Grid"
@@ -469,6 +585,7 @@ export function HeaderWithWaveTime() {
             <header className="body-font sticky top-0 z-30 w-full border-b border-slate-300 bg-white text-slate-800">
                 {waveOffsetModal}
                 {clockOffsetModal}
+                {pinModal}
 
                 <div className="container mx-auto flex items-center justify-between px-3 py-1.5 md:px-4">
                     {/* Brand + Active Page (on sm+) */}
@@ -495,29 +612,45 @@ export function HeaderWithWaveTime() {
 
                     {/* Desktop Navigation + Sync + Clock */}
                     <div className="hidden md:flex items-center gap-2">
-                        <nav className="flex items-center border border-slate-300 bg-slate-100 p-0.5">
-                            {STATIONS.map((tab) => (
+                        {isUnlocked ? (
+                            <nav className="flex items-center border border-slate-300 bg-slate-100 p-0.5">
+                                {STATIONS.map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => handleNavPageClick(tab.id)}
+                                        className={`px-3 py-1 text-xs font-semibold transition ${
+                                            appPage === tab.id
+                                                ? 'bg-slate-900 text-white'
+                                                : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                                        }`}>
+                                        {tab.label}
+                                    </button>
+                                ))}
+                                {isOrganizer && (
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleOrganizerReimportClick()}
+                                        className="border-l border-slate-300 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50">
+                                        Re-import start list
+                                    </button>
+                                )}
                                 <button
-                                    key={tab.id}
                                     type="button"
-                                    onClick={() => handleNavPageClick(tab.id)}
-                                    className={`px-3 py-1 text-xs font-semibold transition ${
-                                        appPage === tab.id
-                                            ? 'bg-slate-900 text-white'
-                                            : 'text-slate-700 hover:bg-white hover:text-slate-900'
-                                    }`}>
-                                    {tab.label}
+                                    onClick={handleLockClick}
+                                    title="Return to View-Only mode"
+                                    className="border-l border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-white hover:text-slate-900">
+                                    Lock
                                 </button>
-                            ))}
-                            {isOrganizer && (
-                                <button
-                                    type="button"
-                                    onClick={() => void handleOrganizerReimportClick()}
-                                    className="border-l border-slate-300 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50">
-                                    Re-import start list
-                                </button>
-                            )}
-                        </nav>
+                            </nav>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={openPinModal}
+                                className="border border-slate-900 bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800">
+                                Volunteer Login
+                            </button>
+                        )}
                         {syncBadge}
                         <HeaderClock
                             clockOffsetHours={clockOffsetHours}
@@ -535,18 +668,27 @@ export function HeaderWithWaveTime() {
                             clockOffsetSeconds={clockOffsetSeconds}
                             onClick={handleClockEditClick}
                         />
-                        <button
-                            type="button"
-                            onClick={() => setIsMobileMenuOpen((open) => !open)}
-                            aria-label="Toggle navigation menu"
-                            className="border border-slate-300 bg-slate-100 p-1.5 text-slate-800 hover:bg-slate-200">
-                            <SvgIcon icon={isMobileMenuOpen ? "x" : "hamburger"} />
-                        </button>
+                        {isUnlocked ? (
+                            <button
+                                type="button"
+                                onClick={() => setIsMobileMenuOpen((open) => !open)}
+                                aria-label="Toggle navigation menu"
+                                className="border border-slate-300 bg-slate-100 p-1.5 text-slate-800 hover:bg-slate-200">
+                                <SvgIcon icon={isMobileMenuOpen ? "x" : "hamburger"} />
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={openPinModal}
+                                className="border border-slate-900 bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800">
+                                Volunteer Login
+                            </button>
+                        )}
                     </div>
                 </div>
 
                 {/* Mobile Drawer Dropdown */}
-                {isMobileMenuOpen && (
+                {isUnlocked && isMobileMenuOpen && (
                     <div className="border-t border-slate-200 bg-white shadow-lg md:hidden">
                         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
                             <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -587,6 +729,12 @@ export function HeaderWithWaveTime() {
                                     Re-import start list
                                 </button>
                             )}
+                            <button
+                                type="button"
+                                onClick={handleLockClick}
+                                className="border-t border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                                Lock (return to View-Only mode)
+                            </button>
                         </nav>
                     </div>
                 )}

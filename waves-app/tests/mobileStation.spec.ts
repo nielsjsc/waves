@@ -57,8 +57,11 @@ test('Mobile Call-up and E-punch Check viewports show all 9 courses without scro
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto('/')
 
-	// Set appPage directly in localStorage to call-up
-	await page.evaluate(() => localStorage.setItem('waves.appPage', 'call-up'))
+	// Set appPage directly in localStorage to call-up and unlock volunteer mode
+	await page.evaluate(() => {
+		localStorage.setItem('waves.volunteerUnlocked', 'true')
+		localStorage.setItem('waves.appPage', 'call-up')
+	})
 	await page.reload()
 
 	await expect(page.getByText('Calling now')).toBeVisible({ timeout: 15000 })

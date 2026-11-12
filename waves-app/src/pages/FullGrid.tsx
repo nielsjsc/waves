@@ -28,6 +28,8 @@ import { getDisplayStates, ParticipantStateStyles } from '@/utils/styleHelpers'
 interface Properties {
     clockTime?: string
     waveOffsetMinutes?: number
+    readOnly?: boolean
+    onRequestUnlock?: () => void
     onOpenInManager?: (participantId: string) => void
 }
 
@@ -39,7 +41,7 @@ const GRID_STATE_BUTTONS: ParticipantState[] = [
     'noShow',
 ]
 
-export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManager }: Properties) {
+export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = false, onRequestUnlock, onOpenInManager }: Properties) {
     const [activeParticipantId, setActiveParticipantId] = useState<string>('')
     const [movingParticipantId, setMovingParticipantId] = useState<string>('')
     const [showTimePickerInModal, setShowTimePickerInModal] = useState(false)
@@ -130,10 +132,16 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
                 {/* Crisp Action & Status Bar */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
                     <div className="flex flex-wrap items-center gap-3">
-                        <span className="hidden sm:inline font-medium text-slate-800">
-                            Click any participant to edit status, e-punch, or course. Drag any participant to an open slot to change their start time. Click any Open slot to add a participant.
-                        </span>
-                        {movingHydrated !== undefined && (
+                        {readOnly ? (
+                            <span className="font-medium text-slate-800">
+                                View-only mode — live start grid. Volunteers can unlock editing with the event PIN.
+                            </span>
+                        ) : (
+                            <span className="hidden sm:inline font-medium text-slate-800">
+                                Click any participant to edit status, e-punch, or course. Drag any participant to an open slot to change their start time. Click any Open slot to add a participant.
+                            </span>
+                        )}
+                        {!readOnly && movingHydrated !== undefined && (
                             <div className="flex items-center gap-2 border border-pink-600 bg-pink-50 px-2.5 py-1 text-xs font-semibold text-pink-950">
                                 <span>
                                     Moving <strong>{movingHydrated.participant.name}</strong> — click any Open slot on the grid
@@ -146,7 +154,7 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
                                 </button>
                             </div>
                         )}
-                        {bannerMessage !== '' && (
+                        {!readOnly && bannerMessage !== '' && (
                             <div
                                 role="status"
                                 className="flex items-center gap-2 border border-emerald-600 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-950">
@@ -160,21 +168,32 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
                             </div>
                         )}
                     </div>
-                    <button
-                        type="button"
-                        onClick={() =>
-                            setAddPrefill({
-                                name: '',
-                                club: '',
-                                epunch: '',
-                                isRental: false,
-                                isNonCompete: false,
-                                suggestedCourse: courses[0] ?? 'c1',
-                            })
-                        }
-                        className="border border-slate-900 bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800">
-                        + Add Participant
-                    </button>
+                    {readOnly ? (
+                        onRequestUnlock !== undefined && (
+                            <button
+                                type="button"
+                                onClick={onRequestUnlock}
+                                className="border border-slate-900 bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800">
+                                Unlock Editing (PIN)
+                            </button>
+                        )
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setAddPrefill({
+                                    name: '',
+                                    club: '',
+                                    epunch: '',
+                                    isRental: false,
+                                    isNonCompete: false,
+                                    suggestedCourse: courses[0] ?? 'c1',
+                                })
+                            }
+                            className="border border-slate-900 bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800">
+                            + Add Participant
+                        </button>
+                    )}
                 </div>
 
                 {/* Mobile Course Filter Pills */}
@@ -211,11 +230,11 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
                 <StartGrid
                     data={displayData}
                     columns="course"
-                    selectedParticipantHydrated={movingHydrated ?? activeHydrated}
+                    selectedParticipantHydrated={readOnly ? undefined : (movingHydrated ?? activeHydrated)}
                     toStateButtons={[]}
-                    onParticipantClick={handleParticipantClick}
-                    onOpenSlotClick={handleOpenSlotClick}
-                    onMoveParticipant={(pid, fromId, toId) => void handleMoveParticipant(pid, fromId, toId)}
+                    onParticipantClick={readOnly ? undefined : handleParticipantClick}
+                    onOpenSlotClick={readOnly ? undefined : handleOpenSlotClick}
+                    onMoveParticipant={readOnly ? undefined : ((pid, fromId, toId) => void handleMoveParticipant(pid, fromId, toId))}
                 />
             </div>
 

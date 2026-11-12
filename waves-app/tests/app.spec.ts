@@ -74,6 +74,17 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await expect(callupPage.getByText('Ada Lovelace')).toBeVisible({ timeout: 15000 })
 	await expect(callupPage.getByText('Group 12')).toBeVisible()
 
+	// Verify the app starts in View-Only mode until the volunteer PIN (9465) is entered
+	await expect(callupPage.getByText(/View-only mode/i)).toBeVisible()
+	await expect(callupPage.getByRole('button', { name: '+ Add Participant' })).toHaveCount(0)
+	await callupPage.getByRole('button', { name: 'Volunteer Login' }).first().click()
+	await callupPage.locator('#volunteer-pin-input').fill('0000')
+	await callupPage.getByRole('button', { name: 'Unlock', exact: true }).click()
+	await expect(callupPage.getByText('Incorrect PIN. Please try again.')).toBeVisible()
+	await callupPage.locator('#volunteer-pin-input').fill('9465')
+	await callupPage.getByRole('button', { name: 'Unlock', exact: true }).click()
+	await expect(callupPage.getByRole('button', { name: '+ Add Participant' })).toBeVisible()
+
 	// -------------------------------------------------------------------------
 	// 1. STATION 1: CALL-UP
 	// -------------------------------------------------------------------------
