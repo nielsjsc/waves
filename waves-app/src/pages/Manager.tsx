@@ -9,7 +9,6 @@ import { Modal } from "@/components/Modal"
 import { EditEpunchModal } from "@/components/EditEpunchModal"
 import { EditGroupSizeModal } from "@/components/EditGroupSizeModal"
 import { ManagerActionButton } from "@/components/ManagerActionButton"
-import { SvgIcon } from "@/components/SvgIcon"
 import { StartGrid } from "@/components/grid/StartGrid"
 import { ManagerSearchBox } from "@/components/manager/ManagerSearchBox"
 import { AttentionQueue } from "@/components/manager/AttentionQueue"
@@ -822,7 +821,6 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                             type="button"
                             onClick={() => setAddParticipantPrefill(null)}
                             className="flex shrink-0 items-center justify-center gap-2 border border-emerald-700 bg-emerald-600 px-4 py-3 text-base font-bold text-white transition hover:bg-emerald-700">
-                            <SvgIcon icon="plus" />
                             <span>Add Participant</span>
                         </button>
                     )}
@@ -832,7 +830,6 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                             type="button"
                             onClick={clearSelection}
                             className="flex shrink-0 items-center justify-center gap-2 border border-slate-900 bg-slate-900 px-6 py-3 text-lg font-bold text-white transition hover:bg-slate-800">
-                            <SvgIcon icon="x" />
                             <span>Done</span>
                         </button>
                     )}

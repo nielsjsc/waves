@@ -257,7 +257,7 @@ export function evaluateStartTimesForSchool(params: {
             recommendedSlot: first,
             teammatesOnCourse,
             skippedEarlierSlots: [],
-            reason: `Soonest open time on ${course} (independent runner — no school spacing needed).`,
+            reason: `Soonest open time on ${course}.`,
         }
     }
 

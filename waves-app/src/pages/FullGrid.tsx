@@ -132,15 +132,6 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = fal
                 {/* Crisp Action & Status Bar */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
                     <div className="flex flex-wrap items-center gap-3">
-                        {readOnly ? (
-                            <span className="font-medium text-slate-800">
-                                View-only mode — live start grid. Volunteers can unlock editing with the event PIN.
-                            </span>
-                        ) : (
-                            <span className="hidden sm:inline font-medium text-slate-800">
-                                Click any participant to edit status, e-punch, or course. Drag any participant to an open slot to change their start time. Click any Open slot to add a participant.
-                            </span>
-                        )}
                         {!readOnly && movingHydrated !== undefined && (
                             <div className="flex items-center gap-2 border border-pink-600 bg-pink-50 px-2.5 py-1 text-xs font-semibold text-pink-950">
                                 <span>

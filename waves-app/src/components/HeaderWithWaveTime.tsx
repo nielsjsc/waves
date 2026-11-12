@@ -217,6 +217,7 @@ export function HeaderWithWaveTime() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isUnlocked, setIsUnlocked] = useState(readSavedVolunteerUnlocked)
     const [isPinModalOpen, setIsPinModalOpen] = useState(false)
+    const [isLockConfirmOpen, setIsLockConfirmOpen] = useState(false)
     const [pinInput, setPinInput] = useState('')
     const [pinError, setPinError] = useState('')
 
@@ -290,6 +291,12 @@ export function HeaderWithWaveTime() {
     }
 
     function handleLockClick() {
+        setIsMobileMenuOpen(false)
+        setIsLockConfirmOpen(true)
+    }
+
+    function confirmLock() {
+        setIsLockConfirmOpen(false)
         setIsUnlocked(false)
         setIsMobileMenuOpen(false)
         setManagerSelectedId('')
@@ -441,6 +448,34 @@ export function HeaderWithWaveTime() {
         />
     ) : null
 
+    const lockConfirmModal = isLockConfirmOpen ? (
+        <Modal
+            close={() => setIsLockConfirmOpen(false)}
+            title="Lock Volunteer Mode"
+            content={
+                <div className="flex flex-col gap-4 text-slate-900">
+                    <p className="text-sm text-slate-700">
+                        Are you sure you want to lock editing and return this device to View-Only mode?
+                    </p>
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setIsLockConfirmOpen(false)}
+                            className="border border-slate-300 bg-white px-4 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={confirmLock}
+                            className="border border-slate-900 bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800">
+                            Lock
+                        </button>
+                    </div>
+                </div>
+            }
+        />
+    ) : null
+
     const isOrganizer = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('organizer')
 
     async function handleOrganizerReimportClick() {
@@ -517,7 +552,7 @@ export function HeaderWithWaveTime() {
 
     function pageName() {
         if (!isUnlocked) {
-            return "Full Grid (View Only)"
+            return "Full Grid"
         }
         switch (appPage) {
             case 'grid':
@@ -586,6 +621,7 @@ export function HeaderWithWaveTime() {
                 {waveOffsetModal}
                 {clockOffsetModal}
                 {pinModal}
+                {lockConfirmModal}
 
                 <div className="container mx-auto flex items-center justify-between px-3 py-1.5 md:px-4">
                     {/* Brand + Active Page (on sm+) */}

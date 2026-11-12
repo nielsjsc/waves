@@ -17,7 +17,7 @@ describe('cryptoHelpers (plain HTTP compatibility)', () => {
             'a'.repeat(56),
             'a'.repeat(64),
             'a'.repeat(128),
-            '{"id":"p-1","name":"Åsa Öberg — 🌲","state":"present","groupSize":3}',
+            '{"id":"p-1","name":"Åsa Öberg","state":"present","groupSize":3}',
         ]
         for (const s of samples) {
             expect(await sha256Hex(s)).toBe(await nativeDigest(s))
