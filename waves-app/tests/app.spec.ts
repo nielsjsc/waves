@@ -46,7 +46,7 @@ const TEST_STARTLIST_CSV = [
 	makeCsvRow('10:04:00', {}),
 ].join('\r\n')
 
-async function navigateToStation(page: Page, stationLabel: 'Call-up' | 'Epunch Check' | 'Start Manager' | 'Full Grid' | 'Change Log') {
+async function navigateToStation(page: Page, stationLabel: 'Call-up' | 'Epunch Check' | 'Start Manager' | 'Full Grid' | 'Download' | 'Change Log') {
 	await page.locator('header nav').getByRole('button', { name: stationLabel, exact: true }).click()
 }
 
@@ -89,6 +89,7 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	// Verify that switching from No Show -> Present -> deselecting Present clears the state back to no state ("waiting")
 	await adaCardCallup.getByRole('button', { name: 'No Show' }).click()
 	await adaCardCallup.getByRole('button', { name: 'Present' }).click()
+	await callupPage.waitForTimeout(400)
 	await adaCardCallup.getByRole('button', { name: 'Present' }).click()
 	await expect(adaCardCallup.getByRole('button', { name: 'Present' })).not.toHaveClass(/bg-/)
 	await expect(adaCardCallup.getByRole('button', { name: 'No Show' })).not.toHaveClass(/bg-/)
@@ -112,9 +113,11 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	// Verify Call-up's "Present" state synced to the E-punch Check tab
 	await expect(adaCardEpunch).toContainText('Present')
 
-	// Verify Alan Turing (marked No Show at Call-up) cannot be flagged as Wrong E-punch at the same time
+	// Verify Alan Turing (marked No Show at Call-up) can ALSO be flagged as Wrong E-punch at the same time
 	await expect(alanCardEpunch).toContainText('No Show')
-	await expect(alanCardEpunch.getByRole('button', { name: 'Wrong E-punch' })).toHaveCount(0)
+	await alanCardEpunch.getByRole('button', { name: 'Wrong E-punch' }).click()
+	await expect(alanCardEpunch).toContainText('No Show')
+	await expect(alanCardEpunch).toContainText('Wrong E-punch')
 
 	// Verify the button says "Validate" BEFORE clicking, and changes to "Validated" AFTER clicking
 	const adaValidateBtn = adaCardEpunch.getByRole('button', { name: 'Validate', exact: true })
@@ -133,13 +136,16 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await managerPage.goto('/')
 	await navigateToStation(managerPage, 'Start Manager')
 
-	// Verify zero broken records, 1 Wrong e-punch, and 1 No-show
+	// Verify zero broken records, 2 Wrong e-punch (Grace Hopper + Alan Turing), 0 Standby, and 1 No-show (Alan Turing in BOTH!)
 	await expect(managerPage.getByText('Records needing repair')).toHaveCount(0)
-	await expect(managerPage.getByRole('heading', { name: /Wrong e-punch/i })).toContainText('(1)')
+	await expect(managerPage.getByRole('heading', { name: /Wrong e-punch/i })).toContainText('(2)')
+	await expect(managerPage.getByRole('heading', { name: /Standby/i })).toContainText('(0)')
 	await expect(managerPage.getByRole('heading', { name: /No-shows/i })).toContainText('(1)')
 
 	// Click Grace Hopper in the Wrong e-punch queue and update her e-punch to a rental
 	await managerPage.getByRole('button', { name: /Grace Hopper/i }).first().click()
+	// Verify "Add Participant" button is NOT shown when on a person's page
+	await expect(managerPage.getByRole('button', { name: 'Add Participant' })).toHaveCount(0)
 	await managerPage.getByRole('button', { name: 'Edit e-punch' }).click()
 
 	await managerPage.locator('#new-si').fill('9876543')
@@ -151,9 +157,9 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await expect(graceCardEpunch).toContainText('Validated')
 	await expect(graceCardEpunch).toContainText('9876543')
 
-	// Return to Start Manager queues and verify Wrong e-punch queue is now empty (0)
+	// Return to Start Manager queues and verify Wrong e-punch queue now has 1 (Alan Turing)
 	await managerPage.getByRole('button', { name: 'Done' }).click()
-	await expect(managerPage.getByRole('heading', { name: /Wrong e-punch/i })).toContainText('(0)')
+	await expect(managerPage.getByRole('heading', { name: /Wrong e-punch/i })).toContainText('(1)')
 
 	// Expand the Schools & Clubs directory (starts closed) to find Garfield High -> Alan Turing
 	await expect(managerPage.getByPlaceholder('Filter schools…')).toHaveCount(0)
@@ -177,6 +183,15 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await expect(managerPage.getByText('Originally 10:00')).toBeVisible()
 	await expect(managerPage.getByText('Assign Start Time for Alan Turing')).toHaveCount(0)
 
+	// Verify leaving and coming back to Start Manager automatically closes Alan Turing's page
+	// Also verify Full Grid displays Excel course header colors and fits within the viewport without horizontal overflow
+	await navigateToStation(managerPage, 'Full Grid')
+	await expect(managerPage.locator('th[data-course-header="c2"]')).toHaveCSS('background-color', 'rgb(255, 255, 0)')
+	await expect(managerPage.locator('th[data-course-header="c7"]')).toHaveCSS('background-color', 'rgb(0, 176, 80)')
+	await expect(managerPage.locator('th[data-course-header="c7"]')).toBeInViewport()
+	await navigateToStation(managerPage, 'Start Manager')
+	await expect(managerPage.getByRole('button', { name: 'Done' })).toHaveCount(0)
+
 	// Add a new participant / 2nd-course runner from Start Manager
 	await managerPage.getByRole('button', { name: 'Add Participant' }).click()
 	await managerPage.locator('#add-p-name').fill('Margaret Hamilton')
@@ -185,11 +200,42 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await managerPage.getByRole('button', { name: 'Add to Meet' }).click()
 	await expect(managerPage.getByRole('heading', { name: 'Margaret Hamilton', exact: true })).toBeVisible()
 
+	// Change Margaret Hamilton from Individual (1) to a Group of 3
+	await managerPage.getByRole('button', { name: 'Make group / Group size' }).click()
+	await managerPage.getByRole('button', { name: 'Group (3)' }).click()
+	await managerPage.getByRole('button', { name: 'Save' }).click()
+	await expect(managerPage.getByText('Group 3')).toBeVisible()
+
 	// -------------------------------------------------------------------------
-	// 4. STATION 4: CHANGE LOG & CSV EXPORT
+	// 4. STATION 4: DOWNLOAD STATION (Finish Tent)
 	// -------------------------------------------------------------------------
 	const timingPage = await context.newPage()
 	await timingPage.goto('/')
+	await navigateToStation(timingPage, 'Download')
+
+	// Verify only download-relevant changes appear (Grace Hopper e-punch + Margaret Hamilton registration)
+	// Alan Turing's same-course start time change and Margaret Hamilton's group size change must NOT appear on Download
+	await expect(timingPage.getByRole('button', { name: /Pending Queue \(2\)/i })).toBeVisible()
+	await expect(timingPage.getByText('Grace Hopper')).toBeVisible()
+	await expect(timingPage.getByRole('button', { name: 'Margaret Hamilton' }).first()).toBeVisible()
+	await expect(timingPage.getByText('GROUP SIZE')).toHaveCount(0)
+	await expect(timingPage.getByText('Alan Turing')).toHaveCount(0)
+
+	// Clear Grace Hopper's e-punch change after entering it into download software
+	await timingPage.getByRole('button', { name: 'Clear', exact: true }).first().click()
+	await expect(timingPage.getByRole('button', { name: /Pending Queue \(1\)/i })).toBeVisible()
+	await expect(timingPage.getByRole('button', { name: /Cleared \(1\)/i })).toBeVisible()
+
+	// Switch to Full Download Log and verify both cleared and pending records are visible
+	await timingPage.getByRole('button', { name: /Full Download Log \(2\)/i }).click()
+	await expect(timingPage.getByRole('button', { name: 'Grace Hopper' })).toBeVisible()
+	await expect(timingPage.getByRole('button', { name: 'Margaret Hamilton' }).first()).toBeVisible()
+	await expect(timingPage.getByText('CLEARED', { exact: true })).toBeVisible()
+	await expect(timingPage.getByText('PENDING', { exact: true }).first()).toBeVisible()
+
+	// -------------------------------------------------------------------------
+	// 5. STATION 5: CHANGE LOG & CSV EXPORT
+	// -------------------------------------------------------------------------
 	await navigateToStation(timingPage, 'Change Log')
 
 	// Verify the chronological change log and category filters

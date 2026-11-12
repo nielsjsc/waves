@@ -1,5 +1,7 @@
 import { EVENT_ID, slotsTanCollection, participantsTanCollection, changesTanCollection } from "@/database";
 import type { SlotDocType } from "@/Schema";
+import { randomUUID } from "@/utils/cryptoHelpers";
+import { hasNoShow, hasWrongEpunch } from "@/utils/styleHelpers";
 import { eq, inArray, queryOnce } from "@tanstack/react-db";
 
 //// Helpers ////
@@ -130,11 +132,10 @@ export async function setStatePresent(participantId:string) {
 
 export async function setStateValidated(participantId:string) {
     // must have a valid start time
-    // (any?) -> Validated (cannot validate someone currently marked as a No Show)
+    // (any?) -> Validated
 
     const oldParticipant = await participantsTanCollection.get(participantId)
     if (oldParticipant === undefined) {return;}
-    if (oldParticipant.state === "noShow") {return;}
      
     const slot = await getSlotForParticipantId(participantId)
     if (slot === undefined) {return;}
@@ -150,26 +151,26 @@ export async function setStateValidated(participantId:string) {
 
 export async function setStateWrongEpunch(participantId:string) {
     // must have a valid start time; keeps the participant in their current slot
-    // A participant marked No Show cannot simultaneously be flagged Wrong E-punch.
+    // A participant can be in BOTH wrongEpunch and noShow simultaneously.
 
     const oldParticipant = await participantsTanCollection.get(participantId)
     if (oldParticipant === undefined) {return;}
-    if (oldParticipant.state === "noShow") {return;}
 
     const slot = await getSlotForParticipantId(participantId)
     if (slot === undefined) {return;}
     if (!isRealStartTime(slot)) {return;}
 
-    await clearSupersededStateChanges(participantId, ['noShow', 'wrongEpunch'])
+    const preserveNoShow = hasNoShow(oldParticipant)
+    await clearSupersededStateChanges(participantId, preserveNoShow ? ['wrongEpunch'] : ['noShow', 'wrongEpunch'])
 
     const t1 = participantsTanCollection.update(participantId, (p) => {
         p.state = "wrongEpunch"
-        p.prevState = oldParticipant.state
+        p.prevState = preserveNoShow ? "noShow" : oldParticipant.state
     })
     await t1.isPersisted.promise
 
     const t2 = changesTanCollection.insert([{
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         participantId: participantId,
         changedAt: nextChangeTimestamp(),
         changeType: 'wrongEpunch',
@@ -183,27 +184,27 @@ export async function setStateWrongEpunch(participantId:string) {
 
 export async function setStateNoShow(participantId:string) {
     // must have a valid start time
-    // A participant already checked at E-punch Check (validated or wrongEpunch) is present and cannot be marked No Show.
+    // A participant can be in BOTH noShow and wrongEpunch simultaneously.
 
     const oldParticipant = await participantsTanCollection.get(participantId)
     if (oldParticipant === undefined) {return;}
-    if (oldParticipant.state === "wrongEpunch" || oldParticipant.state === "validated") {return;}
 
     const slot = await getSlotForParticipantId(participantId)
     if (slot === undefined) {return;}
     if (!isRealStartTime(slot)) {return;}
 
-    await clearSupersededStateChanges(participantId, ['noShow', 'wrongEpunch'])
+    const preserveWrongEpunch = hasWrongEpunch(oldParticipant)
+    await clearSupersededStateChanges(participantId, preserveWrongEpunch ? ['noShow'] : ['noShow', 'wrongEpunch'])
 
     const t1 = participantsTanCollection.update(participantId, (p) => {
         p.state = "noShow"
-        p.prevState = oldParticipant.state
+        p.prevState = preserveWrongEpunch ? "wrongEpunch" : oldParticipant.state
     })
     await t1.isPersisted.promise
 
     // Record the change for stats
     const t2 = changesTanCollection.insert([{
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         participantId: participantId,
         changedAt: nextChangeTimestamp(),
         changeType: 'noShow',
@@ -213,6 +214,38 @@ export async function setStateNoShow(participantId:string) {
         isProcessed: false
     }]);
     await t2.isPersisted.promise
+}
+
+export async function clearStateWrongEpunch(participantId: string) {
+    const oldParticipant = await participantsTanCollection.get(participantId)
+    if (oldParticipant === undefined) { return }
+
+    if (hasNoShow(oldParticipant)) {
+        const t1 = participantsTanCollection.update(participantId, (p) => {
+            p.state = "noShow"
+            p.prevState = "waiting"
+        })
+        await t1.isPersisted.promise
+        await clearSupersededStateChanges(participantId, ['wrongEpunch'])
+        return
+    }
+    await setStateWaiting(participantId)
+}
+
+export async function clearStateNoShow(participantId: string) {
+    const oldParticipant = await participantsTanCollection.get(participantId)
+    if (oldParticipant === undefined) { return }
+
+    if (hasWrongEpunch(oldParticipant)) {
+        const t1 = participantsTanCollection.update(participantId, (p) => {
+            p.state = "wrongEpunch"
+            p.prevState = "waiting"
+        })
+        await t1.isPersisted.promise
+        await clearSupersededStateChanges(participantId, ['noShow'])
+        return
+    }
+    await setStateWaiting(participantId)
 }
 
 export async function setStateNotAttending(participantId:string) {
@@ -249,7 +282,7 @@ export async function setStateNotAttending(participantId:string) {
     
     // Record the change for stats
     const t4 = changesTanCollection.insert([{
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         participantId: participantId,
         changedAt: nextChangeTimestamp(),
         changeType: 'notAttending',
@@ -298,7 +331,7 @@ export async function setStateNeedsAssignment(participantId:string) {
 
     // record change
     const t4 = changesTanCollection.insert([{
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         participantId: participantId,
         changedAt: nextChangeTimestamp(),
         changeType: 'needsAssignment',
@@ -318,23 +351,31 @@ export async function setNewEpunch(participantId:string, newEpunch:string, newEp
     const oldParticipant = await participantsTanCollection.get(participantId)
     if (oldParticipant === undefined) {return;}
 
+    const wasWrongEpunch = hasWrongEpunch(oldParticipant)
+    const wasAlsoNoShow = hasNoShow(oldParticipant)
+
     const t1 = participantsTanCollection.update(participantId, (p) => {
         p.epunch = newEpunch
         p.isRental = newEpunchIsRental
-        if (oldParticipant.state === "wrongEpunch") {
-            p.prevState = oldParticipant.state
-            p.state = "validated"
+        if (wasWrongEpunch) {
+            if (wasAlsoNoShow) {
+                p.state = "noShow"
+                p.prevState = "validated"
+            } else {
+                p.prevState = oldParticipant.state
+                p.state = "validated"
+            }
         }
     });
     await t1.isPersisted.promise
 
-    if (oldParticipant.state === "wrongEpunch") {
-        await clearSupersededStateChanges(participantId, ['wrongEpunch', 'noShow'])
+    if (wasWrongEpunch) {
+        await clearSupersededStateChanges(participantId, ['wrongEpunch'])
     }
 
     // Record the change for stats
     const t4 = changesTanCollection.insert([{
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         participantId: participantId,
         changedAt: nextChangeTimestamp(),
         changeType: 'epunch',
@@ -413,7 +454,7 @@ export async function setNewStartTime(participantId:string, oldSlotId:string, ne
     // on both sides so "Restore original" can find the starting course.
     const courseChanged = oldSlot.course !== newSlot.course
     const t4 = changesTanCollection.insert([{
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         participantId: participantId,
         changedAt: nextChangeTimestamp(),
         changeType: courseChanged ? 'newCourse' : 'newTime',
@@ -431,7 +472,7 @@ export async function setNonCompetitive(participantId:string) {
     
     // Record the change for Epunch
     const t2 = changesTanCollection.insert([{
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         participantId: participantId,
         changedAt: nextChangeTimestamp(),
         changeType: 'competitiveStatus',
@@ -449,7 +490,7 @@ export async function setCompetitive(participantId:string) {
     
     // Record the change for Epunch
     const t2 = changesTanCollection.insert([{
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         participantId: participantId,
         changedAt: nextChangeTimestamp(),
         changeType: 'competitiveStatus',
@@ -458,6 +499,37 @@ export async function setCompetitive(participantId:string) {
         needsProcessing: true,
         isProcessed: false
     }]);
+    await t2.isPersisted.promise
+}
+
+export async function setGroupSize(participantId: string, newGroupSize: number): Promise<void> {
+    const normalizedSize = Math.max(1, Math.round(newGroupSize || 1))
+    const oldParticipant = await participantsTanCollection.get(participantId)
+    if (oldParticipant === undefined) {
+        return
+    }
+    const oldSize = Math.max(1, Math.round(oldParticipant.groupSize || 1))
+    if (oldSize === normalizedSize) {
+        return
+    }
+
+    const t1 = participantsTanCollection.update(participantId, (p) => {
+        p.groupSize = normalizedSize
+    })
+    await t1.isPersisted.promise
+
+    const t2 = changesTanCollection.insert([
+        {
+            id: randomUUID(),
+            participantId,
+            changedAt: nextChangeTimestamp(),
+            changeType: 'groupSize',
+            old: String(oldSize),
+            new: String(normalizedSize),
+            needsProcessing: false,
+            isProcessed: false,
+        },
+    ])
     await t2.isPersisted.promise
 }
 
@@ -497,7 +569,7 @@ export async function addNewParticipant(input: NewParticipantInput): Promise<str
         return undefined
     }
 
-    const participantId = `${EVENT_ID}-added-${crypto.randomUUID().slice(0, 8)}`
+    const participantId = `${EVENT_ID}-added-${randomUUID().slice(0, 8)}`
     const inRealSlot = isRealStartTime(targetSlot)
     const trimmedClub = input.club.trim()
     const trimmedEpunch = input.epunch.trim()
@@ -519,16 +591,170 @@ export async function addNewParticipant(input: NewParticipantInput): Promise<str
     await addToSlot(participantId, targetSlot.id)
 
     const t3 = changesTanCollection.insert([{
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         participantId,
         changedAt: nextChangeTimestamp(),
         changeType: 'addedParticipant',
         old: '',
-        new: inRealSlot ? `${targetSlot.course} ${targetSlot.time}` : `${targetSlot.course} (needs time)`,
+        new: inRealSlot ? `${targetSlot.course} ${targetSlot.time}` : `${targetSlot.course} (Standby)`,
         needsProcessing: true,
         isProcessed: false,
     }])
     await t3.isPersisted.promise
 
     return participantId
+}
+
+export async function assignStandbyToNoShowSlot(
+    standbyParticipantId: string,
+    noShowParticipantId: string,
+    targetSlotId: string
+): Promise<boolean> {
+    if (!standbyParticipantId || !noShowParticipantId || !targetSlotId) {
+        return false
+    }
+
+    const standbyParticipant = participantsTanCollection.get(standbyParticipantId)
+    const noShowParticipant = participantsTanCollection.get(noShowParticipantId)
+    if (standbyParticipant === undefined || noShowParticipant === undefined) {
+        return false
+    }
+
+    const standbySlot = await getSlotForParticipantId(standbyParticipantId)
+    const targetSlot = slotsTanCollection.get(targetSlotId)
+    if (standbySlot === undefined || targetSlot === undefined || !isRealStartTime(targetSlot)) {
+        return false
+    }
+
+    if (!targetSlot.participants.includes(noShowParticipantId)) {
+        return false
+    }
+
+    const holdingSlot = await queryOnce((q) =>
+        q
+            .from({ slot: slotsTanCollection })
+            .where(({ slot }) => eq(slot.course, targetSlot.course))
+            .where(({ slot }) => eq(slot.time, '_notAttending'))
+            .findOne()
+    )
+    if (holdingSlot === undefined) {
+        return false
+    }
+
+    // 1. Remove standby runner from standby slot
+    if (standbySlot.id !== targetSlot.id) {
+        const remainingStandby = standbySlot.participants.filter((id) => id !== standbyParticipantId)
+        const txStandbySlot = slotsTanCollection.update(standbySlot.id, (s) => {
+            s.participants = remainingStandby
+        })
+        await txStandbySlot.isPersisted.promise
+    }
+
+    // 2. Replace no-show runner in targetSlot with standby runner
+    const updatedTargetParticipants = targetSlot.participants
+        .filter((id) => id !== noShowParticipantId && id !== standbyParticipantId)
+        .concat(standbyParticipantId)
+    const txTargetSlot = slotsTanCollection.update(targetSlot.id, (s) => {
+        s.participants = updatedTargetParticipants
+    })
+    await txTargetSlot.isPersisted.promise
+
+    // 3. Place no-show runner in holding slot so they remain in the No-shows list and 1-slot invariant holds
+    if (!holdingSlot.participants.includes(noShowParticipantId)) {
+        const txHoldingSlot = slotsTanCollection.update(holdingSlot.id, (s) => {
+            s.participants = holdingSlot.participants.concat(noShowParticipantId)
+        })
+        await txHoldingSlot.isPersisted.promise
+    }
+
+    // Preserve the no-show runner's originalStartTime and noShow state
+    if (!noShowParticipant.startChanged) {
+        const txNoShowP = participantsTanCollection.update(noShowParticipantId, (p) => {
+            p.startChanged = true
+            p.originalStartTime = targetSlot.time
+        })
+        await txNoShowP.isPersisted.promise
+    }
+
+    // 4. Mark the standby runner directly as Present so they go straight to E-punch Check
+    const preserveStandbyOrig = isRealStartTime(standbySlot) && !standbyParticipant.startChanged
+    const txStandbyP = participantsTanCollection.update(standbyParticipantId, (p) => {
+        p.state = 'present'
+        p.prevState = standbyParticipant.state
+        if (preserveStandbyOrig) {
+            p.startChanged = true
+            p.originalStartTime = standbySlot.time
+        }
+    })
+    await txStandbyP.isPersisted.promise
+
+    await clearSupersededStateChanges(standbyParticipantId, ['noShow', 'wrongEpunch'])
+
+    // 5. Record the start time change in the Change Log
+    const courseChanged = standbySlot.course !== targetSlot.course
+    const txChange = changesTanCollection.insert([
+        {
+            id: randomUUID(),
+            participantId: standbyParticipantId,
+            changedAt: nextChangeTimestamp(),
+            changeType: courseChanged ? 'newCourse' : 'newTime',
+            old: courseChanged ? `${standbySlot.course} ${standbySlot.time}` : standbySlot.time,
+            new: courseChanged ? `${targetSlot.course} ${targetSlot.time}` : targetSlot.time,
+            needsProcessing: courseChanged,
+            isProcessed: false,
+        },
+    ])
+    await txChange.isPersisted.promise
+
+    return true
+}
+
+export async function undoAssignStandbyToNoShowSlot(
+    standbyParticipantId: string,
+    noShowParticipantId: string,
+    targetSlotId: string
+): Promise<void> {
+    const targetSlot = slotsTanCollection.get(targetSlotId)
+    if (targetSlot === undefined) return
+
+    // Put standby runner back in Standby on their course
+    await setStateNeedsAssignment(standbyParticipantId)
+
+    // Move no-show runner from holding slot back into targetSlot, keeping their noShow state
+    const noShowCurrentSlot = await getSlotForParticipantId(noShowParticipantId)
+    if (noShowCurrentSlot !== undefined && noShowCurrentSlot.id !== targetSlot.id) {
+        const txRemove = slotsTanCollection.update(noShowCurrentSlot.id, (s) => {
+            s.participants = s.participants.filter((id) => id !== noShowParticipantId)
+        })
+        await txRemove.isPersisted.promise
+
+        const latestTarget = slotsTanCollection.get(targetSlot.id)
+        if (latestTarget !== undefined && !latestTarget.participants.includes(noShowParticipantId)) {
+            const txAdd = slotsTanCollection.update(targetSlot.id, (s) => {
+                s.participants = latestTarget.participants.concat(noShowParticipantId)
+            })
+            await txAdd.isPersisted.promise
+        }
+    }
+}
+
+export async function setChangeProcessed(changeId: string, isProcessed: boolean): Promise<void> {
+    if (!changeId) return
+    const existing = changesTanCollection.get(changeId)
+    if (existing === undefined || existing.isProcessed === isProcessed) return
+    const tx = changesTanCollection.update(changeId, (c) => {
+        c.isProcessed = isProcessed
+    })
+    await tx.isPersisted.promise
+}
+
+export async function setAllChangesProcessed(changeIds: string[], isProcessed: boolean): Promise<void> {
+    for (const id of changeIds) {
+        const existing = changesTanCollection.get(id)
+        if (existing === undefined || existing.isProcessed === isProcessed) continue
+        const tx = changesTanCollection.update(id, (c) => {
+            c.isProcessed = isProcessed
+        })
+        await tx.isPersisted.promise
+    }
 }

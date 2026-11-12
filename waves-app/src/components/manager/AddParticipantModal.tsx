@@ -167,7 +167,7 @@ export function AddParticipantModal({
             return
         }
 
-        const whereLabel = chosenSlot ? `${course} · ${chosenSlot.time}` : `${course} (Needs new time)`
+        const whereLabel = chosenSlot ? `${course} · ${chosenSlot.time}` : `${course} (Standby)`
         onCreated(createdId, `Added ${cleanName} to ${whereLabel}`)
     }
 
@@ -229,7 +229,7 @@ export function AddParticipantModal({
             {matchingExisting.length > 0 && (
                 <div className="flex flex-col gap-1.5 border border-slate-300 bg-slate-50 p-2.5">
                     <span className="text-xs font-semibold text-slate-600">
-                        Already in meet? Click to copy their school &amp; e-punch for a 2nd course:
+                        Copy existing runner details:
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                         {matchingExisting.map((m) => {
@@ -270,7 +270,7 @@ export function AddParticipantModal({
                         <button
                             type="button"
                             onClick={() => setIsRental(false)}
-                            className={`border px-2.5 py-1.5 text-xs font-semibold ${
+                            className={`min-h-10 sm:min-h-9 border px-3 py-1.5 text-xs font-semibold ${
                                 !isRental
                                     ? 'border-sky-700 bg-sky-700 text-white'
                                     : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
@@ -280,7 +280,7 @@ export function AddParticipantModal({
                         <button
                             type="button"
                             onClick={() => setIsRental(true)}
-                            className={`border px-2.5 py-1.5 text-xs font-semibold ${
+                            className={`min-h-10 sm:min-h-9 border px-3 py-1.5 text-xs font-semibold ${
                                 isRental
                                     ? 'border-orange-700 bg-orange-600 text-white'
                                     : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
@@ -291,7 +291,7 @@ export function AddParticipantModal({
                 </div>
 
                 <div className="flex flex-col justify-end gap-2">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-800">
+                    <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-slate-800">
                         <input
                             type="checkbox"
                             checked={isNonCompete}
@@ -305,12 +305,11 @@ export function AddParticipantModal({
                             className="size-4"
                         />
                         <span>
-                            <strong>Non-competitive (NC)</strong>{' '}
-                            <span className="text-xs text-slate-500">(use for 2nd course)</span>
+                            <strong>Non-competitive (NC)</strong>
                         </span>
                     </label>
 
-                    <div className="flex items-center gap-2 text-sm text-slate-800">
+                    <div className="flex min-h-10 items-center gap-2 text-sm text-slate-800">
                         <label htmlFor="add-p-groupsize" className="font-medium">
                             Group size:
                         </label>
@@ -339,7 +338,7 @@ export function AddParticipantModal({
                                 key={c}
                                 type="button"
                                 onClick={() => setCourse(c)}
-                                className={`flex flex-col items-start border px-2.5 py-1.5 text-left transition ${
+                                className={`flex min-h-11 flex-col items-start border px-2.5 py-1.5 text-left transition ${
                                     active
                                         ? 'border-slate-900 bg-slate-900 text-white'
                                         : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
@@ -365,12 +364,12 @@ export function AddParticipantModal({
                     <button
                         type="button"
                         onClick={() => setSelectedSlotId('QUEUE')}
-                        className={`border px-2.5 py-1 text-xs font-semibold ${
+                        className={`min-h-9 border px-2.5 py-1 text-xs font-semibold ${
                             selectedSlotId === 'QUEUE'
                                 ? 'border-orange-700 bg-orange-600 text-white'
                                 : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
                         }`}>
-                        Assign later (Needs new time queue)
+                        Put on standby
                     </button>
                 </div>
 
@@ -382,7 +381,7 @@ export function AddParticipantModal({
 
                 {openSlots.length === 0 ? (
                     <p className="mt-2 text-xs italic text-slate-600">
-                        No open start slots on {course}{cutoff !== '' && !showEarlier ? ` after ${cutoff}` : ''}. Will be placed in the "Needs a new time" queue.
+                        No open start slots on {course}{cutoff !== '' && !showEarlier ? ` after ${cutoff}` : ''}. Will be placed in Standby.
                     </p>
                 ) : (
                     <div className="mt-2 flex max-h-32 flex-wrap gap-1.5 overflow-auto">
@@ -408,7 +407,7 @@ export function AddParticipantModal({
                                     type="button"
                                     title={conflictTitle}
                                     onClick={() => setSelectedSlotId(slot.id)}
-                                    className={`border px-2.5 py-1 text-sm font-semibold tabular-nums ${btnClass}`}>
+                                    className={`min-h-10 min-w-[3.5rem] border px-2.5 py-1 text-sm font-semibold tabular-nums ${btnClass}`}>
                                     {slot.time}
                                 </button>
                             )
@@ -417,11 +416,12 @@ export function AddParticipantModal({
                 )}
 
                 {cutoff !== '' && (
-                    <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+                    <label className="mt-2 flex min-h-9 items-center gap-2 text-xs text-slate-600">
                         <input
                             type="checkbox"
                             checked={showEarlier}
                             onChange={(e) => setShowEarlier(e.target.checked)}
+                            className="size-4"
                         />
                         Include times already past call-up (before {cutoff})
                     </label>
@@ -434,17 +434,17 @@ export function AddParticipantModal({
                 </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
                 <button
                     type="button"
                     onClick={onClose}
-                    className="border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    className="w-full sm:w-auto min-h-11 sm:min-h-0 border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
                     Cancel
                 </button>
                 <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="border border-emerald-700 bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
+                    className="w-full sm:w-auto min-h-11 sm:min-h-0 border border-emerald-700 bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
                     {isSubmitting ? 'Adding…' : 'Add to Meet'}
                 </button>
             </div>

@@ -34,6 +34,9 @@ function formatChangeValue(changeType: string, value: string): string {
             return isRental ? `${ep} (rental)` : ep
         }
     }
+    if (changeType === 'groupSize') {
+        return value === '1' ? 'Individual (1)' : `Group (${value})`
+    }
     if (value === '') return 'none'
     return formatSlotTime(value)
 }
@@ -51,7 +54,7 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<stri
         headers.map(escapeCsvCell).join(','),
         ...rows.map((r) => r.map(escapeCsvCell).join(',')),
     ]
-    const blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset-utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -206,14 +209,14 @@ export function Changes() {
         <>
             <Head title="Change Log" />
             <div className="mx-auto flex max-w-6xl flex-col gap-4 pb-8 text-slate-900">
-                <div className="flex flex-wrap items-center justify-between gap-3 border border-slate-300 bg-slate-50 p-4">
-                    <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border border-slate-300 bg-slate-50 p-3 sm:p-4">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
                         {filterTabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setCategory(tab.id)}
-                                className={`border px-3 py-1.5 text-sm font-semibold transition ${
+                                className={`min-h-9 shrink-0 border px-3 py-1.5 text-xs sm:text-sm font-semibold transition ${
                                     category === tab.id
                                         ? 'border-slate-900 bg-slate-900 text-white'
                                         : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
@@ -223,27 +226,29 @@ export function Changes() {
                         ))}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Filter by name, school, or e-punch…"
                             aria-label="Filter changes"
-                            className="w-64 rounded-none border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
+                            className="w-full sm:w-64 rounded-none border border-slate-300 bg-white px-3 py-2 sm:py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
                         />
-                        <button
-                            type="button"
-                            onClick={handleExportChangesCsv}
-                            className="border border-sky-700 bg-white px-3 py-1.5 text-sm font-semibold text-sky-800 hover:bg-sky-700 hover:text-white">
-                            Export Changes CSV
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleExportRosterCsv}
-                            className="border border-emerald-700 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-700 hover:text-white">
-                            Export Full Roster CSV
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={handleExportChangesCsv}
+                                className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-sky-700 bg-white px-3 py-2 sm:py-1.5 text-xs sm:text-sm font-semibold text-sky-800 hover:bg-sky-700 hover:text-white">
+                                Export Changes CSV
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleExportRosterCsv}
+                                className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-emerald-700 bg-white px-3 py-2 sm:py-1.5 text-xs sm:text-sm font-semibold text-emerald-800 hover:bg-emerald-700 hover:text-white">
+                                Export Full Roster CSV
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -268,10 +273,10 @@ export function Changes() {
                             return (
                                 <div
                                     key={c.id}
-                                    className="flex flex-col justify-between gap-2 border border-slate-300 bg-white px-4 py-3 sm:flex-row sm:items-center">
+                                    className="flex flex-col justify-between gap-2.5 border border-slate-300 bg-white p-3 sm:px-4 sm:py-3 sm:flex-row sm:items-center">
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <span className="text-lg font-bold text-slate-900">
+                                            <span className="text-base sm:text-lg font-bold text-slate-900">
                                                 {c.participant.name}
                                             </span>
                                             <span className="border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-800">
@@ -292,7 +297,7 @@ export function Changes() {
                                             </span>
                                         </div>
 
-                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-slate-600">
                                             <span>{where}</span>
                                             {club !== '' && <span>· {club}</span>}
                                             <span>
@@ -304,7 +309,7 @@ export function Changes() {
                                         </div>
                                     </div>
 
-                                    <div className="flex shrink-0 items-center gap-2 text-base">
+                                    <div className="flex shrink-0 items-center gap-2 text-sm sm:text-base border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
                                         {c.old !== '' && (
                                             <>
                                                 <span className="text-slate-400 line-through">

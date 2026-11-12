@@ -8,6 +8,7 @@ interface Properties {
     icon: string
     color: string
     buttonStyle: 'solid'|'outline'
+    className?: string
 }
 
 function buttonStyleClasses(buttonStyle:string, color:string):string {
@@ -29,18 +30,18 @@ function buttonStyleClasses(buttonStyle:string, color:string):string {
     }
 }
 
-export function ManagerActionButton({text, action, icon, color, buttonStyle}: Properties) {
-    const styling = "rounded-sm border px-2.5 py-1 font-medium transition-colors " + buttonStyleClasses(buttonStyle, color)
+export function ManagerActionButton({text, action, icon, color, buttonStyle, className}: Properties) {
+    const styling = `rounded-sm border px-2.5 py-1.5 min-h-10 sm:min-h-9 font-medium transition-colors inline-flex items-center justify-center ${buttonStyleClasses(buttonStyle, color)} ${className ?? ''}`
 
-    return(
-    <button 
-        type="button"
-        className={styling}
-        onClick={action}
-    >
-        <SvgIconWithText
-            icon={icon}
-            text={text} />
-    </button>
+    return (
+        <button 
+            type="button"
+            className={styling}
+            onClick={action}
+        >
+            <SvgIconWithText
+                icon={icon}
+                text={text} />
+        </button>
     )
 }

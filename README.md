@@ -35,63 +35,21 @@ Waves manages interval starts across **Call-up**, **E-punch Check**, **Start Man
    pnpm install
    ```
 
-### B. Configure Local Domains (`hosts` file)
-Open Notepad **as Administrator**, open `C:\Windows\System32\drivers\etc\hosts`, and add:
-```text
-127.0.0.1 app.waves.local
-127.0.0.1 server.waves.local
-```
-
-### C. Generate Local HTTPS Certificates (`mkcert`)
-Waves uses HTTPS so browsers allow fast local database storage (`IndexedDB`) across devices.
-1. Install `mkcert` (e.g. `winget install FiloSottile.mkcert`).
-2. Find your host laptop's Wi-Fi IP address by running `ipconfig` (e.g. `192.168.0.34`).
-3. Install the local Certificate Authority and generate the certificate into the `security/` folder:
-   ```powershell
-   mkcert -install
-   mkcert -cert-file security/waves-cert.pem -key-file security/waves-key.pem app.waves.local server.waves.local localhost 127.0.0.1 192.168.0.34
-   ```
-   *(Replace `192.168.0.34` with your laptop's current Wi-Fi IP whenever you change networks.)*
+### B. Optional: Configure Router Local DNS (Like `wifi.cascadeoc.org`)
+Waves runs over plain HTTP (`http://`) and accepts any hostname or IP address—no SSL certificates (`mkcert`) or `hosts` file edits are required.
+- **Recommended (Router DNS)**: On the meet Wi-Fi router, set a static DHCP IP reservation for the Waves host laptop and map a local DNS name (for example, `waves.cascadeoc.org`) to that IP. Volunteers on any phone, tablet, or laptop can then simply open **`http://waves.cascadeoc.org`**.
+- **Direct IP fallback**: Without router DNS, volunteers can connect to **`http://<HOST-LAPTOP-IP>`** (find the host IP with `ipconfig`, e.g. `http://192.168.0.34`).
 
 ---
 
-## 2. Setting Up Secondary Devices (iPhones, iPads, Other Laptops)
+## 2. Connecting Secondary Devices (iPhones, iPads, Androids, Other Laptops)
 
-All devices must be connected to the **same Wi-Fi network** as the host laptop. First, run `mkcert -CAROOT` in PowerShell on the host laptop to locate **`rootCA.pem`**, and check the host laptop's Wi-Fi IP address with `ipconfig` (e.g. `192.168.0.34`).
+All devices must be connected to the **same Wi-Fi network** as the host laptop. No certificates or software need to be installed on client devices:
 
-### A. iPhone or iPad (Safari)
-1. Send **`rootCA.pem`** from the host laptop to the iPhone/iPad (via iCloud Drive, AirDrop, or email) and tap the file to download the profile.
-2. Open **Settings → Profile Downloaded** (near the top) and tap **Install**.
-3. Enable full trust: open **Settings → General → About → Certificate Trust Settings** (at the very bottom) and toggle **ON** the `mkcert` root certificate.
-4. In Safari, open **`https://<HOST-LAPTOP-IP>:5173`** (e.g. `https://192.168.0.34:5173`). Always include `https://`.
-
-### B. Another Windows Laptop
-1. **Install `rootCA.pem` as a Trusted Root Certificate** (do either one):
-   - **Quickest (PowerShell as Administrator):** Copy `rootCA.pem` to the laptop and run:
-     ```powershell
-     certutil -addstore -f "ROOT" .\rootCA.pem
-     ```
-   - **Or via Windows GUI:** Open **Manage computer certificates** (`certlm.msc` from the Start menu) → expand **Trusted Root Certification Authorities** → right-click **Certificates** → **All Tasks → Import…** → browse to `rootCA.pem` (select *All Files (`*.*`)* in the file picker) → click **Next** and **Finish**.
-2. **Open Waves in Chrome:**
-   - Go directly to **`https://<HOST-LAPTOP-IP>:5173`** (e.g. `https://192.168.0.34:5173`), **OR**
-   - To use **`https://app.waves.local`**, open Notepad as Administrator, edit `C:\Windows\System32\drivers\etc\hosts`, and point both domains to the host laptop's IP:
-     ```text
-     192.168.0.34 app.waves.local
-     192.168.0.34 server.waves.local
-     ```
-
-### C. Another Mac Laptop
-1. **Install & Trust `rootCA.pem`:**
-   - Copy `rootCA.pem` to the Mac and double-click it to open **Keychain Access** (add it to the **System** keychain if prompted).
-   - Find the **`mkcert ...`** certificate in Keychain Access, double-click it, expand the **▸ Trust** section, set **When using this certificate** to **Always Trust**, and close the window (enter your Mac password to save).
-2. **Open Waves in Chrome or Safari:**
-   - Go directly to **`https://<HOST-LAPTOP-IP>:5173`** (e.g. `https://192.168.0.34:5173`), **OR**
-   - To use **`https://app.waves.local`** on a Mac, open Terminal, run `sudo nano /etc/hosts`, and point both domains to the host laptop's Wi-Fi IP:
-     ```text
-     192.168.0.34 app.waves.local
-     192.168.0.34 server.waves.local
-     ```
-     Save (`Ctrl+O`, `Enter`, `Ctrl+X`), then open **`https://app.waves.local`**.
+1. Connect the phone, tablet, or laptop to the meet Wi-Fi.
+2. Open Chrome or Safari and navigate to:
+   - **`http://waves.cascadeoc.org`** (if configured on the meet router), **OR**
+   - **`http://<HOST-LAPTOP-IP>`** (e.g. `http://192.168.0.34`, found by running `ipconfig` on the host laptop).
 
 ---
 
@@ -110,7 +68,7 @@ All devices must be connected to the **same Wi-Fi network** as the host laptop. 
 3. Click **`Export Full Roster CSV`** for the complete final start list with updated courses, start times, original start times, e-punches, and check-in states.
 
 ### Resetting / Re-importing the Current Meet *(Organizer Only)*
-- If you need to wipe test clicks before the meet begins and reload `startlist.csv` from scratch, visit `https://app.waves.local/?organizer` and click **`Re-import start list`** in the top bar.
+- If you need to wipe test clicks before the meet begins and reload `startlist.csv` from scratch, visit `http://localhost/?organizer` on the host laptop and click **`Re-import start list`** in the top bar.
 
 ---
 
@@ -118,7 +76,7 @@ All devices must be connected to the **same Wi-Fi network** as the host laptop. 
 
 ### Launching Waves
 1. On the host laptop, double-click **[`start-waves.cmd`](file:///c:/Users/nlsc/Desktop/waves/start-waves.cmd)**.
-2. It launches MongoDB, the sync server, nginx, and the web app in order, then opens `https://app.waves.local`.
+2. It launches MongoDB, the sync server, nginx, and the web app in order, then opens `http://localhost`.
 3. **Keep the 3 black command windows open** (`Waves - database`, `Waves - sync server`, `Waves - app`) for the duration of the meet (minimizing them is fine).
 4. Verify the green **`Synced`** badge appears in the top-right header.
 
@@ -158,8 +116,8 @@ All devices must be connected to the **same Wi-Fi network** as the host laptop. 
 
 | Issue | Solution |
 | :--- | :--- |
-| **Header says `Offline (saved locally)`** | Keep working—clicks are saved locally and sync automatically once Wi-Fi reconnects. If on a phone/iPad after switching Wi-Fi networks, check if the host laptop's IP changed (`ipconfig`) and re-run the `mkcert` command in Section 1C with the new IP. |
+| **Header says `Offline (saved locally)`** | Keep working—clicks are saved locally and sync automatically once Wi-Fi reconnects. Verify the device is connected to the meet Wi-Fi. |
 | **Red `Records needing repair` banner in Start Manager** | Happens if two offline devices moved the same runner (or took the same open slot) before reconnecting, leaving a runner in `0` or `2+` slots. Click the runner's name in the red banner and click **`Keep this one`** on the correct slot (or choose a course to place them in **Needs a new time**). |
-| **Phone/iPad says "Cannot open page" or "Not private"** | Ensure `rootCA.pem` is installed **and** toggled ON under **Settings → General → About → Certificate Trust Settings**, and use `https://<HOST-IP>:5173`. |
+| **Phone/iPad says "Cannot open page"** | Verify the device is connected to the meet Wi-Fi and using `http://` (not `https://`), e.g. `http://waves.cascadeoc.org` or `http://<HOST-IP>`. |
 | **`start-waves.cmd` says Waves is already running** | Double-click `stop-waves.cmd` first, then run `start-waves.cmd` again. |
 | **Run automated health checks** | Double-click [`run-tests.cmd`](file:///c:/Users/nlsc/Desktop/waves/run-tests.cmd) to run all unit tests, multi-station browser tests, and build checks. |

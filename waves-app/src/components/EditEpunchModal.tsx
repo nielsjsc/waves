@@ -53,7 +53,7 @@ export function EditEpunchModal({ participant, closeModal }: Properties) {
 
     return (
         <div className="flex flex-col gap-3 text-slate-900">
-            <p className="text-lg">
+            <p className="text-base sm:text-lg">
                 Current e-punch:{" "}
                 <span className="font-bold tabular-nums text-slate-900">
                     {participant.participant.epunch || "none"}
@@ -63,8 +63,8 @@ export function EditEpunchModal({ participant, closeModal }: Properties) {
                 </span>
             </p>
 
-            <div className="mt-2 flex flex-col gap-1">
-                <label htmlFor="new-si" className="text-base font-semibold text-slate-800">
+            <div className="mt-1 sm:mt-2 flex flex-col gap-1">
+                <label htmlFor="new-si" className="text-sm sm:text-base font-semibold text-slate-800">
                     New e-punch number
                 </label>
                 <input
@@ -83,8 +83,8 @@ export function EditEpunchModal({ participant, closeModal }: Properties) {
                 />
             </div>
 
-            <div className="flex flex-row items-center gap-2">
-                <span className="text-base font-medium text-slate-800">Type:</span>
+            <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm sm:text-base font-medium text-slate-800">Type:</span>
                 <ManagerActionButton
                     text="Rental"
                     action={handleRentClick}
@@ -110,13 +110,14 @@ export function EditEpunchModal({ participant, closeModal }: Properties) {
                 </div>
             )}
 
-            <div className="mt-4 flex flex-row gap-4">
+            <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:gap-4">
                 <ManagerActionButton
                     text="Save"
                     action={handleSave}
                     icon="arrow-box-right"
                     color="sky"
                     buttonStyle="solid"
+                    className="w-full sm:w-auto min-h-10"
                 />
                 <ManagerActionButton
                     text="Cancel"
@@ -124,6 +125,7 @@ export function EditEpunchModal({ participant, closeModal }: Properties) {
                     icon="x"
                     color="red"
                     buttonStyle="outline"
+                    className="w-full sm:w-auto min-h-10"
                 />
             </div>
         </div>

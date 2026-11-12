@@ -6,8 +6,10 @@ interface Properties {
 }
 
 export function SvgIconWithText({icon, text}: Properties) {
-    return <span className="flex flex-column gap-1">
-            <SvgIcon icon={icon}/>
-            {text}
+    return (
+        <span className="flex items-center gap-1.5">
+            <SvgIcon icon={icon} />
+            <span>{text}</span>
         </span>
+    )
 }

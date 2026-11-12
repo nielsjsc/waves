@@ -3,6 +3,7 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { Head } from '@/components/Head'
 import { Modal } from '@/components/Modal'
 import { EditEpunchModal } from '@/components/EditEpunchModal'
+import { EditGroupSizeModal } from '@/components/EditGroupSizeModal'
 import { ManagerActionButton } from '@/components/ManagerActionButton'
 import { StartGrid } from '@/components/grid/StartGrid'
 import { ParticipantStateChangeButton } from '@/components/grid/ParticipantStateChangeButton'
@@ -22,7 +23,7 @@ import {
 import { hydrateParticipant } from '@/utils/hydrateParticipant'
 import { populateSlotData } from '@/utils/populateSlotData'
 import { addMinutesToClock, courseShortLabel, formatSlotTime } from '@/utils/slotLabels'
-import { ParticipantStateStyles } from '@/utils/styleHelpers'
+import { getDisplayStates, ParticipantStateStyles } from '@/utils/styleHelpers'
 
 interface Properties {
     clockTime?: string
@@ -43,8 +44,10 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
     const [movingParticipantId, setMovingParticipantId] = useState<string>('')
     const [showTimePickerInModal, setShowTimePickerInModal] = useState(false)
     const [isEpunchModalOpen, setIsEpunchModalOpen] = useState(false)
+    const [isGroupSizeModalOpen, setIsGroupSizeModalOpen] = useState(false)
     const [addPrefill, setAddPrefill] = useState<AddParticipantPrefill | undefined>(undefined)
     const [bannerMessage, setBannerMessage] = useState<string>('')
+    const [mobileCourseFilter, setMobileCourseFilter] = useState<string>('all')
 
     const { data: allSlots } = useLiveQuery((q) => q.from({ slot: slotsTanCollection }))
     const { data: allParticipants } = useLiveQuery((q) =>
@@ -86,6 +89,7 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
         setActiveParticipantId(participant.id)
         setShowTimePickerInModal(false)
         setIsEpunchModalOpen(false)
+        setIsGroupSizeModalOpen(false)
     }
 
     function handleOpenSlotClick(slot: SlotType) {
@@ -112,14 +116,12 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
         setActiveParticipantId('')
     }
 
-    const availableModalStateButtons = activeHydrated
-        ? GRID_STATE_BUTTONS.filter((st) => {
-              const cur = activeHydrated.participant.state
-              if (cur === 'noShow' && (st === 'wrongEpunch' || st === 'validated')) return false
-              if ((cur === 'wrongEpunch' || cur === 'validated') && st === 'noShow') return false
-              return true
-          })
-        : []
+    const availableModalStateButtons = activeHydrated ? GRID_STATE_BUTTONS : []
+
+    const displayData =
+        mobileCourseFilter === 'all'
+            ? data
+            : data.filter((s) => s.course === mobileCourseFilter)
 
     return (
         <>
@@ -128,7 +130,7 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
                 {/* Crisp Action & Status Bar */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
                     <div className="flex flex-wrap items-center gap-3">
-                        <span className="font-medium text-slate-800">
+                        <span className="hidden sm:inline font-medium text-slate-800">
                             Click any participant to edit status, e-punch, or course. Drag any participant to an open slot to change their start time. Click any Open slot to add a participant.
                         </span>
                         {movingHydrated !== undefined && (
@@ -175,8 +177,39 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
                     </button>
                 </div>
 
+                {/* Mobile Course Filter Pills */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-1 md:hidden">
+                    <button
+                        type="button"
+                        onClick={() => setMobileCourseFilter('all')}
+                        className={`shrink-0 border px-2.5 py-1 text-xs font-bold transition ${
+                            mobileCourseFilter === 'all'
+                                ? 'border-slate-900 bg-slate-900 text-white'
+                                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                        }`}>
+                        All courses
+                    </button>
+                    {courses.map((c) => {
+                        const hint = courseShortLabel(c)
+                        const isSelected = mobileCourseFilter === c
+                        return (
+                            <button
+                                key={c}
+                                type="button"
+                                onClick={() => setMobileCourseFilter(c)}
+                                className={`shrink-0 border px-2.5 py-1 text-xs font-bold transition ${
+                                    isSelected
+                                        ? 'border-slate-900 bg-slate-900 text-white'
+                                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                                }`}>
+                                {c}{hint ? ` (${hint})` : ''}
+                            </button>
+                        )
+                    })}
+                </div>
+
                 <StartGrid
-                    data={data}
+                    data={displayData}
                     columns="course"
                     selectedParticipantHydrated={movingHydrated ?? activeHydrated}
                     toStateButtons={[]}
@@ -187,7 +220,7 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
             </div>
 
             {/* Participant Action Modal when clicking a runner on Full Grid */}
-            {activeHydrated !== undefined && !isEpunchModalOpen && (
+            {activeHydrated !== undefined && !isEpunchModalOpen && !isGroupSizeModalOpen && (
                 <Modal
                     title={activeHydrated.participant.name}
                     close={() => {
@@ -219,14 +252,19 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
                                         {activeHydrated.participant.isNonCompete ? ' · Non-competitive' : ''}
                                     </div>
                                 </div>
-                                {ParticipantStateStyles.get(activeHydrated.participant.state) && (
-                                    <span
-                                        className={`px-2.5 py-1 text-xs font-semibold text-white ${
-                                            ParticipantStateStyles.get(activeHydrated.participant.state)!.bg
-                                        }`}>
-                                        {ParticipantStateStyles.get(activeHydrated.participant.state)!.friendlyName}
-                                    </span>
-                                )}
+                                <div className="flex flex-wrap gap-1.5">
+                                    {getDisplayStates(activeHydrated.participant).map((st) => {
+                                        const stStyle = ParticipantStateStyles.get(st)
+                                        if (!stStyle) return null
+                                        return (
+                                            <span
+                                                key={st}
+                                                className={`px-2.5 py-1 text-xs font-semibold text-white ${stStyle.bg}`}>
+                                                {stStyle.friendlyName}
+                                            </span>
+                                        )
+                                    })}
+                                </div>
                             </div>
 
                             {/* Status Buttons */}
@@ -293,6 +331,17 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
                                         />
                                     )}
                                     <ManagerActionButton
+                                        text={
+                                            activeHydrated.participant.groupSize > 1
+                                                ? `Group size (${activeHydrated.participant.groupSize})`
+                                                : 'Make group / Group size'
+                                        }
+                                        icon="group"
+                                        color="emerald"
+                                        buttonStyle="outline"
+                                        action={() => setIsGroupSizeModalOpen(true)}
+                                    />
+                                    <ManagerActionButton
                                         text="Add 2nd course"
                                         icon="plus"
                                         color="emerald"
@@ -316,7 +365,7 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
                                         }}
                                     />
                                     <ManagerActionButton
-                                        text="Needs new time queue"
+                                        text="Put on standby"
                                         icon="hourglass"
                                         color="orange"
                                         buttonStyle="outline"
@@ -379,6 +428,28 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, onOpenInManage
                         <EditEpunchModal
                             participant={activeHydrated}
                             closeModal={() => setIsEpunchModalOpen(false)}
+                        />
+                    }
+                />
+            )}
+
+            {/* Edit Group Size Modal */}
+            {activeHydrated !== undefined && isGroupSizeModalOpen && (
+                <Modal
+                    title={`Group size for ${activeHydrated.participant.name}`}
+                    close={() => setIsGroupSizeModalOpen(false)}
+                    content={
+                        <EditGroupSizeModal
+                            participant={activeHydrated}
+                            closeModal={() => setIsGroupSizeModalOpen(false)}
+                            onSaved={(oldSize, newSize) => {
+                                if (oldSize === newSize) return
+                                showNotice(
+                                    newSize === 1
+                                        ? `${activeHydrated.participant.name} set to Individual (1 person)`
+                                        : `${activeHydrated.participant.name} set to Group of ${newSize}`
+                                )
+                            }}
                         />
                     }
                 />

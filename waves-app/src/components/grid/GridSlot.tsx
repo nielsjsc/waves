@@ -3,7 +3,7 @@ import { type Slot as SlotType } from '@/api/slots'
 import type { ParticipantState, Participant as ParticipantType } from '@/api/participants'
 import { setNewStartTime } from '@/actions/participantActions'
 import type { PopulatedEntry } from '@/utils/PopulatedEntry'
-import { ParticipantStateStyles } from '@/utils/styleHelpers'
+import { getDisplayStates, ParticipantStateStyles } from '@/utils/styleHelpers'
 import { ParticipantStateChangeButton } from './ParticipantStateChangeButton'
 
 type Size = 'compact' | 'large'
@@ -37,17 +37,17 @@ interface Properties {
 const SIZES: Record<Size, { cell: string; pad: string; name: string; detail: string; badge: string }> = {
     compact: {
         cell: 'h-full min-h-[2.75rem]',
-        pad: 'px-2 py-1',
+        pad: 'px-1.5 py-1',
         name: 'text-xs leading-4',
         detail: 'text-[11px] leading-4',
         badge: 'text-[10px] leading-4',
     },
     large: {
-        cell: 'h-full min-h-[2.85rem]',
-        pad: 'px-3 py-1.5',
-        name: 'text-base leading-5',
-        detail: 'text-sm leading-5',
-        badge: 'text-xs leading-4',
+        cell: 'h-full min-h-[2.65rem] sm:min-h-[3.25rem]',
+        pad: 'px-1.5 py-0.5 sm:px-3 sm:py-1.5',
+        name: 'text-xs sm:text-base leading-snug',
+        detail: 'text-[11px] sm:text-sm leading-tight',
+        badge: 'text-[10px] sm:text-xs leading-none',
     },
 }
 
@@ -137,8 +137,8 @@ function OpenCell({
                 isDragOver
                     ? 'border-sky-600 bg-sky-100 text-sky-900 ring-1 ring-sky-600'
                     : isClickable
-                      ? 'cursor-pointer border-slate-300 bg-white text-slate-500 hover:border-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                      : 'border-slate-300 bg-white text-slate-400'
+                      ? 'cursor-pointer border-slate-300 bg-slate-50 text-slate-600 hover:border-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                      : 'border-slate-300 bg-slate-50 text-slate-500'
             } ${size === 'large' ? 'text-sm' : 'text-xs'}`}>
             <span className={isDragOver ? 'font-semibold' : ''}>
                 {isDragOver ? 'Drop here' : 'Open'}
@@ -185,23 +185,10 @@ function ParticipantCard({
     const [isDragging, setIsDragging] = useState(false)
     const sz = SIZES[size]
     const large = size === 'large'
-    const style = ParticipantStateStyles.get(p.state)!
+    const displayStates = getDisplayStates(p)
     const notAttending = p.state === 'notAttending'
     const isClickable = onParticipantClick !== undefined
     const isDraggable = onMoveParticipant !== undefined
-
-    // Enforce mutual exclusion in the UI:
-    // - A runner marked No Show at Call-up cannot be marked Wrong E-punch or Validated until checked in.
-    // - A runner already at E-punch Check (Validated or Wrong E-punch) cannot be marked No Show.
-    const allowedStateButtons = toStateButtons.filter((btnState) => {
-        if (p.state === 'noShow' && (btnState === 'wrongEpunch' || btnState === 'validated')) {
-            return false
-        }
-        if ((p.state === 'wrongEpunch' || p.state === 'validated') && btnState === 'noShow') {
-            return false
-        }
-        return true
-    })
 
     const surface = selected
         ? 'border-pink-600 bg-pink-50 ring-2 ring-pink-600'
@@ -255,26 +242,36 @@ function ParticipantCard({
             } ${isDragging ? 'opacity-40 ring-2 ring-sky-500' : ''} ${
                 isClickable ? 'cursor-pointer hover:bg-slate-50' : ''
             } ${
-                // Large cells put the buttons beside the text on wide screens, which keeps rows short.
-                large ? 'gap-1 lg:flex-row lg:items-center lg:gap-4' : ''
+                large
+                    ? 'gap-1 lg:flex-row lg:items-center lg:justify-between lg:gap-4'
+                    : 'gap-0.5'
             }`}>
-            <div className="min-w-0 flex-1 flex flex-col justify-between h-full">
-                <div className="flex items-start justify-between gap-1.5">
+            <div className="min-w-0 flex-1 flex flex-col justify-center">
+                <div className="flex flex-wrap items-baseline gap-1.5">
                     <span
-                        className={`break-words whitespace-normal font-semibold text-slate-900 ${sz.name} ${
+                        className={`font-bold text-slate-900 break-words whitespace-normal ${sz.name} ${
                             notAttending ? 'line-through text-slate-500' : ''
-                        }`}>
+                        }`}
+                        title={p.name}>
                         {p.name}
                     </span>
                     {/* Waiting is the default, so only other states get a label. */}
-                    {p.state !== 'waiting' && (
-                        <span
-                            className={`ml-auto shrink-0 px-1.5 font-semibold text-white ${sz.badge} ${style.bg}`}>
-                            {style.friendlyName}
-                        </span>
+                    {displayStates.length > 0 && (
+                        <div className="flex shrink-0 flex-wrap gap-1">
+                            {displayStates.map((st) => {
+                                const stStyle = ParticipantStateStyles.get(st)!
+                                return (
+                                    <span
+                                        key={st}
+                                        className={`shrink-0 px-1.5 py-0.5 font-bold text-white ${sz.badge} ${stStyle.bg}`}>
+                                        {stStyle.friendlyName}
+                                    </span>
+                                )
+                            })}
+                        </div>
                     )}
                 </div>
-                <div className={`mt-0.5 flex flex-wrap items-center gap-1.5 text-slate-600 ${sz.detail}`}>
+                <div className={`mt-0.5 flex flex-wrap items-center gap-1 sm:gap-1.5 text-slate-600 ${sz.detail}`}>
                     {p.groupSize > 1 && (
                         <Badge
                             className={`border-emerald-600 bg-emerald-50 text-emerald-800 ${sz.badge}`}
@@ -297,34 +294,51 @@ function ParticipantCard({
                         </Badge>
                     )}
                     {club !== '' && (
-                        <span className="min-w-0 truncate text-slate-600" title={club}>
+                        <span className={`min-w-0 truncate text-slate-600 ${large ? 'hidden sm:inline' : ''}`} title={club}>
                             {club}
                         </span>
                     )}
+                    {/* Inline on desktop station mode or in compact mode */}
                     <span
-                        className={`ml-auto shrink-0 tabular-nums ${
+                        className={`tabular-nums ${
                             large
-                                ? 'border border-slate-400 bg-slate-100 px-2 py-0 text-base font-bold tracking-wider text-slate-900 leading-5'
-                                : 'font-medium text-slate-700'
+                                ? 'hidden lg:inline border border-slate-400 bg-slate-100 px-2 py-0 text-base font-bold tracking-wider text-slate-900 leading-5'
+                                : 'ml-auto shrink-0 font-medium text-slate-700'
                         }`}>
                         {p.epunch}
                     </span>
                 </div>
             </div>
-            {allowedStateButtons.length > 0 && (
-                <div
-                    className={
-                        large
-                            ? 'flex shrink-0 gap-2 [&_button]:min-h-9 [&_button]:px-3 [&_button]:py-1 [&_button]:text-sm [&_svg]:size-5'
-                            : 'mt-1 flex gap-1'
-                    }>
-                    {allowedStateButtons.map((toState) => (
-                        <ParticipantStateChangeButton
-                            key={toState}
-                            participant={p}
-                            toState={toState}
-                        />
-                    ))}
+
+            {(toStateButtons.length > 0 || (large && p.epunch)) && (
+                <div className={
+                    large
+                        ? 'flex shrink-0 items-center justify-between lg:justify-end gap-2'
+                        : 'mt-1 flex gap-1'
+                }>
+                    {/* On mobile station mode, display e-punch badge next to buttons */}
+                    {large && (
+                        <span
+                            className="lg:hidden shrink-0 tabular-nums border border-slate-400 bg-slate-100 px-1.5 py-0.5 text-xs font-bold tracking-wider text-slate-900 leading-none">
+                            {p.epunch}
+                        </span>
+                    )}
+
+                    {toStateButtons.length > 0 && (
+                        <div className={
+                            large
+                                ? 'flex shrink-0 items-center gap-1 sm:gap-2 [&_button]:min-h-7 sm:[&_button]:min-h-8 lg:[&_button]:min-h-10 [&_button]:px-2 sm:[&_button]:px-2.5 lg:[&_button]:px-3 [&_button]:py-0.5 sm:[&_button]:py-1 lg:[&_button]:py-1.5 [&_button]:text-xs sm:[&_button]:text-sm lg:[&_button]:text-base [&_svg]:size-3.5 sm:[&_svg]:size-4 lg:[&_svg]:size-5'
+                                : 'flex gap-1'
+                        }>
+                            {toStateButtons.map((toState) => (
+                                <ParticipantStateChangeButton
+                                    key={toState}
+                                    participant={p}
+                                    toState={toState}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>

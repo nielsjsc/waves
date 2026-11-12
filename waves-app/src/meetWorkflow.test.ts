@@ -19,7 +19,11 @@ import {
 } from './dataImport'
 import {
     addNewParticipant,
+    assignStandbyToNoShowSlot,
+    clearStateNoShow,
+    clearStateWrongEpunch,
     setCompetitive,
+    setGroupSize,
     setNewEpunch,
     setNewStartTime,
     setNonCompetitive,
@@ -33,7 +37,8 @@ import {
 } from './actions/participantActions'
 import { keepOnlyInSlot, putInNeedsAssignment } from './actions/repairActions'
 import { getOriginalEpunch, getOriginalStart } from './utils/originalValues'
-import { addMinutesToClock, changeTypeLabel, evaluateStartTimesForSchool, formatSlotTime } from './utils/slotLabels'
+import { addMinutesToClock, calculateCourseHeadcount, changeTypeLabel, evaluateStartTimesForSchool, findStandbyMatches, formatSlotTime } from './utils/slotLabels'
+import { hasNoShow, hasWrongEpunch } from './utils/styleHelpers'
 
 function makeWaveRow(
     time: string,
@@ -287,6 +292,34 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             expect(epunchChanges[0]?.new).toBe('999888, Rental:true')
         })
 
+        it('allows a participant to be in BOTH wrongEpunch and noShow simultaneously and resolve each independently', async () => {
+            // Mark Alan as No Show first, then Wrong E-punch -> holds both flags simultaneously
+            await setStateNoShow(pAlan)
+            await setStateWrongEpunch(pAlan)
+            const alanBoth = participantsTanCollection.get(pAlan)!
+            expect(hasNoShow(alanBoth)).toBe(true)
+            expect(hasWrongEpunch(alanBoth)).toBe(true)
+
+            // Clearing No Show preserves Wrong E-punch
+            await clearStateNoShow(pAlan)
+            const alanOnlyWrongEpunch = participantsTanCollection.get(pAlan)!
+            expect(hasNoShow(alanOnlyWrongEpunch)).toBe(false)
+            expect(hasWrongEpunch(alanOnlyWrongEpunch)).toBe(true)
+
+            // Mark No Show again while Wrong E-punch is active -> holds both flags again
+            await setStateNoShow(pAlan)
+            const alanBothAgain = participantsTanCollection.get(pAlan)!
+            expect(hasNoShow(alanBothAgain)).toBe(true)
+            expect(hasWrongEpunch(alanBothAgain)).toBe(true)
+
+            // Clearing Wrong E-punch preserves No Show
+            await clearStateWrongEpunch(pAlan)
+            const alanOnlyNoShow = participantsTanCollection.get(pAlan)!
+            expect(hasNoShow(alanOnlyNoShow)).toBe(true)
+            expect(hasWrongEpunch(alanOnlyNoShow)).toBe(false)
+            assertEveryParticipantInExactlyOneSlot()
+        })
+
         it('tracks original start slot and original e-punch across multiple moves and edits', async () => {
             // Move Ada from c1 10:00 -> c1 10:02 -> c2 10:02
             await setNewStartTime(pAda, slotC1_1000, slotC1_1002)
@@ -383,6 +416,101 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             expect(addedChange).toBeDefined()
             expect(addedChange?.new).toBe('c2 10:02')
         })
+
+        it('detects standby matches when a same-course no-show occurs and slots standby runner as Present while keeping the no-show in No-shows', async () => {
+            // Add a runner on c7 in Standby
+            const standbyId = await addNewParticipant({
+                name: 'Edsger Dijkstra',
+                course: 'c7',
+                club: 'Garfield',
+                epunch: '777888',
+                isRental: true,
+                isNonCompete: false,
+                groupSize: 1,
+            })
+            expect(standbyId).toBeDefined()
+            expect(participantsTanCollection.get(standbyId!)?.state).toBe('needsAssignment')
+
+            // Before Alan Turing (c7 10:00) is marked No Show, no standby matches exist
+            expect(
+                findStandbyMatches(
+                    [...participantsTanCollection.values()],
+                    [...slotsTanCollection.values()],
+                    [...changesTanCollection.values()]
+                )
+            ).toHaveLength(0)
+
+            // Mark Alan Turing (c7 10:00) as No Show -> triggers a Standby Match on c7 at 10:00!
+            await setStateNoShow(pAlan)
+            const matches = findStandbyMatches(
+                [...participantsTanCollection.values()],
+                [...slotsTanCollection.values()],
+                [...changesTanCollection.values()]
+            )
+            expect(matches).toHaveLength(1)
+            expect(matches[0]?.course).toBe('c7')
+            expect(matches[0]?.slot.time).toBe('10:00')
+            expect(matches[0]?.noShowParticipant.id).toBe(pAlan)
+            expect(matches[0]?.standbyParticipants.map((p) => p.id)).toEqual([standbyId!])
+
+            // Start Manager approves slotting Edsger Dijkstra into Alan Turing's 10:00 slot
+            const slotted = await assignStandbyToNoShowSlot(standbyId!, pAlan, slotIdFor('c7', '10:00'))
+            expect(slotted).toBe(true)
+            assertEveryParticipantInExactlyOneSlot()
+
+            // Edsger Dijkstra is now in c7 10:00 directly as Present (ready for E-punch Check)
+            expect(slotsTanCollection.get(slotIdFor('c7', '10:00'))?.participants).toEqual([standbyId!])
+            expect(participantsTanCollection.get(standbyId!)?.state).toBe('present')
+
+            // Alan Turing stays in No-shows (hasNoShow === true) and preserves originalStartTime = 10:00
+            const alanAfter = participantsTanCollection.get(pAlan)!
+            expect(hasNoShow(alanAfter)).toBe(true)
+            expect(alanAfter.originalStartTime).toBe('10:00')
+
+            // The c7 10:00 slot is now filled, so no standby match notification remains
+            expect(
+                findStandbyMatches(
+                    [...participantsTanCollection.values()],
+                    [...slotsTanCollection.values()],
+                    [...changesTanCollection.values()]
+                )
+            ).toHaveLength(0)
+        })
+        it('updates group size (individual <-> group) and computes total people on course including NC shadows, 2nd courses, and subtracting no-shows/not-attending', async () => {
+            const pAda = participantIdFor('c1', '10:00')
+            const pAlan = participantIdFor('c7', '10:00')
+
+            await setGroupSize(pAda, 3)
+            expect(participantsTanCollection.get(pAda)?.groupSize).toBe(3)
+            await setGroupSize(pAda, 4)
+            expect(participantsTanCollection.get(pAda)?.groupSize).toBe(4)
+
+            const secondCourseId = await addNewParticipant({
+                name: 'Ada Lovelace',
+                course: 'c2',
+                club: 'Lakeside',
+                epunch: '888999',
+                isRental: true,
+                isNonCompete: true,
+                groupSize: 1,
+                targetSlotId: slotIdFor('c2', '10:02'),
+            })
+            expect(secondCourseId).toBeDefined()
+
+            await setStateNoShow(pAlan)
+
+            const summary = calculateCourseHeadcount(
+                [...participantsTanCollection.values()],
+                [...slotsTanCollection.values()]
+            )
+            expect(summary.totalRegisteredEntries).toBe(3)
+            expect(summary.subtractedNoShowEntries).toBe(1)
+            expect(summary.subtractedNotAttendingEntries).toBe(0)
+            expect(summary.activeEntriesOnCourse).toBe(2)
+            expect(summary.runnersFromIndividualsAndGroups).toBe(5)
+            expect(summary.nonCompetitiveShadows).toBe(1)
+            expect(summary.totalPeopleOnCourse).toBe(6)
+        })
     })
 
     describe('3. Clock, Wave Offset, and Label Helpers', () => {
@@ -394,7 +522,7 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
         })
 
         it('formats magic slot names and change types for volunteers', () => {
-            expect(formatSlotTime('_needsAssignment')).toBe('Needs a new time')
+            expect(formatSlotTime('_needsAssignment')).toBe('Standby')
             expect(formatSlotTime('_notAttending')).toBe('Not attending')
             expect(formatSlotTime('10:04')).toBe('10:04')
             expect(changeTypeLabel('wrongEpunch')).toBe('Wrong e-punch')

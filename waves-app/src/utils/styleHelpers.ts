@@ -107,7 +107,7 @@ export const ParticipantStateStyles: Map<ParticipantState | "available", Partici
         bgDarkHover: "hover:bg-slate-800",
     }],
     ['needsAssignment', {
-        friendlyName: "Needs New Time",
+        friendlyName: "Standby",
         iconName: "hourglass",
         text: "text-orange-700",
         textDark: "text-orange-900",
@@ -272,4 +272,28 @@ export function getColorByIconName(icon: string): string {
         default:
             return "black"
     }
+}
+
+export function hasWrongEpunch(p: { state: ParticipantState; prevState?: ParticipantState }): boolean {
+    return p.state === "wrongEpunch" || (p.state === "noShow" && p.prevState === "wrongEpunch")
+}
+
+export function hasNoShow(p: { state: ParticipantState; prevState?: ParticipantState }): boolean {
+    return p.state === "noShow" || (p.state === "wrongEpunch" && p.prevState === "noShow")
+}
+
+export function getDisplayStates(p: { state: ParticipantState; prevState?: ParticipantState }): ParticipantState[] {
+    if (hasWrongEpunch(p) && hasNoShow(p)) {
+        return ["noShow", "wrongEpunch"]
+    }
+    return p.state === "waiting" ? [] : [p.state]
+}
+
+export function isStateButtonSelected(
+    p: { state: ParticipantState; prevState?: ParticipantState },
+    toState: ParticipantState
+): boolean {
+    if (toState === "wrongEpunch") return hasWrongEpunch(p)
+    if (toState === "noShow") return hasNoShow(p)
+    return p.state === toState
 }

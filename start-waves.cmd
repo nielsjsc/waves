@@ -54,7 +54,7 @@ start "Waves - sync server (leave open)" /d "%ROOT%waves-server" cmd /k npx ts-n
 set /a tries=0
 :wait_server
 set /a tries+=1
-curl --silent --output nul --max-time 2 http://localhost:3000/ >nul 2>nul
+curl --silent --output nul --max-time 2 -g "http://[::1]:3000/" >nul 2>nul
 if not errorlevel 1 goto server_up
 if %tries% geq 45 goto server_failed
 timeout /t 2 /nobreak >nul
@@ -69,7 +69,7 @@ start "Waves - app (leave open)" /d "%ROOT%waves-app" cmd /k pnpm dev
 set /a tries=0
 :wait_app
 set /a tries+=1
-curl --silent --insecure --output nul --max-time 2 https://localhost:5173/ >nul 2>nul
+curl --silent --output nul --max-time 2 http://localhost:5173/ >nul 2>nul
 if not errorlevel 1 goto app_up
 if %tries% geq 30 goto app_failed
 timeout /t 2 /nobreak >nul
@@ -82,7 +82,7 @@ echo  Waves is running.
 echo  Leave the black windows open (you can minimize them).
 echo  Your browser will open Waves now.
 echo ===========================================================
-start "" "https://app.waves.local"
+start "" "http://localhost"
 goto end
 
 :no_mongod

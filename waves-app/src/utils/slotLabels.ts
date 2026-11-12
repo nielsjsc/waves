@@ -1,4 +1,5 @@
-import type { SlotDocType } from '@/Schema'
+import type { ChangesDocType, ParticipantDocType, SlotDocType } from '@/Schema'
+import { hasNoShow } from './styleHelpers'
 
 // Small helpers shared by the Start Manager page and its components.
 
@@ -10,7 +11,7 @@ export function isMagicTime(time: string): boolean {
 export function formatSlotTime(time: string): string {
     switch (time) {
         case '_needsAssignment':
-            return 'Needs a new time'
+            return 'Standby'
         case '_notAttending':
             return 'Not attending'
         default:
@@ -50,11 +51,12 @@ const CHANGE_LABELS: Record<string, string> = {
     noShow: 'No show',
     wrongEpunch: 'Wrong e-punch',
     notAttending: 'Not attending',
-    needsAssignment: 'Needs new time',
+    needsAssignment: 'Standby',
     newTime: 'New time',
     newCourse: 'New course',
     epunch: 'E-punch',
     competitiveStatus: 'Competitive status',
+    groupSize: 'Group size',
     repair: 'Record repaired',
     addedParticipant: 'Added participant',
 }
@@ -77,6 +79,65 @@ const COURSE_HINTS: Record<string, string> = {
 
 export function courseShortLabel(course: string): string {
     return COURSE_HINTS[course] ?? ''
+}
+
+export interface CourseColorSpec {
+    bgHex: string
+    textClass: string
+    subtextClass: string
+}
+
+// Exact single course header colors from the WIOL Excel StartSheet
+const COURSE_COLORS: Record<string, CourseColorSpec> = {
+    c1: {
+        bgHex: '#FFFFFF',
+        textClass: 'text-slate-950',
+        subtextClass: 'text-slate-700',
+    },
+    c2: {
+        bgHex: '#FFFF00',
+        textClass: 'text-slate-950',
+        subtextClass: 'text-slate-800',
+    },
+    c3: {
+        bgHex: '#E6B8B7',
+        textClass: 'text-slate-950',
+        subtextClass: 'text-slate-800',
+    },
+    c4: {
+        bgHex: '#ACA16C',
+        textClass: 'text-slate-950',
+        subtextClass: 'text-slate-900',
+    },
+    c5: {
+        bgHex: '#9966FF',
+        textClass: 'text-slate-950',
+        subtextClass: 'text-slate-900',
+    },
+    c6: {
+        bgHex: '#FF9900',
+        textClass: 'text-slate-950',
+        subtextClass: 'text-slate-900',
+    },
+    c7: {
+        bgHex: '#00B050',
+        textClass: 'text-slate-950',
+        subtextClass: 'text-slate-900',
+    },
+    c8: {
+        bgHex: '#FF0000',
+        textClass: 'text-slate-950',
+        subtextClass: 'text-slate-900',
+    },
+    c9: {
+        bgHex: '#00B0F0',
+        textClass: 'text-slate-950',
+        subtextClass: 'text-slate-900',
+    },
+}
+
+export function courseHeaderColor(course: string): CourseColorSpec | undefined {
+    return COURSE_COLORS[course]
 }
 
 //// 10-minute same-school spacing rule ////
@@ -268,5 +329,181 @@ export function evaluateStartTimesForSchool(params: {
         teammatesOnCourse,
         skippedEarlierSlots: evaluatedSlots,
         reason: `No open times on ${course} have a full 10-minute gap from ${school} teammates. Closest to 10 min is ${bestFallback.slot.time} (${c.gapMinutes} min from ${c.teammateName} at ${c.teammateTime}). Click any time to override.`,
+    }
+}
+
+//// Standby Matching Algorithm ////
+
+export interface StandbyMatch {
+    course: string
+    slot: SlotDocType
+    noShowParticipant: ParticipantDocType
+    standbyParticipants: ParticipantDocType[]
+}
+
+export function findStandbyMatches(
+    allParticipants: ParticipantDocType[],
+    allSlots: SlotDocType[],
+    allChanges: ChangesDocType[]
+): StandbyMatch[] {
+    const participantById = new Map(allParticipants.map((p) => [p.id, p]))
+
+    // Track when each runner entered Standby so the Standby queue is ordered FIFO (longest waiting first)
+    const standbyEnteredAt = new Map<string, number>()
+    for (const c of allChanges) {
+        if (c.changeType === 'needsAssignment') {
+            const prev = standbyEnteredAt.get(c.participantId) ?? 0
+            if (c.changedAt > prev) {
+                standbyEnteredAt.set(c.participantId, c.changedAt)
+            }
+        }
+    }
+
+    const courseByParticipant = new Map<string, string>()
+    for (const s of allSlots) {
+        for (const pid of s.participants) {
+            if (!courseByParticipant.has(pid)) {
+                courseByParticipant.set(pid, s.course)
+            }
+        }
+    }
+
+    // Group Standby runners by course in FIFO order
+    const standbyByCourse = new Map<string, ParticipantDocType[]>()
+    for (const p of allParticipants) {
+        if (p.state !== 'needsAssignment') continue
+        const course = courseByParticipant.get(p.id)
+        if (!course) continue
+        const list = standbyByCourse.get(course)
+        if (list === undefined) {
+            standbyByCourse.set(course, [p])
+        } else {
+            list.push(p)
+        }
+    }
+
+    for (const list of standbyByCourse.values()) {
+        list.sort(
+            (a, b) =>
+                (standbyEnteredAt.get(a.id) ?? 0) - (standbyEnteredAt.get(b.id) ?? 0) ||
+                a.name.localeCompare(b.name)
+        )
+    }
+
+    // Find all real start slots on courses with Standby runners where a starter is marked No Show
+    const matches: StandbyMatch[] = []
+    for (const slot of allSlots) {
+        if (isMagicTime(slot.time) || slot.isUsable === false) continue
+        const standbyList = standbyByCourse.get(slot.course)
+        if (!standbyList || standbyList.length === 0) continue
+
+        for (const pid of slot.participants) {
+            const p = participantById.get(pid)
+            if (p !== undefined && hasNoShow(p)) {
+                matches.push({
+                    course: slot.course,
+                    slot,
+                    noShowParticipant: p,
+                    standbyParticipants: standbyList,
+                })
+            }
+        }
+    }
+
+    matches.sort((a, b) => a.slot.time.localeCompare(b.slot.time) || a.course.localeCompare(b.course))
+    return matches
+}
+
+//// Course Headcount Calculation ////
+
+export interface CourseHeadcountSummary {
+    totalRegisteredEntries: number
+    subtractedNoShowEntries: number
+    subtractedNotAttendingEntries: number
+    activeEntriesOnCourse: number
+    runnersFromIndividualsAndGroups: number
+    nonCompetitiveShadows: number
+    totalPeopleOnCourse: number
+    byCourse: Array<{
+        course: string
+        activeEntries: number
+        runners: number
+        shadows: number
+        totalPeople: number
+    }>
+}
+
+export function calculateCourseHeadcount(
+    allParticipants: ParticipantDocType[],
+    allSlots: SlotDocType[]
+): CourseHeadcountSummary {
+    const courseByParticipant = new Map<string, string>()
+    for (const s of allSlots) {
+        for (const pid of s.participants) {
+            if (!courseByParticipant.has(pid)) {
+                courseByParticipant.set(pid, s.course)
+            }
+        }
+    }
+
+    let subtractedNoShowEntries = 0
+    let subtractedNotAttendingEntries = 0
+    let activeEntriesOnCourse = 0
+    let runnersFromIndividualsAndGroups = 0
+    let nonCompetitiveShadows = 0
+
+    const courseStats = new Map<
+        string,
+        { activeEntries: number; runners: number; shadows: number; totalPeople: number }
+    >()
+
+    for (const p of allParticipants) {
+        if (p.state === 'notAttending') {
+            subtractedNotAttendingEntries += 1
+            continue
+        }
+        if (hasNoShow(p)) {
+            subtractedNoShowEntries += 1
+            continue
+        }
+
+        const runners = Math.max(1, Math.round(Number(p.groupSize) || 1))
+        const shadows = p.isNonCompete ? 1 : 0
+        const entryTotal = runners + shadows
+
+        activeEntriesOnCourse += 1
+        runnersFromIndividualsAndGroups += runners
+        nonCompetitiveShadows += shadows
+
+        const course = courseByParticipant.get(p.id) ?? 'unassigned'
+        const cur = courseStats.get(course) ?? {
+            activeEntries: 0,
+            runners: 0,
+            shadows: 0,
+            totalPeople: 0,
+        }
+        cur.activeEntries += 1
+        cur.runners += runners
+        cur.shadows += shadows
+        cur.totalPeople += entryTotal
+        courseStats.set(course, cur)
+    }
+
+    const byCourse = [...courseStats.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([course, stats]) => ({
+            course,
+            ...stats,
+        }))
+
+    return {
+        totalRegisteredEntries: allParticipants.length,
+        subtractedNoShowEntries,
+        subtractedNotAttendingEntries,
+        activeEntriesOnCourse,
+        runnersFromIndividualsAndGroups,
+        nonCompetitiveShadows,
+        totalPeopleOnCourse: runnersFromIndividualsAndGroups + nonCompetitiveShadows,
+        byCourse,
     }
 }

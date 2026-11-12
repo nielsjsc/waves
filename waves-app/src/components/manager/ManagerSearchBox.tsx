@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ParticipantDocType, SlotDocType } from '@/Schema'
-import { ParticipantStateStyles } from '@/utils/styleHelpers'
+import { getDisplayStates, ParticipantStateStyles } from '@/utils/styleHelpers'
 import { formatSlotTime } from '@/utils/slotLabels'
 
 const MAX_RESULTS = 8
@@ -75,8 +75,8 @@ export function ManagerSearchBox({ participants, slotsByParticipant, onSelect, o
                 type="text"
                 aria-label="Search participants"
                 autoComplete="off"
-                className="w-full rounded-none border border-slate-400 bg-white px-4 py-3 text-xl text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
-                placeholder="Search by name, club or e-punch number"
+                className="w-full rounded-none border border-slate-400 bg-white px-4 py-3 text-base sm:text-xl text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
+                placeholder="Search runner, school, or e-punch…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -84,10 +84,10 @@ export function ManagerSearchBox({ participants, slotsByParticipant, onSelect, o
             {q.length >= 2 && (
                 <ul className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden border border-slate-400 bg-white shadow-lg">
                     {shown.length === 0 && (
-                        <li className="px-4 py-3 text-slate-500">No one matches "{query.trim()}"</li>
+                        <li className="px-3 py-2.5 text-sm text-slate-500">No matches for "{query.trim()}"</li>
                     )}
                     {shown.map((p, i) => {
-                        const style = ParticipantStateStyles.get(p.state)
+                        const displayStates = getDisplayStates(p)
                         const club = p.club === undefined || p.club === 'unknown' || p.club === 'None' ? '' : p.club
                         return (
                             <li key={p.id}>
@@ -95,7 +95,7 @@ export function ManagerSearchBox({ participants, slotsByParticipant, onSelect, o
                                     type="button"
                                     onMouseEnter={() => setActive(i)}
                                     onClick={() => choose(p.id)}
-                                    className={`flex w-full items-center gap-3 px-4 py-2 text-left ${
+                                    className={`flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left ${
                                         i === active ? 'bg-slate-100' : 'bg-white'
                                     }`}>
                                     <span className="min-w-0 flex-1">
@@ -112,10 +112,20 @@ export function ManagerSearchBox({ participants, slotsByParticipant, onSelect, o
                                     <span className="shrink-0 text-right text-sm font-medium text-slate-700">
                                         {whereIs(slotsByParticipant.get(p.id))}
                                     </span>
-                                    {p.state !== 'waiting' && style !== undefined && (
-                                        <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold text-white ${style.bg}`}>
-                                            {style.friendlyName}
-                                        </span>
+                                    {displayStates.length > 0 && (
+                                        <div className="flex shrink-0 flex-wrap gap-1">
+                                            {displayStates.map((st) => {
+                                                const stStyle = ParticipantStateStyles.get(st)
+                                                if (!stStyle) return null
+                                                return (
+                                                    <span
+                                                        key={st}
+                                                        className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold text-white ${stStyle.bg}`}>
+                                                        {stStyle.friendlyName}
+                                                    </span>
+                                                )
+                                            })}
+                                        </div>
                                     )}
                                 </button>
                             </li>

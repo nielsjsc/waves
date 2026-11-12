@@ -108,21 +108,23 @@ export function WaveSelection({ clockWave, userWaveTime, setUserWaveTime, nextWa
               : 'text-red-700'
 
     return (
-        <div className="container mx-auto flex flex-wrap items-center gap-2 border border-slate-300 bg-slate-50 px-3 py-1.5 text-slate-900">
-            <ManagerActionButton
-                text=""
-                icon="left"
-                color="mauve"
-                action={handlePrevWaveClick}
-                buttonStyle="outline"
-            />
-            <div className="flex flex-row gap-2">
+        <div className="container mx-auto flex items-center justify-between gap-1 border border-slate-300 bg-slate-50 px-2 py-1 text-slate-900">
+            <div className="flex items-center gap-1 shrink-0">
+                <ManagerActionButton
+                    text=""
+                    icon="left"
+                    color="mauve"
+                    action={handlePrevWaveClick}
+                    buttonStyle="outline"
+                    className="min-h-8 sm:min-h-9 px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-xs sm:text-sm [&_svg]:size-3.5 sm:[&_svg]:size-4"
+                />
                 <ManagerActionButton
                     text={nextWaveTime === '' ? 'Next' : `Next (${nextWaveTime})`}
                     icon="right"
                     color="sky"
                     action={handleNextWaveClick}
                     buttonStyle={clockWave !== '' && clockWave === nextWaveTime ? "solid" : "outline"}
+                    className="min-h-8 sm:min-h-9 px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs sm:text-sm [&_svg]:size-3.5 sm:[&_svg]:size-4"
                 />
                 <ManagerActionButton
                     text={clockWave === '' ? 'Now' : `Now (${clockWave})`}
@@ -130,10 +132,11 @@ export function WaveSelection({ clockWave, userWaveTime, setUserWaveTime, nextWa
                     color="emerald"
                     action={handleGoToCurrentWaveClick}
                     buttonStyle={clockWave !== userWaveTime ? "solid" : "outline"}
+                    className="min-h-8 sm:min-h-9 px-2 sm:px-2.5 py-0.5 sm:py-1 text-xs sm:text-sm [&_svg]:size-3.5 sm:[&_svg]:size-4"
                 />
             </div>
-            <label className="ml-1 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <span>Selected Wave:</span>
+            <label className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-800 shrink-0">
+                <span className="hidden sm:inline">Selected Wave:</span>
                 <select
                     aria-label="Select wave time"
                     value={userWaveTime}
@@ -141,7 +144,7 @@ export function WaveSelection({ clockWave, userWaveTime, setUserWaveTime, nextWa
                         setWaveNotice('')
                         setUserWaveTime(e.target.value)
                     }}
-                    className={`cursor-pointer rounded-none border border-slate-300 bg-white px-2.5 py-1 text-lg font-bold tabular-nums focus:border-slate-900 focus:outline-none ${userWaveFormat}`}>
+                    className={`cursor-pointer rounded-none border border-slate-300 bg-white px-1.5 sm:px-2.5 py-0.5 text-sm sm:text-lg font-bold tabular-nums focus:border-slate-900 focus:outline-none ${userWaveFormat}`}>
                     {waveTimes.map((wt) => (
                         <option key={wt} value={wt} className="bg-white text-base text-slate-900">
                             {wt}{wt === clockWave ? ' (Now)' : ''}
@@ -152,7 +155,7 @@ export function WaveSelection({ clockWave, userWaveTime, setUserWaveTime, nextWa
             {waveNotice !== '' && (
                 <div
                     role="status"
-                    className="flex items-center gap-2 border border-amber-600 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-950">
+                    className="flex items-center gap-2 border border-amber-600 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-950">
                     <span>{waveNotice}</span>
                     <button
                         type="button"

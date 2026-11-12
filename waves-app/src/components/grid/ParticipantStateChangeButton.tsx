@@ -1,7 +1,8 @@
-import { setStateNeedsAssignment, setStateNoShow, setStateNotAttending, setStatePresent, setStateValidated, setStateWaiting, setStateWrongEpunch } from "@/actions/participantActions"
+import { useRef } from "react"
+import { clearStateNoShow, clearStateWrongEpunch, setStateNeedsAssignment, setStateNoShow, setStateNotAttending, setStatePresent, setStateValidated, setStateWaiting, setStateWrongEpunch } from "@/actions/participantActions"
 import { type Participant as ParticipantType, type ParticipantState } from "@/api/participants"
 import { SvgIconWithText } from "../SvgIconWithText"
-import { ParticipantStateStyles } from "@/utils/styleHelpers"
+import { isStateButtonSelected, ParticipantStateStyles } from "@/utils/styleHelpers"
 
 interface Properties {
     participant: ParticipantType
@@ -9,35 +10,66 @@ interface Properties {
 }
 
 export function ParticipantStateChangeButton({ participant, toState }: Properties) {
-    function action(nextState: ParticipantState) {
-        if (participant.state === nextState) {
+    const selected = isStateButtonSelected(participant, toState)
+    const lastSelectTimeRef = useRef<number>(0)
+
+    function handleClick(e: React.MouseEvent) {
+        e.stopPropagation()
+        const now = Date.now()
+
+        if (selected) {
+            // Guard against ghost clicks from touch-to-mouse synthesis and rapid double-taps:
+            // If the state was selected less than 250ms ago, ignore the deselect.
+            if (now - lastSelectTimeRef.current < 250) {
+                return
+            }
+            if (toState === "noShow") {
+                void clearStateNoShow(participant.id)
+                return
+            }
+            if (toState === "wrongEpunch") {
+                void clearStateWrongEpunch(participant.id)
+                return
+            }
             // Clicking the currently selected state clears it back to no state ("waiting")
-            nextState = "waiting"
+            void setStateWaiting(participant.id)
+            return
         }
-        switch (nextState) {
+
+        lastSelectTimeRef.current = now
+        switch (toState) {
             case "waiting":
-                return () => setStateWaiting(participant.id)
+                void setStateWaiting(participant.id)
+                break
             case "present":
-                return () => setStatePresent(participant.id)
+                void setStatePresent(participant.id)
+                break
             case "noShow":
-                return () => setStateNoShow(participant.id)
+                void setStateNoShow(participant.id)
+                break
             case "validated":
-                return () => setStateValidated(participant.id)
+                void setStateValidated(participant.id)
+                break
             case "wrongEpunch":
-                return () => setStateWrongEpunch(participant.id)
+                void setStateWrongEpunch(participant.id)
+                break
             case "notAttending":
-                return () => setStateNotAttending(participant.id)
+                void setStateNotAttending(participant.id)
+                break
             case "needsAssignment":
-                return () => setStateNeedsAssignment(participant.id)
+                void setStateNeedsAssignment(participant.id)
+                break
             case "started":
-                return () => { alert("Not Implemented") }
+                alert("Not Implemented")
+                break
             default:
-                return () => { alert("Not Implemented") }
+                alert("Not Implemented")
+                break
         }
     }
 
     function buttonStyle() {
-        if (participant.state === toState) {
+        if (selected) {
             const styles = []
             styles.push(ParticipantStateStyles.get(toState)!.bg)
             styles.push(ParticipantStateStyles.get(toState)!.borderDark)
@@ -50,7 +82,7 @@ export function ParticipantStateChangeButton({ participant, toState }: Propertie
 
     function buttonLabel() {
         if (toState === "validated") {
-            return participant.state === "validated" ? "Validated" : "Validate"
+            return selected ? "Validated" : "Validate"
         }
         return ParticipantStateStyles.get(toState)!.friendlyName
     }
@@ -58,11 +90,8 @@ export function ParticipantStateChangeButton({ participant, toState }: Propertie
     return (
         <button
             type="button"
-            className={`border rounded-none px-2 py-1 font-medium transition-colors ${buttonStyle()}`}
-            onClick={(e) => {
-                e.stopPropagation()
-                action(toState)()
-            }}
+            className={`touch-manipulation border rounded-none px-2 py-1 font-medium transition-colors ${buttonStyle()}`}
+            onClick={handleClick}
             key={`participant-state-change-${toState}-${participant.id}`}>
             <SvgIconWithText
                 icon={ParticipantStateStyles.get(toState)!.iconName}

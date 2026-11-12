@@ -4,13 +4,13 @@ import type { Participant as ParticipantType, ParticipantState } from '@/api/par
 import type { SlotDocType } from '@/Schema'
 import type { PopulatedEntry } from '@/utils/PopulatedEntry'
 import { GridSlot } from './GridSlot'
-import { courseShortLabel } from '@/utils/slotLabels'
+import { courseHeaderColor, courseShortLabel } from '@/utils/slotLabels'
 
 // Layout sizes, in rem. Wide enough so full runner names are never cut off.
-const COL_REM = 13 // one wave (or one course)
+const COL_REM = 13 // one wave (when columns="time")
 const BUTTON_COL_REM = 15 // first column when it carries state buttons (call-up, e-punch)
-// Sticky first column: narrow for course names (c1), a bit wider for times (09:42).
-const labelRemFor = (columns: 'time' | 'course') => (columns === 'time' ? 4 : 4.5)
+// Sticky first column: narrow for course names (c1) or compact time labels (09:42).
+const labelRemFor = (columns: 'time' | 'course') => (columns === 'time' ? 4 : 3.25)
 
 // "station" variant (call-up, e-punch): fills the width, with the wave being
 // worked taking this share and the "up next" wave taking the rest.
@@ -32,6 +32,8 @@ interface Properties {
     // "grid" (default) is the compact scrolling grid. "station" is the large
     // two-column layout for call-up and e-punch check.
     variant?: 'grid' | 'station'
+    // For station layout on mobile: toggle between current and next wave
+    mobileStationTab?: 'current' | 'next'
     // Optional text above each column's time, in column order (e.g. "Calling now", "Up next").
     columnLabels?: string[]
     // Optional interactive handlers for FullGrid
@@ -97,6 +99,7 @@ export function StartGrid({
     currentWave,
     className,
     variant = 'grid',
+    mobileStationTab = 'current',
     columnLabels,
     onParticipantClick,
     onOpenSlotClick,
@@ -116,12 +119,27 @@ export function StartGrid({
 
     const labelRem = isStation ? STATION_LABEL_REM : labelRemFor(columns)
     const firstColumnHasButtons = toStateButtons.length > 0
+    // Full Grid (columns === 'course') and station layouts fit 100% of the viewport width
+    // so all 9 courses are visible at once without horizontal scrolling.
+    const fitFullWidth = isStation || columns === 'course'
+
+    const stationColVisibility = (i: number): string => {
+        if (!isStation || columnKeys.length <= 1) return ''
+        if (mobileStationTab === 'next') {
+            return i === 0 ? 'hidden md:table-cell' : 'table-cell'
+        }
+        return i === 0 ? 'table-cell' : 'hidden md:table-cell'
+    }
 
     // Width of each data column. In station mode only the first column is pinned
-    // (to a percentage) and the next one takes whatever is left.
+    // (to a percentage) and the next one takes whatever is left. In course-column mode
+    // (Full Grid), columns share the remaining table width equally.
     const widthOf = (index: number): string | undefined => {
         if (isStation) {
             return columnKeys.length > 1 && index === 0 ? `${STATION_FIRST_COL_PERCENT}%` : undefined
+        }
+        if (columns === 'course') {
+            return undefined
         }
         return `${firstColumnHasButtons && index === 0 ? BUTTON_COL_REM : COL_REM}rem`
     }
@@ -134,47 +152,86 @@ export function StartGrid({
     return (
         <div
             ref={containerRef}
-            className={`isolate overflow-auto border border-slate-300 bg-white text-slate-900 ${className ?? 'max-h-[calc(100vh_-_6rem)]'}`}>
+            className={`isolate border border-slate-300 bg-white text-slate-900 ${className ?? (isStation ? 'overflow-x-hidden overflow-y-auto' : 'overflow-auto max-h-[calc(100vh_-_6rem)]')}`}>
             <table
-                className={`table-fixed border-separate border-spacing-0 ${isStation ? 'w-full' : ''}`}
-                style={isStation ? undefined : { width: `${totalRem}rem` }}>
-                <colgroup>
-                    <col style={{ width: `${labelRem}rem` }} />
-                    {columnKeys.map((key, i) => (
-                        <col key={key} style={{ width: widthOf(i) }} />
-                    ))}
-                </colgroup>
+                className={`table-fixed border-separate border-spacing-0 ${
+                    columns === 'course' && columnKeys.length > 3
+                        ? 'min-w-[54rem] md:min-w-0 w-full'
+                        : fitFullWidth
+                          ? 'w-full'
+                          : ''
+                }`}
+                style={fitFullWidth ? undefined : { width: `${totalRem}rem` }}>
+                {!isStation ? (
+                    <colgroup>
+                        <col style={{ width: `${labelRem}rem` }} />
+                        {columnKeys.map((key, i) => (
+                            <col key={key} style={{ width: widthOf(i) }} />
+                        ))}
+                    </colgroup>
+                ) : (
+                    <colgroup>
+                        <col className="w-[4.5rem] sm:w-20 md:w-[6.5rem]" />
+                        {columnKeys.map((key, i) => (
+                            <col
+                                key={key}
+                                className={
+                                    columnKeys.length > 1
+                                        ? mobileStationTab === 'next'
+                                            ? i === 0
+                                                ? 'hidden md:table-column md:w-[62%]'
+                                                : 'table-column md:w-[38%]'
+                                            : i === 0
+                                              ? 'table-column md:w-[62%]'
+                                              : 'hidden md:table-column md:w-[38%]'
+                                        : 'table-column'
+                                }
+                            />
+                        ))}
+                    </colgroup>
+                )}
                 <thead>
                     <tr>
-                        <th className="sticky left-0 top-0 z-30 border-b border-r border-slate-300 bg-slate-100 px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                        <th className={`sticky left-0 top-0 z-30 border-b border-r border-slate-300 bg-slate-100 px-1 py-1 text-center text-xs font-bold uppercase tracking-wider text-slate-700 ${
+                            isStation ? 'w-[4.5rem] sm:w-20 md:w-[6.5rem]' : ''
+                        }`}>
                             {columns === 'time' ? 'Course' : 'Time'}
                         </th>
                         {columnKeys.map((key, i) => {
                             const label = columnLabels?.[i]
                             const current = isCurrentColumn(key)
+                            const courseColor = columns === 'course' ? courseHeaderColor(key) : undefined
                             return (
                                 <th
                                     key={key}
                                     data-wave={columns === 'time' ? key : undefined}
-                                    className={`sticky top-0 z-20 border-b border-l border-slate-300 px-2 text-center tabular-nums leading-tight ${
-                                        isStation ? 'py-1.5 text-base' : 'py-1.5 text-sm'
+                                    data-course-header={columns === 'course' ? key : undefined}
+                                    style={courseColor ? { backgroundColor: courseColor.bgHex } : undefined}
+                                    className={`sticky top-0 z-20 border-b border-l border-slate-300 p-0 text-center tabular-nums leading-tight ${
+                                        stationColVisibility(i)
+                                    } ${
+                                        isStation ? 'text-base' : 'text-sm'
                                     } ${
                                         current
                                             ? 'bg-emerald-700 font-bold text-white'
-                                            : 'bg-slate-100 font-bold text-slate-800'
+                                            : courseColor
+                                              ? 'font-bold text-slate-950'
+                                              : 'bg-slate-100 font-bold text-slate-800'
                                     }`}>
-                                    {label && (
-                                        <div
-                                            className={`text-xs font-medium ${current ? 'text-emerald-100' : 'text-slate-500'}`}>
-                                            {label}
-                                        </div>
-                                    )}
-                                    <div>{key}</div>
-                                    {columns === 'course' && courseShortLabel(key) !== '' && (
-                                        <div className="text-[11px] font-normal leading-tight text-slate-600">
-                                            {courseShortLabel(key)}
-                                        </div>
-                                    )}
+                                    <div className="px-1.5 py-1.5">
+                                        {label && (
+                                            <div
+                                                className={`text-xs font-medium ${current ? 'text-emerald-100' : 'text-slate-500'}`}>
+                                                {label}
+                                            </div>
+                                        )}
+                                        <div>{key}</div>
+                                        {columns === 'course' && courseShortLabel(key) !== '' && (
+                                            <div className="text-[11px] font-semibold leading-tight text-slate-900">
+                                                {courseShortLabel(key)}
+                                            </div>
+                                        )}
+                                    </div>
                                 </th>
                             )
                         })}
@@ -197,20 +254,26 @@ export function StartGrid({
                                 ref={containsSelected ? scrollTo : undefined}>
                                 <th
                                     scope="row"
-                                    className={`sticky left-0 z-10 border-b border-r border-slate-300 bg-slate-50 px-2 py-1 text-center font-bold tabular-nums leading-tight text-slate-900 ${
-                                        isStation ? 'text-base' : 'text-sm'
+                                    className={`sticky left-0 z-10 border-b border-r border-slate-300 bg-slate-50 px-1 py-1 text-center font-bold tabular-nums text-slate-900 ${
+                                        isStation ? 'w-[4.5rem] sm:w-20 md:w-[6.5rem]' : 'text-sm'
                                     }`}>
-                                    <div className="leading-tight">{row.key}</div>
-                                    {columns === 'time' && courseShortLabel(row.key) !== '' && (
-                                        <div className="text-xs font-normal leading-tight text-slate-600">
-                                            {courseShortLabel(row.key)}
-                                        </div>
-                                    )}
+                                    <div className="flex flex-col items-center justify-center">
+                                        <span className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
+                                            {row.key}
+                                        </span>
+                                        {columns === 'time' && courseShortLabel(row.key) !== '' && (
+                                            <span className="mt-0.5 text-[10px] sm:text-xs font-semibold leading-tight text-slate-600 text-center break-words">
+                                                {courseShortLabel(row.key)}
+                                            </span>
+                                        )}
+                                    </div>
                                 </th>
                                 {row.slots.map((slot, i) => (
                                     <td
                                         key={`${slot.time}-${slot.course}`}
                                         className={`h-full border-b border-l border-slate-200 align-top ${
+                                            stationColVisibility(i)
+                                        } ${
                                             isStation ? 'px-1 py-0.5' : 'p-0.5'
                                         } ${
                                             isCurrentColumn(columns === 'time' ? slot.time : '')

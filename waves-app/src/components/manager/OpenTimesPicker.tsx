@@ -67,12 +67,12 @@ export function OpenTimesPicker({
     const activeHint = courseShortLabel(course)
 
     return (
-        <section className="flex flex-col gap-3 border border-slate-300 bg-white p-4 text-slate-900">
-            <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                <h3 className="text-lg font-bold text-slate-900">
+        <section className="flex flex-col gap-3 border border-slate-300 bg-white p-3 sm:p-4 text-slate-900">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900">
                     Assign Start Time for {participantName}
                 </h3>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between sm:justify-end gap-2">
                     <span className="border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
                         Currently: {currentCourse} · {formatSlotTime(currentTime)}
                     </span>
@@ -80,7 +80,7 @@ export function OpenTimesPicker({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="border border-slate-300 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100">
+                            className="min-h-8 border border-slate-300 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100">
                             Hide
                         </button>
                     )}
@@ -88,8 +88,8 @@ export function OpenTimesPicker({
             </div>
 
             <div>
-                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    1. Choose Course
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Course
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
                     {courses.map((c) => {
@@ -102,7 +102,7 @@ export function OpenTimesPicker({
                                 type="button"
                                 onClick={() => { setCourse(c); setPending(undefined) }}
                                 title={isCurrent ? 'Their current course' : undefined}
-                                className={`flex flex-col items-start border px-2.5 py-1.5 text-left transition ${
+                                className={`flex min-h-11 flex-col items-start border px-2.5 py-1.5 text-left transition ${
                                     isSelected
                                         ? 'border-slate-900 bg-slate-900 text-white'
                                         : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
@@ -129,7 +129,7 @@ export function OpenTimesPicker({
             {/* Recommendation Banner (10-minute same-school spacing rule) */}
             {recommendation.recommendedSlot !== undefined && (
                 <div
-                    className={`flex flex-wrap items-center justify-between gap-3 border px-3.5 py-2.5 ${
+                    className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border px-3.5 py-2.5 ${
                         recommendation.recommendedSlot.isPreferred
                             ? 'border-emerald-600 bg-emerald-50 text-emerald-950'
                             : 'border-amber-600 bg-amber-50 text-amber-950'
@@ -152,7 +152,7 @@ export function OpenTimesPicker({
                     <button
                         type="button"
                         onClick={() => handlePick(recommendation.recommendedSlot!.slot)}
-                        className="shrink-0 border border-emerald-700 bg-emerald-600 px-3.5 py-2 text-sm font-bold text-white hover:bg-emerald-700">
+                        className="shrink-0 w-full sm:w-auto min-h-10 border border-emerald-700 bg-emerald-600 px-3.5 py-2 text-sm font-bold text-white hover:bg-emerald-700">
                         Assign recommended
                     </button>
                 </div>
@@ -161,13 +161,13 @@ export function OpenTimesPicker({
             <div>
                 <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        2. Pick Open Time on {course}{activeHint !== '' ? ` (${activeHint})` : ''}
+                        Open Times on {course}{activeHint !== '' ? ` (${activeHint})` : ''}
                         {cutoff !== '' && !showEarlier ? ` from ${cutoff}` : ''}
                     </span>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                         {hasAnyConflictSlots && (
                             <span className="text-amber-800">
-                                Dashed = &lt;10 min from {recommendation.school} teammate (click to override)
+                                Dashed = &lt;10 min teammate spacing
                             </span>
                         )}
                         <span>
@@ -203,7 +203,7 @@ export function OpenTimesPicker({
                                     type="button"
                                     title={conflictTitle}
                                     onClick={() => handlePick(slot)}
-                                    className={`border px-3.5 py-2 text-lg font-semibold tabular-nums transition ${btnStyle}`}>
+                                    className={`min-h-11 min-w-[4.25rem] border px-3 py-2 text-base sm:text-lg font-semibold tabular-nums transition ${btnStyle}`}>
                                     {slot.time}
                                 </button>
                             )
@@ -213,35 +213,37 @@ export function OpenTimesPicker({
             </div>
 
             {cutoff !== '' && (
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-slate-700">
                     <input
                         type="checkbox"
                         checked={showEarlier}
                         onChange={(e) => setShowEarlier(e.target.checked)}
-                        className="size-4"
+                        className="size-5 sm:size-4"
                     />
                     Include times already past call-up (before {cutoff})
                 </label>
             )}
 
             {pending !== undefined && (
-                <div className="flex flex-wrap items-center gap-3 border border-amber-600 bg-amber-50 px-3 py-2.5 text-amber-950">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 border border-amber-600 bg-amber-50 px-3 py-2.5 text-amber-950">
                     <span className="flex-1 text-sm">
                         Move <strong>{participantName}</strong> from <strong>{currentCourse} · {formatSlotTime(currentTime)}</strong> to <strong>{pending.course} · {pending.time}</strong>?
                         This changes their course.
                     </span>
-                    <button
-                        type="button"
-                        className="border border-amber-700 bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700"
-                        onClick={() => { const slot = pending; setPending(undefined); onAssign(slot) }}>
-                        Confirm move
-                    </button>
-                    <button
-                        type="button"
-                        className="border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-100"
-                        onClick={() => setPending(undefined)}>
-                        Cancel
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-amber-700 bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700"
+                            onClick={() => { const slot = pending; setPending(undefined); onAssign(slot) }}>
+                            Confirm move
+                        </button>
+                        <button
+                            type="button"
+                            className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-100"
+                            onClick={() => setPending(undefined)}>
+                            Cancel
+                        </button>
+                    </div>
                 </div>
             )}
         </section>

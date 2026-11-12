@@ -16,6 +16,17 @@ taskkill /fi "windowtitle eq Waves - sync server*" /f >nul 2>nul
 echo Closing the web server...
 taskkill /im nginx.exe /f >nul 2>nul
 
+echo Calculating total people on the course...
+where py >nul 2>nul
+if %errorlevel%==0 (
+    py count_people_on_course.py
+) else (
+    where python >nul 2>nul
+    if %errorlevel%==0 (
+        python count_people_on_course.py
+    )
+)
+
 echo Closing the database (this takes a few seconds)...
 mongosh --quiet "%MONGO_URL%" --eval "db.getSiblingDB('admin').shutdownServer()" >nul 2>nul
 set /a tries=0
@@ -41,5 +52,5 @@ pause
 goto :eof
 
 :kill_port
-for /f "tokens=5" %%p in ('netstat -ano ^| findstr /r /c:":%1 .*LISTENING"') do taskkill /pid %%p /t /f >nul 2>nul
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr /r /c:":%1 .*LISTENING"') do taskkill /fi "PID eq %%p" /fi "IMAGENAME eq node.exe" /t /f >nul 2>nul
 exit /b

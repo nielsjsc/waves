@@ -14,15 +14,20 @@ import { rxdbCollectionOptions } from '@tanstack/rxdb-db-collection';
 
 import { replicateServer } from 'rxdb-server/plugins/replication-server';
 import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
+import { sha256Hex } from './utils/cryptoHelpers';
 
 
 // addRxPlugin(RxDBDevModePlugin);
 addRxPlugin(RxDBCleanupPlugin)
 addRxPlugin(RxDBMigrationSchemaPlugin)
 
-// Replication location is actually nginx which terminates SSL and forwards to the server.
-const RX_REPLICATION_SERVER_PROTOCOL = 'https'
-const RX_REPLICATION_SERVER_HOST = typeof window !== 'undefined' && window.location.hostname !== '' && window.location.hostname !== 'app.waves.local' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? window.location.hostname : 'server.waves.local'
+// Replication uses the same hostname and protocol as the browser URL (defaults to HTTP on port 5443).
+const RX_REPLICATION_SERVER_PROTOCOL =
+    typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'https' : 'http'
+const RX_REPLICATION_SERVER_HOST =
+    typeof window !== 'undefined' && window.location.hostname !== ''
+        ? window.location.hostname
+        : 'localhost'
 const RX_REPLICATION_SERVER_PORT = '5443'
 
 export interface EventInfo {
@@ -88,7 +93,8 @@ export const EVENT_ID: string = EVENT_INFO.eventId
 console.log(`rxdb: Creating database for event ${EVENT_ID}...`)
 const db = await createRxDatabase<WavesDbCollections>({
     name: `wavesAppDb_${EVENT_ID}`,
-    storage: wrappedValidateAjvStorage({ storage: IS_TEST_ENV ? getRxStorageMemory() : getRxStorageDexie() })
+    storage: wrappedValidateAjvStorage({ storage: IS_TEST_ENV ? getRxStorageMemory() : getRxStorageDexie() }),
+    hashFunction: sha256Hex,
 });
 console.log(`rxdb: Created database wavesAppDb_${EVENT_ID}.`)
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ChangesDocType, ParticipantDocType, SlotDocType } from '@/Schema'
-import { changeTypeLabel, clockHHMM, formatSlotTime, timeAgo } from '@/utils/slotLabels'
-import { ParticipantStateStyles } from '@/utils/styleHelpers'
+import { changeTypeLabel, clockHHMM, formatSlotTime, isMagicTime, timeAgo } from '@/utils/slotLabels'
+import { getDisplayStates, hasNoShow, hasWrongEpunch, ParticipantStateStyles } from '@/utils/styleHelpers'
 
 interface Properties {
     participants: ParticipantDocType[]
@@ -12,14 +12,12 @@ interface Properties {
 
 function TriageCard({
     title,
-    subtitle,
     count,
     empty,
     accent,
     children,
 }: {
     title: string
-    subtitle: string
     count: number
     empty: string
     accent: 'amber' | 'orange' | 'red'
@@ -40,27 +38,24 @@ function TriageCard({
 
     return (
         <section
-            className={`flex min-w-0 flex-col gap-2.5 border p-3.5 ${
+            className={`flex min-w-0 flex-col gap-2 border p-3 ${
                 count > 0 ? activeBorder : 'border-slate-300 bg-white'
             }`}>
-            <div>
-                <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-base font-bold text-slate-900">
-                        {title}{' '}
-                        <span
-                            className={`ml-1 inline-block px-2 py-0.5 text-xs font-bold ${
-                                count > 0 ? badgeColor : 'bg-slate-200 text-slate-700'
-                            }`}>
-                            ({count})
-                        </span>
-                    </h3>
-                </div>
-                <p className="mt-0.5 text-xs text-slate-600">{subtitle}</p>
+            <div className="flex items-center justify-between gap-2">
+                <h3 className="text-base font-bold text-slate-900">
+                    {title}{' '}
+                    <span
+                        className={`ml-1 inline-block px-2 py-0.5 text-xs font-bold ${
+                            count > 0 ? badgeColor : 'bg-slate-200 text-slate-700'
+                        }`}>
+                        ({count})
+                    </span>
+                </h3>
             </div>
             {count === 0 ? (
-                <p className="py-2 text-sm italic text-slate-500">{empty}</p>
+                <p className="py-2 text-xs font-medium text-slate-400">{empty}</p>
             ) : (
-                <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto pr-0.5">{children}</div>
+                <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto pr-0.5">{children}</div>
             )}
         </section>
     )
@@ -71,7 +66,7 @@ function Row({ title, detail, aside, onClick }: { title: string; detail: string;
         <button
             type="button"
             onClick={onClick}
-            className="flex w-full items-center gap-3 border border-slate-300 bg-white px-3 py-2 text-left transition hover:border-slate-500 hover:bg-slate-50">
+            className="flex min-h-11 w-full items-center gap-3 border border-slate-300 bg-white px-3 py-2 text-left transition hover:border-slate-500 hover:bg-slate-50 active:bg-slate-100">
             <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold text-slate-900">{title}</span>
                 <span className="block truncate text-xs text-slate-600">{detail}</span>
@@ -91,6 +86,7 @@ interface SchoolSummary {
 }
 
 export function AttentionQueue({ participants, slotsByParticipant, changes, onSelect }: Properties) {
+    const [triageFilter, setTriageFilter] = useState<'all' | 'wrongEpunch' | 'standby' | 'noShows'>('all')
     const [schoolsExpanded, setSchoolsExpanded] = useState(false)
     const [selectedSchool, setSelectedSchool] = useState<string | undefined>(undefined)
     const [schoolFilter, setSchoolFilter] = useState('')
@@ -115,30 +111,39 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
 
     const courseOf = (id: string) => slotsByParticipant.get(id)?.[0]?.course ?? '?'
     const timeOf = (id: string) => slotsByParticipant.get(id)?.[0]?.time ?? ''
+    const dueTimeOf = (p: ParticipantDocType) => {
+        const cur = timeOf(p.id)
+        if (cur !== '' && !isMagicTime(cur)) return cur
+        return p.originalStartTime ?? ''
+    }
     const clubOf = (p: ParticipantDocType) => (p.club === undefined || p.club === 'unknown' || p.club === 'None' ? '' : p.club)
 
-    const needsTime = participants
+    const standbyRunners = participants
         .filter((p) => p.state === 'needsAssignment')
-        .sort((a, b) => courseOf(a.id).localeCompare(courseOf(b.id)) || a.name.localeCompare(b.name))
+        .sort(
+            (a, b) =>
+                (lastChange.get(`${a.id}|needsAssignment`) ?? 0) - (lastChange.get(`${b.id}|needsAssignment`) ?? 0) ||
+                courseOf(a.id).localeCompare(courseOf(b.id)) ||
+                a.name.localeCompare(b.name)
+        )
 
     // People flagged at Tent 1 with an incorrect e-punch, ordered by upcoming start time.
     const wrongEpunch = participants
-        .filter((p) => p.state === 'wrongEpunch')
-        .sort((a, b) => timeOf(a.id).localeCompare(timeOf(b.id)) || courseOf(a.id).localeCompare(courseOf(b.id)) || a.name.localeCompare(b.name))
-    const wrongEpunchIds = new Set(wrongEpunch.map((p) => p.id))
+        .filter((p) => hasWrongEpunch(p))
+        .sort((a, b) => dueTimeOf(a).localeCompare(dueTimeOf(b)) || courseOf(a.id).localeCompare(courseOf(b.id)) || a.name.localeCompare(b.name))
 
     // Oldest start first: the people who have been waiting longest to be dealt with.
-    // Never allow someone who is in wrongEpunch to also appear in noShows.
+    // A participant can appear in BOTH Wrong e-punch and No-shows simultaneously.
     const noShows = participants
-        .filter((p) => p.state === 'noShow' && !wrongEpunchIds.has(p.id))
-        .sort((a, b) => timeOf(a.id).localeCompare(timeOf(b.id)) || courseOf(a.id).localeCompare(courseOf(b.id)))
+        .filter((p) => hasNoShow(p))
+        .sort((a, b) => dueTimeOf(a).localeCompare(dueTimeOf(b)) || courseOf(a.id).localeCompare(courseOf(b.id)))
 
     // Filter out superseded noShow / wrongEpunch change records that no longer match the participant's current state
     const activeChanges = changes.filter((c) => {
         const p = participantById.get(c.participantId)
         if (!p) return true
-        if (c.changeType === 'noShow' && p.state !== 'noShow') return false
-        if (c.changeType === 'wrongEpunch' && p.state !== 'wrongEpunch') return false
+        if (c.changeType === 'noShow' && !hasNoShow(p)) return false
+        if (c.changeType === 'wrongEpunch' && !hasWrongEpunch(p)) return false
         return true
     })
     const recent = [...activeChanges].sort((a, b) => b.changedAt - a.changedAt).slice(0, 6)
@@ -209,18 +214,15 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
         ? schools
         : schools.filter((s) => s.name.toLowerCase().includes(filterText))
 
+    const totalTriageCount = wrongEpunch.length + standbyRunners.length + noShows.length
+
     return (
-        <div className="flex flex-col gap-5 text-slate-900">
+        <div className="flex flex-col gap-4 text-slate-900">
             {brokenRecords.length > 0 && (
-                <section className="flex flex-col gap-3 border-2 border-red-600 bg-red-50 p-4 text-red-950">
-                    <div>
-                        <h3 className="text-lg font-bold text-red-950">
-                            Records needing repair ({brokenRecords.length})
-                        </h3>
-                        <p className="text-sm text-red-800">
-                            Every participant should be in exactly one slot. Click a record below to fix it:
-                        </p>
-                    </div>
+                <section className="flex flex-col gap-2.5 border-2 border-red-600 bg-red-50 p-3 text-red-950">
+                    <h3 className="text-base font-bold text-red-950">
+                        Records needing repair ({brokenRecords.length})
+                    </h3>
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         {brokenRecords.map((p) => {
                             const count = slotsByParticipant.get(p.id)?.length ?? 0
@@ -230,7 +232,7 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
                                     key={p.id}
                                     type="button"
                                     onClick={() => onSelect(p.id)}
-                                    className="flex items-center justify-between gap-2 border border-red-600 bg-white px-3 py-2 text-left hover:bg-red-100">
+                                    className="flex min-h-11 items-center justify-between gap-2 border border-red-600 bg-white px-3 py-1.5 text-left hover:bg-red-100">
                                     <span className="truncate font-semibold text-slate-900">{p.name}</span>
                                     <span className="shrink-0 bg-red-700 px-2 py-0.5 text-xs font-semibold text-white">
                                         {issue}
@@ -243,91 +245,146 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
             )}
 
             {/* Meet Status Overview Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm">
-                <span className="font-semibold text-slate-800">
-                    Meet Overview: <strong className="text-slate-900">{participants.length}</strong> entries
-                </span>
-                <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm">
-                    <span className="text-emerald-700">
-                        <strong>{totalCheckedIn}</strong> checked in
+            <div className="flex flex-wrap items-center justify-between gap-2 border border-slate-300 bg-white px-3.5 py-2 text-xs">
+                <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900">Meet Status</span>
+                    <span className="border border-slate-300 bg-slate-100 px-2 py-0.5 font-bold text-slate-800">
+                        {participants.length} entries
                     </span>
-                    <span className="text-slate-700">
-                        <strong>{totalWaiting}</strong> waiting
+                </div>
+                <div className="flex flex-wrap items-center gap-2 font-semibold">
+                    <span className="border border-emerald-700 bg-emerald-50 px-2 py-0.5 text-emerald-950">
+                        {totalCheckedIn} checked in
                     </span>
-                    <span className={totalAttention > 0 ? 'font-bold text-amber-700' : 'text-slate-500'}>
-                        <strong>{totalAttention}</strong> need attention
+                    <span className="border border-slate-300 bg-slate-100 px-2 py-0.5 text-slate-800">
+                        {totalWaiting} waiting
                     </span>
+                    {totalAttention > 0 && (
+                        <span className="border border-amber-700 bg-amber-50 px-2 py-0.5 text-amber-950">
+                            {totalAttention} need attention
+                        </span>
+                    )}
                     {totalNotAttending > 0 && (
-                        <span className="text-slate-500">
-                            <strong>{totalNotAttending}</strong> not attending
+                        <span className="border border-slate-300 bg-slate-100 px-2 py-0.5 text-slate-600">
+                            {totalNotAttending} not attending
                         </span>
                     )}
                 </div>
             </div>
 
+            {/* Mobile Triage Queue Selector */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:hidden">
+                <button
+                    type="button"
+                    onClick={() => setTriageFilter('all')}
+                    className={`min-h-9 shrink-0 px-3 py-1.5 text-xs font-bold transition ${
+                        triageFilter === 'all'
+                            ? 'border border-slate-900 bg-slate-900 text-white'
+                            : 'border border-slate-300 bg-white text-slate-700'
+                    }`}>
+                    All Queues ({totalTriageCount})
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setTriageFilter('wrongEpunch')}
+                    className={`min-h-9 shrink-0 px-3 py-1.5 text-xs font-bold transition ${
+                        triageFilter === 'wrongEpunch'
+                            ? 'border border-amber-600 bg-amber-600 text-white'
+                            : 'border border-amber-300 bg-amber-50 text-amber-900'
+                    }`}>
+                    Wrong e-punch ({wrongEpunch.length})
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setTriageFilter('standby')}
+                    className={`min-h-9 shrink-0 px-3 py-1.5 text-xs font-bold transition ${
+                        triageFilter === 'standby'
+                            ? 'border border-orange-600 bg-orange-600 text-white'
+                            : 'border border-orange-300 bg-orange-50 text-orange-900'
+                    }`}>
+                    Standby ({standbyRunners.length})
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setTriageFilter('noShows')}
+                    className={`min-h-9 shrink-0 px-3 py-1.5 text-xs font-bold transition ${
+                        triageFilter === 'noShows'
+                            ? 'border border-red-700 bg-red-700 text-white'
+                            : 'border border-red-300 bg-red-50 text-red-900'
+                    }`}>
+                    No-shows ({noShows.length})
+                </button>
+            </div>
+
             {/* 1. Three Actionable Triage Queues */}
-            <div className="grid gap-4 md:grid-cols-3">
-                <TriageCard
-                    title="Wrong e-punch"
-                    subtitle="Flagged at E-punch Check — update stick or validate"
-                    count={wrongEpunch.length}
-                    empty="No e-punch issues right now."
-                    accent="amber">
-                    {wrongEpunch.map((p) => {
-                        const at = lastChange.get(`${p.id}|wrongEpunch`)
-                        const ep = p.epunch ? `E-punch ${p.epunch}` : 'no e-punch'
-                        return (
-                            <Row
-                                key={p.id}
-                                title={p.name}
-                                detail={[courseOf(p.id), `starts ${formatSlotTime(timeOf(p.id))}`, ep, clubOf(p)].filter((x) => x !== '').join(' · ')}
-                                aside={at === undefined ? '' : timeAgo(at)}
-                                onClick={() => onSelect(p.id)}
-                            />
-                        )
-                    })}
-                </TriageCard>
+            <div className="grid gap-3 md:grid-cols-3">
+                <div className={triageFilter === 'all' || triageFilter === 'wrongEpunch' ? 'block' : 'hidden md:block'}>
+                    <TriageCard
+                        title="Wrong e-punch"
+                        count={wrongEpunch.length}
+                        empty="None"
+                        accent="amber">
+                        {wrongEpunch.map((p) => {
+                            const at = lastChange.get(`${p.id}|wrongEpunch`)
+                            const ep = p.epunch ? `E-punch ${p.epunch}` : 'no e-punch'
+                            return (
+                                <Row
+                                    key={p.id}
+                                    title={p.name}
+                                    detail={[courseOf(p.id), `starts ${formatSlotTime(timeOf(p.id))}`, ep, clubOf(p)].filter((x) => x !== '').join(' · ')}
+                                    aside={at === undefined ? '' : timeAgo(at)}
+                                    onClick={() => onSelect(p.id)}
+                                />
+                            )
+                        })}
+                    </TriageCard>
+                </div>
 
-                <TriageCard
-                    title="Needs a new time"
-                    subtitle="Waiting in queue for an open start slot"
-                    count={needsTime.length}
-                    empty="Nobody is waiting for a new time."
-                    accent="orange">
-                    {needsTime.map((p) => {
-                        const at = lastChange.get(`${p.id}|needsAssignment`)
-                        const was = p.startChanged && p.originalStartTime ? `was ${p.originalStartTime}` : ''
-                        return (
-                            <Row
-                                key={p.id}
-                                title={p.name}
-                                detail={[courseOf(p.id), clubOf(p), was].filter((x) => x !== '').join(' · ')}
-                                aside={at === undefined ? 'no start yet' : timeAgo(at)}
-                                onClick={() => onSelect(p.id, true)}
-                            />
-                        )
-                    })}
-                </TriageCard>
+                <div className={triageFilter === 'all' || triageFilter === 'standby' ? 'block' : 'hidden md:block'}>
+                    <TriageCard
+                        title="Standby"
+                        count={standbyRunners.length}
+                        empty="None"
+                        accent="orange">
+                        {standbyRunners.map((p) => {
+                            const at = lastChange.get(`${p.id}|needsAssignment`)
+                            const was = p.startChanged && p.originalStartTime ? `was ${p.originalStartTime}` : ''
+                            return (
+                                <Row
+                                    key={p.id}
+                                    title={p.name}
+                                    detail={[courseOf(p.id), clubOf(p), was].filter((x) => x !== '').join(' · ')}
+                                    aside={at === undefined ? 'in standby' : timeAgo(at)}
+                                    onClick={() => onSelect(p.id, false)}
+                                />
+                            )
+                        })}
+                    </TriageCard>
+                </div>
 
-                <TriageCard
-                    title="No-shows"
-                    subtitle="Missed their call-up wave — assign new time if late"
-                    count={noShows.length}
-                    empty="No no-shows so far."
-                    accent="red">
-                    {noShows.map((p) => {
-                        const at = lastChange.get(`${p.id}|noShow`)
-                        return (
-                            <Row
-                                key={p.id}
-                                title={p.name}
-                                detail={[courseOf(p.id), clubOf(p), `was due ${timeOf(p.id)}`].filter((x) => x !== '').join(' · ')}
-                                aside={at === undefined ? '' : timeAgo(at)}
-                                onClick={() => onSelect(p.id)}
-                            />
-                        )
-                    })}
-                </TriageCard>
+                <div className={triageFilter === 'all' || triageFilter === 'noShows' ? 'block' : 'hidden md:block'}>
+                    <TriageCard
+                        title="No-shows"
+                        count={noShows.length}
+                        empty="None"
+                        accent="red">
+                        {noShows.map((p) => {
+                            const at = lastChange.get(`${p.id}|noShow`)
+                            const due = dueTimeOf(p)
+                            const takenByStandby = isMagicTime(timeOf(p.id))
+                            const dueLabel = due !== '' ? `was due ${due}${takenByStandby ? ' (slot taken)' : ''}` : ''
+                            return (
+                                <Row
+                                    key={p.id}
+                                    title={p.name}
+                                    detail={[courseOf(p.id), clubOf(p), dueLabel].filter((x) => x !== '').join(' · ')}
+                                    aside={at === undefined ? '' : timeAgo(at)}
+                                    onClick={() => onSelect(p.id)}
+                                />
+                            )
+                        })}
+                    </TriageCard>
+                </div>
             </div>
 
             {/* 2. Expandable Schools & Clubs Directory (starts closed) */}
@@ -336,12 +393,12 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
                     <button
                         type="button"
                         onClick={() => setSchoolsExpanded((open) => !open)}
-                        className="flex items-center gap-2 text-left">
-                        <h3 className="text-lg font-bold text-slate-900">
+                        className="flex min-h-10 items-center gap-2 text-left">
+                        <h3 className="text-base font-bold text-slate-900">
                             Schools &amp; Clubs <span className="text-slate-500">({schools.length})</span>
                         </h3>
-                        <span className="border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-800 hover:bg-slate-200">
-                            {schoolsExpanded ? 'Hide schools' : 'Show schools'}
+                        <span className="border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-200">
+                            {schoolsExpanded ? 'Hide' : 'Show'}
                         </span>
                     </button>
 
@@ -352,16 +409,16 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
                             onChange={(e) => setSchoolFilter(e.target.value)}
                             placeholder="Filter schools…"
                             aria-label="Filter schools"
-                            className="w-60 rounded-none border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
+                            className="w-full sm:w-56 rounded-none border border-slate-300 bg-white px-3 py-2 sm:py-1 text-sm sm:text-xs text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
                         />
                     )}
                 </div>
 
                 {schoolsExpanded && (
                     visibleSchools.length === 0 ? (
-                        <p className="text-sm italic text-slate-500">No schools match "{schoolFilter.trim()}".</p>
+                        <p className="text-xs text-slate-400">No schools match "{schoolFilter.trim()}".</p>
                     ) : (
-                        <div className="grid gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                             {visibleSchools.map((s) => {
                                 const isSelected = s.name === selectedSchool
                                 if (!isSelected) {
@@ -370,14 +427,14 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
                                             key={s.name}
                                             type="button"
                                             onClick={() => setSelectedSchool(s.name)}
-                                            className="flex flex-col gap-1 border border-slate-300 bg-white px-3 py-2.5 text-left transition hover:border-slate-600 hover:bg-slate-50">
+                                            className="flex min-h-11 flex-col gap-1 border border-slate-300 bg-white px-2.5 py-2 text-left transition hover:border-slate-600 hover:bg-slate-50 active:bg-slate-100">
                                             <div className="flex items-center justify-between gap-2">
                                                 <span className="truncate font-semibold text-slate-900">{s.name}</span>
-                                                <span className="shrink-0 bg-slate-200 px-1.5 py-0.5 text-xs font-bold text-slate-800">
+                                                <span className="shrink-0 bg-slate-200 px-1.5 py-0.5 text-[11px] font-bold text-slate-800">
                                                     {s.members.length}
                                                 </span>
                                             </div>
-                                            <div className="flex flex-wrap gap-2 text-xs">
+                                            <div className="flex flex-wrap gap-2 text-[11px]">
                                                 <span className="text-emerald-700">{s.checkedIn} in</span>
                                                 <span className="text-slate-600">{s.waiting} waiting</span>
                                                 {s.attention > 0 && (
@@ -399,41 +456,42 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
                                     <div
                                         key={s.name}
                                         ref={openSchoolRef}
-                                        className="col-span-full flex flex-col gap-3 border-2 border-slate-900 bg-slate-50 p-4">
-                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300 pb-2.5">
+                                        className="col-span-full flex flex-col gap-2.5 border-2 border-slate-900 bg-slate-50 p-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300 pb-2">
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedSchool(undefined)}
                                                 className="text-left">
-                                                <h4 className="text-xl font-bold text-slate-900 hover:text-sky-700">
+                                                <h4 className="text-lg font-bold text-slate-900 hover:text-sky-700">
                                                     {s.name}
                                                 </h4>
-                                                <p className="text-sm text-slate-600">
-                                                    {s.members.length} starter{s.members.length === 1 ? '' : 's'} ·{' '}
-                                                    <span className="font-medium text-emerald-700">{s.checkedIn} checked in</span> ·{' '}
+                                                <p className="text-xs text-slate-600">
+                                                    {s.members.length} starters ·{' '}
+                                                    <span className="font-medium text-emerald-700">{s.checkedIn} in</span> ·{' '}
                                                     <span>{s.waiting} waiting</span>
-                                                    {s.attention > 0 ? ` · ${s.attention} need attention` : ''}
-                                                    {s.notAttending > 0 ? ` · ${s.notAttending} not attending` : ''}
+                                                    {s.attention > 0 ? ` · ${s.attention} alert` : ''}
+                                                    {s.notAttending > 0 ? ` · ${s.notAttending} out` : ''}
                                                 </p>
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedSchool(undefined)}
-                                                className="border border-slate-400 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-100">
-                                                Close school
+                                                className="border border-slate-400 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-100">
+                                                Close
                                             </button>
                                         </div>
 
                                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                                             {sortedMembers.map((p) => {
-                                                const style = ParticipantStateStyles.get(p.state)
+                                                const displayStates = getDisplayStates(p)
+                                                const waitingStyle = ParticipantStateStyles.get('waiting')
                                                 const slotTime = formatSlotTime(timeOf(p.id))
                                                 return (
                                                     <button
                                                         key={p.id}
                                                         type="button"
                                                         onClick={() => onSelect(p.id)}
-                                                        className="flex items-center justify-between gap-2 border border-slate-300 bg-white px-3 py-2 text-left transition hover:border-slate-600 hover:bg-slate-50">
+                                                        className="flex min-h-11 items-center justify-between gap-2 border border-slate-300 bg-white px-3 py-1.5 text-left transition hover:border-slate-600 hover:bg-slate-50 active:bg-slate-100">
                                                         <span className="min-w-0 flex-1">
                                                             <span className="block truncate font-semibold text-slate-900">
                                                                 {p.name}
@@ -445,11 +503,26 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
                                                                 {p.epunch ? ` · E-punch ${p.epunch}` : ''}
                                                             </span>
                                                         </span>
-                                                        {style !== undefined && (
-                                                            <span className={`shrink-0 px-2 py-0.5 text-xs font-semibold text-white ${style.bg}`}>
-                                                                {style.friendlyName}
-                                                            </span>
-                                                        )}
+                                                        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                                                            {displayStates.length > 0 ? (
+                                                                displayStates.map((st) => {
+                                                                    const stStyle = ParticipantStateStyles.get(st)!
+                                                                    return (
+                                                                        <span
+                                                                            key={st}
+                                                                            className={`shrink-0 px-2 py-0.5 text-xs font-semibold text-white ${stStyle.bg}`}>
+                                                                            {stStyle.friendlyName}
+                                                                        </span>
+                                                                    )
+                                                                })
+                                                            ) : (
+                                                                waitingStyle !== undefined && (
+                                                                    <span className={`shrink-0 px-2 py-0.5 text-xs font-semibold text-white ${waitingStyle.bg}`}>
+                                                                        {waitingStyle.friendlyName}
+                                                                    </span>
+                                                                )
+                                                            )}
+                                                        </div>
                                                     </button>
                                                 )
                                             })}
@@ -463,14 +536,14 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
             </section>
 
             {/* 3. Recent Changes Strip */}
-            <section className="flex flex-col gap-2.5 border border-slate-300 bg-white p-4">
-                <h3 className="text-base font-bold text-slate-900">
-                    Recent changes <span className="text-slate-500">({recent.length})</span>
+            <section className="flex flex-col gap-2 border border-slate-300 bg-white p-3">
+                <h3 className="text-sm font-bold text-slate-900">
+                    Recent Changes <span className="text-slate-500">({recent.length})</span>
                 </h3>
                 {recent.length === 0 ? (
-                    <p className="text-sm italic text-slate-500">Nothing has changed yet.</p>
+                    <p className="text-xs text-slate-400">No changes recorded.</p>
                 ) : (
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
                         {recent.map((c) => (
                             <Row
                                 key={c.id}

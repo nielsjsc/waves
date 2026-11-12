@@ -11,7 +11,6 @@ export default defineConfig({
 				...devices['Desktop Chrome'],
 				channel: 'chrome',
 				viewport: {width: 1280, height: 850},
-				ignoreHTTPSErrors: true,
 			}
 		}
 	],
@@ -20,15 +19,13 @@ export default defineConfig({
 	testDir: './tests',
 	timeout: 60000,
 	use: {
-		baseURL: 'https://localhost:5174',
-		ignoreHTTPSErrors: true,
+		baseURL: 'http://localhost:5174',
 		trace: 'on-first-retry'
 	},
 	webServer: {
 		command: 'pnpm dev --port 5174 --strictPort',
-		ignoreHTTPSErrors: true,
 		reuseExistingServer: false,
-		url: 'https://localhost:5174'
+		url: 'http://localhost:5174'
 	},
 	workers: 1
 })

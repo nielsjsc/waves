@@ -21,7 +21,9 @@ import { FullGrid } from "@/pages/FullGrid"
 import { Manager } from "@/pages/Manager"
 import { CallUp } from "@/pages/Callup"
 import { EpunchVerify } from "@/pages/EpunchVerify"
+import { Download } from "@/pages/Download"
 import { Changes } from "@/pages/Changes"
+import { SvgIcon } from "./SvgIcon"
 import { SvgIconWithText } from "./SvgIconWithText"
 
 const STORAGE_PAGE_KEY = 'waves.appPage'
@@ -173,19 +175,36 @@ function ClockOffsetModalWrapper({
     )
 }
 
+const STATIONS = [
+    { id: 'call-up', label: 'Call-up' },
+    { id: 'epunch', label: 'Epunch Check' },
+    { id: 'manager', label: 'Start Manager' },
+    { id: 'grid', label: 'Full Grid' },
+    { id: 'download', label: 'Download' },
+    { id: 'changes', label: 'Change Log' },
+] as const
+
 export function HeaderWithWaveTime() {
     const initialClockOffset = readSavedClockOffset()
     const [clockOffsetHours, setClockOffsetHours] = useState(initialClockOffset.hours)
     const [clockOffsetMinutes, setClockOffsetMinutes] = useState(initialClockOffset.minutes)
     const [clockOffsetSeconds, setClockOffsetSeconds] = useState(initialClockOffset.seconds)
-    const [currentMinuteTime, setCurrentMinuteTime] = useState('')
+    const [currentMinuteTime, setCurrentMinuteTime] = useState(() => {
+        const nowDate = new Date(
+            Date.now() +
+                initialClockOffset.seconds * 1000 +
+                initialClockOffset.minutes * 60 * 1000 +
+                initialClockOffset.hours * 60 * 60 * 1000
+        )
+        return `${nowDate.getHours().toString().padStart(2, "0")}:${nowDate.getMinutes().toString().padStart(2, "0")}`
+    })
     const [waveOffsetMinutes, setWaveOffsetMinutes] = useState(readSavedWaveOffset)
-    const [clockWaveTime, setClockWaveTime] = useState('')
     const [managerSelectedId, setManagerSelectedId] = useState('')
     const [isWaveOffsetModalOpen, setWaveOffsetModalOpen] = useState(false)
     const [isClockOffsetModalOpen, setClockOffsetModalOpen] = useState(false)
     const [staleEvent, setStaleEvent] = useState(() => isStaleEvent())
     const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus())
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
     const [appPage, setAppPage] = useState(readSavedPage)
 
@@ -232,9 +251,12 @@ export function HeaderWithWaveTime() {
         } catch { /* ignore */ }
     }, [waveOffsetMinutes])
 
-    // CLOCK BASED CURRENT WAVE TIME & MINUTE
+    // E-punch Check runs 2 minutes after Call-up (e.g., +6 min vs +8 min ahead of clock time)
+    const activeWaveOffsetMinutes = appPage === 'epunch' ? Math.max(0, waveOffsetMinutes - 2) : waveOffsetMinutes
+
+    // CLOCK BASED CURRENT MINUTE
     useEffect(() => {
-        function updateWaveAndMinute() {
+        function updateMinute() {
             const nowEpoch = Date.now()
             const nowEpochOffset =
                 nowEpoch +
@@ -247,26 +269,29 @@ export function HeaderWithWaveTime() {
             const minuteStr = `${hour}:${minute}`
 
             setCurrentMinuteTime((prev) => (prev === minuteStr ? prev : minuteStr))
-
-            const waveDate = new Date(nowEpochOffset + waveOffsetMinutes * 60 * 1000)
-            const targetMinutes = waveDate.getHours() * 60 + waveDate.getMinutes()
-            const lookbackMinutes = Math.max(waveOffsetMinutes + 1, 2)
-
-            let matched = ""
-            for (const wt of waveTimes) {
-                const wm = parseHHMMToMinutes(wt)
-                if (wm === undefined) continue
-                if (wm <= targetMinutes && targetMinutes - wm <= lookbackMinutes) {
-                    matched = wt
-                }
-            }
-            setClockWaveTime((prev) => (prev === matched ? prev : matched))
         }
 
-        updateWaveAndMinute()
-        const timer = setInterval(updateWaveAndMinute, 1000)
+        updateMinute()
+        const timer = setInterval(updateMinute, 1000)
         return () => clearInterval(timer)
-    }, [waveTimes, waveOffsetMinutes, clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
+    }, [clockOffsetHours, clockOffsetMinutes, clockOffsetSeconds])
+
+    const clockWaveTime = (() => {
+        const nowMinutes = parseHHMMToMinutes(currentMinuteTime)
+        if (nowMinutes === undefined) return ""
+        const targetMinutes = (nowMinutes + activeWaveOffsetMinutes) % 1440
+        const lookbackMinutes = Math.max(activeWaveOffsetMinutes + 1, 2)
+
+        let matched = ""
+        for (const wt of waveTimes) {
+            const wm = parseHHMMToMinutes(wt)
+            if (wm === undefined) continue
+            if (wm <= targetMinutes && targetMinutes - wm <= lookbackMinutes) {
+                matched = wt
+            }
+        }
+        return matched
+    })()
 
     function displayWaveTime() {
         if (clockWaveTime !== '') {
@@ -286,7 +311,7 @@ export function HeaderWithWaveTime() {
             title="Wave Offset"
             content={
                 <WaveOffsetEditor
-                    waveOffsetMinutes={waveOffsetMinutes}
+                    waveOffsetMinutes={activeWaveOffsetMinutes}
                     handleWaveOffsetPlus={() => setWaveOffsetMinutes((prev) => prev + 1)}
                     handleWaveOffsetMinus={() => setWaveOffsetMinutes((prev) => (prev > 0 ? prev - 1 : 0))}
                 />
@@ -329,6 +354,7 @@ export function HeaderWithWaveTime() {
     }
 
     function handleNavPageClick(page: string) {
+        setManagerSelectedId('')
         setAppPage(page)
     }
 
@@ -358,6 +384,8 @@ export function HeaderWithWaveTime() {
                 return <CallUp clockWave={clockWaveTime} />
             case 'epunch':
                 return <EpunchVerify clockWave={clockWaveTime} />
+            case 'download':
+                return <Download />
             case 'changes':
                 return <Changes />
             default:
@@ -384,6 +412,8 @@ export function HeaderWithWaveTime() {
                 return "Call Up"
             case 'epunch':
                 return "Epunch Check"
+            case 'download':
+                return "Download"
             case 'change':
             case 'changes':
                 return "Change Log"
@@ -435,33 +465,38 @@ export function HeaderWithWaveTime() {
     }
 
     return (
-        <div className="bg-white text-slate-900">
-            <header className="body-font fixed z-30 min-w-full max-w-full border-b border-slate-300 bg-white text-slate-800">
+        <div className="flex min-h-screen flex-col bg-white text-slate-900">
+            <header className="body-font sticky top-0 z-30 w-full border-b border-slate-300 bg-white text-slate-800">
                 {waveOffsetModal}
                 {clockOffsetModal}
 
-                <div className="container mx-auto flex flex-row flex-wrap items-center px-4 py-1.5">
-                    <div className="font-bold text-slate-900">
-                        <SvgIconWithText icon="waves-logo" text="Waves" />
+                <div className="container mx-auto flex items-center justify-between px-3 py-1.5 md:px-4">
+                    {/* Brand + Active Page (on sm+) */}
+                    <div className="flex items-center gap-2">
+                        <div className="font-bold text-slate-900">
+                            <SvgIconWithText icon="waves-logo" text="Waves" />
+                        </div>
+                        <div className="hidden sm:flex items-center gap-2 pl-2 text-base md:text-lg">
+                            <span className="font-semibold text-slate-700">{pageName()}</span>
+                        </div>
                     </div>
-                    <div className="title-font flex flex-row items-center gap-2 px-3 text-lg">
-                        <span className="font-semibold text-slate-700">{pageName()}</span>
+
+                    {/* Wave Time & Offset Pill */}
+                    <div className="flex items-center gap-1.5 text-sm sm:text-base">
                         <span className="font-black tabular-nums text-slate-900">{displayWaveTime()}</span>
-                        <span
-                            className="cursor-pointer border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                            onClick={handleOffsetEditClick}>
-                            (+{waveOffsetMinutes})
-                        </span>
+                        <button
+                            type="button"
+                            className="border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                            onClick={handleOffsetEditClick}
+                            title="Adjust wave offset">
+                            (+{activeWaveOffsetMinutes})
+                        </button>
                     </div>
-                    <div className="ml-auto flex flex-wrap items-center gap-2">
-                        <nav className="flex flex-wrap items-center border border-slate-300 bg-slate-100 p-0.5">
-                            {[
-                                { id: 'call-up', label: 'Call-up' },
-                                { id: 'epunch', label: 'Epunch Check' },
-                                { id: 'manager', label: 'Start Manager' },
-                                { id: 'grid', label: 'Full Grid' },
-                                { id: 'changes', label: 'Change Log' },
-                            ].map((tab) => (
+
+                    {/* Desktop Navigation + Sync + Clock */}
+                    <div className="hidden md:flex items-center gap-2">
+                        <nav className="flex items-center border border-slate-300 bg-slate-100 p-0.5">
+                            {STATIONS.map((tab) => (
                                 <button
                                     key={tab.id}
                                     type="button"
@@ -491,14 +526,75 @@ export function HeaderWithWaveTime() {
                             onClick={handleClockEditClick}
                         />
                     </div>
+
+                    {/* Mobile Navigation Controls (Clock + Menu Toggle) */}
+                    <div className="flex items-center gap-1.5 md:hidden">
+                        <HeaderClock
+                            clockOffsetHours={clockOffsetHours}
+                            clockOffsetMinutes={clockOffsetMinutes}
+                            clockOffsetSeconds={clockOffsetSeconds}
+                            onClick={handleClockEditClick}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setIsMobileMenuOpen((open) => !open)}
+                            aria-label="Toggle navigation menu"
+                            className="border border-slate-300 bg-slate-100 p-1.5 text-slate-800 hover:bg-slate-200">
+                            <SvgIcon icon={isMobileMenuOpen ? "x" : "hamburger"} />
+                        </button>
+                    </div>
                 </div>
+
+                {/* Mobile Drawer Dropdown */}
+                {isMobileMenuOpen && (
+                    <div className="border-t border-slate-200 bg-white shadow-lg md:hidden">
+                        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                                Stations
+                            </span>
+                            {syncBadge}
+                        </div>
+                        <nav className="flex flex-col divide-y divide-slate-100">
+                            {STATIONS.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => {
+                                        handleNavPageClick(tab.id)
+                                        setIsMobileMenuOpen(false)
+                                    }}
+                                    className={`flex items-center justify-between px-4 py-3 text-left text-sm font-semibold transition ${
+                                        appPage === tab.id
+                                            ? 'bg-slate-900 text-white'
+                                            : 'bg-white text-slate-800 hover:bg-slate-50'
+                                    }`}>
+                                    <span>{tab.label}</span>
+                                    {appPage === tab.id && (
+                                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                                            Active
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                            {isOrganizer && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsMobileMenuOpen(false)
+                                        void handleOrganizerReimportClick()
+                                    }}
+                                    className="border-t border-slate-200 px-4 py-3 text-left text-sm font-semibold text-amber-800 hover:bg-amber-50">
+                                    Re-import start list
+                                </button>
+                            )}
+                        </nav>
+                    </div>
+                )}
             </header>
 
-            <div className="relative mx-auto min-w-full max-w-full md:px-4">
-                <div className="absolute inset-x-0 top-12 md:px-4">
-                    {pageContent()}
-                </div>
-            </div>
+            <main className="w-full flex-1 px-2 pt-2 md:px-4">
+                {pageContent()}
+            </main>
         </div>
     )
 }

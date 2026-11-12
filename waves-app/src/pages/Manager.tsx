@@ -7,6 +7,7 @@ import type { PopulatedEntry } from "@/utils/PopulatedEntry"
 import { Head } from "@/components/Head"
 import { Modal } from "@/components/Modal"
 import { EditEpunchModal } from "@/components/EditEpunchModal"
+import { EditGroupSizeModal } from "@/components/EditGroupSizeModal"
 import { ManagerActionButton } from "@/components/ManagerActionButton"
 import { SvgIcon } from "@/components/SvgIcon"
 import { StartGrid } from "@/components/grid/StartGrid"
@@ -17,11 +18,14 @@ import { AddParticipantModal, type AddParticipantPrefill } from "@/components/ma
 import { hydrateParticipant } from "@/utils/hydrateParticipant"
 import { populateSlotData } from "@/utils/populateSlotData"
 import { getOriginalEpunch, getOriginalStart } from "@/utils/originalValues"
-import { addMinutesToClock, courseShortLabel, formatSlotTime, isMagicTime } from "@/utils/slotLabels"
-import { ParticipantStateStyles, getColorByIconName } from "@/utils/styleHelpers"
+import { addMinutesToClock, courseShortLabel, findStandbyMatches, formatSlotTime, isMagicTime } from "@/utils/slotLabels"
+import { getDisplayStates, hasNoShow, hasWrongEpunch, ParticipantStateStyles, getColorByIconName } from "@/utils/styleHelpers"
 import { keepOnlyInSlot, putInNeedsAssignment } from "@/actions/repairActions"
 import {
+    assignStandbyToNoShowSlot,
+    clearStateNoShow,
     setCompetitive,
+    setGroupSize,
     setNewEpunch,
     setNewStartTime,
     setNonCompetitive,
@@ -32,6 +36,7 @@ import {
     setStateValidated,
     setStateWaiting,
     setStateWrongEpunch,
+    undoAssignStandbyToNoShowSlot,
 } from "@/actions/participantActions"
 
 const UNDO_VISIBLE_MS = 3500
@@ -47,6 +52,7 @@ interface Snapshot {
     slotId: string
     slotTime: string
     state: ParticipantState
+    prevState?: ParticipantState
 }
 
 interface UndoInfo {
@@ -54,9 +60,16 @@ interface UndoInfo {
     run?: () => Promise<void>
 }
 
-async function applyState(participantId: string, state: ParticipantState) {
+async function applyState(participantId: string, state: ParticipantState, prevState?: ParticipantState) {
+    if ((state === 'wrongEpunch' && prevState === 'noShow') || (state === 'noShow' && prevState === 'wrongEpunch')) {
+        await setStateWaiting(participantId)
+        await setStateNoShow(participantId)
+        await setStateWrongEpunch(participantId)
+        return
+    }
+    await setStateWaiting(participantId)
     switch (state) {
-        case 'waiting': return setStateWaiting(participantId)
+        case 'waiting': return
         case 'present': return setStatePresent(participantId)
         case 'validated': return setStateValidated(participantId)
         case 'wrongEpunch': return setStateWrongEpunch(participantId)
@@ -72,13 +85,17 @@ async function restoreSnapshot(participantId: string, snapshot: Snapshot, curren
         alert("Can't undo right now: this record isn't in exactly one slot. Wait a moment and try again.")
         return
     }
-    if (current.slotId === snapshot.slotId && current.participant.state === snapshot.state) {
+    if (
+        current.slotId === snapshot.slotId &&
+        current.participant.state === snapshot.state &&
+        current.participant.prevState === snapshot.prevState
+    ) {
         return
     }
     if (!isMagicTime(snapshot.slotTime) && current.slotId !== snapshot.slotId) {
         await setNewStartTime(participantId, current.slotId, snapshot.slotId)
     }
-    await applyState(participantId, snapshot.state)
+    await applyState(participantId, snapshot.state, snapshot.prevState)
 }
 
 function Pill({ className, children }: { className: string; children: ReactNode }) {
@@ -102,12 +119,11 @@ function RecordProblem({ name, slots, courses, onKeep, onPlace }: {
 }) {
     return (
         <div className="flex flex-col gap-3 border-2 border-red-600 bg-red-50 p-4 text-red-950">
-            <h3 className="text-lg font-bold">Problem with {name}'s record</h3>
+            <h3 className="text-base font-bold">Record Issue: {name}</h3>
             {slots.length === 0 ? (
                 <>
-                    <p>
-                        {name} isn't in any start slot. This can show up for a few seconds while changes sync.
-                        If it stays, choose a course to put them in its "needs a new time" queue:
+                    <p className="text-xs">
+                        Not in a start slot. Assign to standby queue:
                     </p>
                     <div className="flex flex-wrap gap-2">
                         {courses.map((c) => (
@@ -115,7 +131,7 @@ function RecordProblem({ name, slots, courses, onKeep, onPlace }: {
                                 key={c}
                                 type="button"
                                 onClick={() => onPlace(c)}
-                                className="border border-red-700 bg-red-700 px-3 py-1 font-semibold text-white hover:bg-red-800">
+                                className="min-h-10 sm:min-h-0 border border-red-700 bg-red-700 px-3 py-1.5 sm:py-1 text-xs font-semibold text-white hover:bg-red-800">
                                 {c}
                             </button>
                         ))}
@@ -123,16 +139,16 @@ function RecordProblem({ name, slots, courses, onKeep, onPlace }: {
                 </>
             ) : (
                 <>
-                    <p>{name} is listed in {slots.length} slots at once. Choose the one to keep:</p>
+                    <p className="text-xs">Listed in {slots.length} slots. Select slot to keep:</p>
                     <div className="flex flex-col gap-2">
                         {slots.map((slot) => (
-                            <div key={slot.id} className="flex items-center gap-3">
-                                <span className="flex-1 font-medium">{slot.course} · {formatSlotTime(slot.time)}</span>
+                            <div key={slot.id} className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 text-xs">
+                                <span className="font-medium">{slot.course} · {formatSlotTime(slot.time)}</span>
                                 <button
                                     type="button"
                                     onClick={() => onKeep(slot)}
-                                    className="border border-red-700 bg-red-700 px-3 py-1 font-semibold text-white hover:bg-red-800">
-                                    Keep this one
+                                    className="w-full sm:w-auto min-h-10 sm:min-h-0 border border-red-700 bg-red-700 px-3 py-1.5 sm:py-1 text-xs font-semibold text-white hover:bg-red-800">
+                                    Keep this slot
                                 </button>
                             </div>
                         ))}
@@ -145,6 +161,7 @@ function RecordProblem({ name, slots, courses, onKeep, onPlace }: {
 
 export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, setSelectedParticipantId }: Properties) {
     const [isEpunchEditOpen, setEpunchEditOpen] = useState(false)
+    const [isGroupSizeEditOpen, setGroupSizeEditOpen] = useState(false)
     const [addParticipantPrefill, setAddParticipantPrefill] = useState<AddParticipantPrefill | null | undefined>(undefined)
     const [confirmNotAttending, setConfirmNotAttending] = useState(false)
     const [timePickerOpen, setTimePickerOpen] = useState(false)
@@ -152,6 +169,7 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
     const [focusToken, setFocusToken] = useState(0)
     const [undo, setUndo] = useState<UndoInfo | undefined>(undefined)
     const [restoreNote, setRestoreNote] = useState('')
+    const [dismissedStandbyKeys, setDismissedStandbyKeys] = useState<Set<string>>(() => new Set())
 
     const { data: allParticipants } = useLiveQuery((q) =>
         q.from({ participant: participantsTanCollection })
@@ -189,6 +207,7 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
     useEffect(() => {
         setConfirmNotAttending(false)
         setEpunchEditOpen(false)
+        setGroupSizeEditOpen(false)
         setRestoreNote('')
     }, [selectedParticipantId])
 
@@ -218,7 +237,12 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
     async function runWithUndo(message: string, action: () => Promise<unknown>, alsoUndo?: () => Promise<unknown>) {
         if (entry === undefined) { return }
         const id = entry.participant.id
-        const snapshot: Snapshot = { slotId: entry.slotId, slotTime: entry.time, state: entry.participant.state }
+        const snapshot: Snapshot = {
+            slotId: entry.slotId,
+            slotTime: entry.time,
+            state: entry.participant.state,
+            prevState: entry.participant.prevState,
+        }
         await action()
         setUndo({
             message,
@@ -241,19 +265,104 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
     function handlePlaceInQueue(course: string) {
         const magic = allSlots.find((s) => s.course === course && s.time === '_needsAssignment')
         if (selectedDoc === undefined || magic === undefined) {
-            alert(`Couldn't find the needs-new-time queue for ${course}.`)
+            alert(`Couldn't find the standby queue for ${course}.`)
             return
         }
         void putInNeedsAssignment(selectedDoc.id, magic)
     }
 
+    async function handleSlotStandbyRunner(
+        standbyParticipantId: string,
+        standbyName: string,
+        noShowParticipantId: string,
+        slot: SlotDocType
+    ) {
+        const ok = await assignStandbyToNoShowSlot(standbyParticipantId, noShowParticipantId, slot.id)
+        if (!ok) return
+        setUndo({
+            message: `${standbyName} slotted into ${slot.course} · ${slot.time} as Present — send to E-punch Check`,
+            run: async () => {
+                await undoAssignStandbyToNoShowSlot(standbyParticipantId, noShowParticipantId, slot.id)
+            },
+        })
+    }
+
+    const standbyMatches = findStandbyMatches(allParticipants, allSlots, allChanges).filter(
+        (m) => !dismissedStandbyKeys.has(`${m.slot.id}|${m.noShowParticipant.id}`)
+    )
+
+    const standbyNotificationBanner =
+        standbyMatches.length === 0 ? null : (
+            <section
+                role="region"
+                aria-label="Standby slot notifications"
+                className="flex flex-col gap-2 border-2 border-orange-600 bg-orange-50 p-3 text-slate-900">
+                <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-orange-950">
+                        Standby Slot Available ({standbyMatches.length})
+                    </h3>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                    {standbyMatches.map((m) => {
+                        const key = `${m.slot.id}|${m.noShowParticipant.id}`
+                        const hint = courseShortLabel(m.course)
+                        const courseLabel = hint !== '' ? `${m.course} (${hint})` : m.course
+                        return (
+                            <div
+                                key={key}
+                                className="flex flex-wrap items-center justify-between gap-2.5 border border-orange-500 bg-white px-3 py-2">
+                                <div className="min-w-0">
+                                    <div className="text-sm font-bold text-slate-900">
+                                        Course {courseLabel} · {m.slot.time}
+                                    </div>
+                                    <div className="text-xs text-slate-600">
+                                        No-show: <strong>{m.noShowParticipant.name}</strong>
+                                    </div>
+                                </div>
+                                <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5">
+                                    {m.standbyParticipants.map((sp) => (
+                                        <button
+                                            key={sp.id}
+                                            type="button"
+                                            onClick={() =>
+                                                void handleSlotStandbyRunner(
+                                                    sp.id,
+                                                    sp.name,
+                                                    m.noShowParticipant.id,
+                                                    m.slot
+                                                )
+                                            }
+                                            className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-emerald-700 bg-emerald-600 px-3 py-1.5 sm:py-1 text-xs font-bold text-white hover:bg-emerald-700">
+                                            Assign {sp.name}
+                                        </button>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setDismissedStandbyKeys((prev) => {
+                                                const next = new Set(prev)
+                                                next.add(key)
+                                                return next
+                                            })
+                                        }
+                                        className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-slate-300 bg-white px-2.5 py-1.5 sm:py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                                        Dismiss
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </section>
+        )
+
     const undoBanner = undo === undefined ? null : (
         <div className="fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-center gap-3 border-2 border-slate-900 bg-white px-4 py-3 text-slate-900 shadow-xl">
-            <span className="flex-1 font-medium">{undo.message}</span>
+            <span className="flex-1 text-sm sm:text-base font-medium">{undo.message}</span>
             {undo.run !== undefined && (
                 <button
                     type="button"
-                    className="border border-slate-900 bg-slate-900 px-3 py-1 font-semibold text-white hover:bg-slate-800"
+                    className="min-h-10 sm:min-h-0 border border-slate-900 bg-slate-900 px-3.5 py-1.5 sm:py-1 font-semibold text-white hover:bg-slate-800"
                     onClick={async () => { await undo.run?.(); setUndo(undefined) }}>
                     Undo
                 </button>
@@ -263,14 +372,16 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
 
     function renderDetail(e: PopulatedEntry) {
         const p = e.participant
-        const style = ParticipantStateStyles.get(p.state)
+        const displayStates = getDisplayStates(p)
         const inRealSlot = !isMagicTime(e.time)
         const club = p.club === '' || p.club === 'unknown' || p.club === 'None' ? '' : p.club
         const courseHint = courseShortLabel(e.course)
         const courseWithHint = courseHint !== '' ? `${e.course} (${courseHint})` : e.course
         const where = inRealSlot
-            ? `Course ${courseWithHint} · starts ${e.time}`
-            : `${formatSlotTime(e.time)} · course ${courseWithHint}`
+            ? `Course ${courseWithHint} · ${e.time}`
+            : hasNoShow(p)
+              ? `Standby · Course ${courseWithHint}`
+              : `${formatSlotTime(e.time)} · Course ${courseWithHint}`
         const originally = p.startChanged && p.originalStartTime !== '' && p.originalStartTime !== e.time
             ? `Originally ${p.originalStartTime}`
             : ''
@@ -349,12 +460,18 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                 {p.groupSize > 1 && <Pill className="border-emerald-600 bg-emerald-50 text-emerald-800">Group {p.groupSize}</Pill>}
                                 {p.isNonCompete && <Pill className="border-indigo-600 bg-indigo-50 text-indigo-800">Non-competitive</Pill>}
                                 {p.isRental && <Pill className="border-orange-600 bg-orange-50 text-orange-800">Rental e-punch</Pill>}
-                                {style !== undefined && p.state !== 'waiting' && (
-                                    <Pill className={`border-transparent ${style.bg} text-white`}>{style.friendlyName}</Pill>
-                                )}
+                                {displayStates.map((st) => {
+                                    const stStyle = ParticipantStateStyles.get(st)
+                                    if (!stStyle) return null
+                                    return (
+                                        <Pill key={st} className={`border-transparent ${stStyle.bg} text-white`}>
+                                            {stStyle.friendlyName}
+                                        </Pill>
+                                    )
+                                })}
                             </div>
                             <div className="mt-1.5 text-sm text-slate-600">
-                                {club !== '' ? club : 'Independent / No school'} · E-punch{' '}
+                                {club !== '' ? club : 'Independent'} · E-punch{' '}
                                 <strong className="font-bold text-slate-900">
                                     {p.epunch === '' ? 'none' : p.epunch}
                                 </strong>
@@ -368,44 +485,44 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                         {(startDiffers || epunchDiffers) && (
                             <div className="flex flex-col gap-2 border border-slate-300 bg-slate-50 p-3">
                                 <div className="flex items-center gap-3">
-                                    <h3 className="flex-1 text-sm font-semibold text-slate-700">Changed from the original</h3>
+                                    <h3 className="flex-1 text-xs font-bold uppercase tracking-wider text-slate-600">Changed from original</h3>
                                     {startDiffers && epunchDiffers && (
-                                        <button type="button" className="text-sm font-medium text-sky-700 underline" onClick={handleRestoreAll}>
+                                        <button type="button" className="text-xs font-semibold text-sky-700 underline" onClick={handleRestoreAll}>
                                             Restore all
                                         </button>
                                     )}
                                 </div>
                                 {startDiffers && originalStart !== undefined && (
-                                    <div className="flex items-center gap-3 text-sm">
+                                    <div className="flex items-center gap-3 text-xs">
                                         <span className="flex-1 text-slate-700">
                                             Start: {originalStart.course} · {originalStart.time}
-                                            <span className="text-slate-400"> → now </span>
+                                            <span className="text-slate-400"> → </span>
                                             {e.course} · {formatSlotTime(e.time)}
                                         </span>
                                         <button
                                             type="button"
-                                            className="border border-sky-600 bg-white px-2 py-0.5 font-medium text-sky-700 hover:bg-sky-600 hover:text-white"
+                                            className="border border-sky-600 bg-white px-2 py-0.5 text-xs font-semibold text-sky-700 hover:bg-sky-600 hover:text-white"
                                             onClick={handleRestoreStart}>
                                             Restore
                                         </button>
                                     </div>
                                 )}
                                 {epunchDiffers && originalEpunch !== undefined && (
-                                    <div className="flex items-center gap-3 text-sm">
+                                    <div className="flex items-center gap-3 text-xs">
                                         <span className="flex-1 text-slate-700">
                                             E-punch: {noEpunch(originalEpunch.epunch)}{originalEpunch.isRental ? ' (rental)' : ''}
-                                            <span className="text-slate-400"> → now </span>
+                                            <span className="text-slate-400"> → </span>
                                             {noEpunch(p.epunch)}{p.isRental ? ' (rental)' : ''}
                                         </span>
                                         <button
                                             type="button"
-                                            className="border border-sky-600 bg-white px-2 py-0.5 font-medium text-sky-700 hover:bg-sky-600 hover:text-white"
+                                            className="border border-sky-600 bg-white px-2 py-0.5 text-xs font-semibold text-sky-700 hover:bg-sky-600 hover:text-white"
                                             onClick={handleRestoreEpunch}>
                                             Restore
                                         </button>
                                     </div>
                                 )}
-                                {restoreNote !== '' && <p className="text-sm font-medium text-amber-800">{restoreNote}</p>}
+                                {restoreNote !== '' && <p className="text-xs font-medium text-amber-800">{restoreNote}</p>}
                             </div>
                         )}
 
@@ -413,9 +530,9 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                         <div className="flex flex-col gap-3 border border-slate-300 bg-white p-4">
                             <div>
                                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Start Time, E-punch, Status &amp; 2nd Course
+                                    Runner Actions
                                 </div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
                                     <ManagerActionButton
                                         action={() => setTimePickerOpen((open) => !open)}
                                         text="Change start time"
@@ -428,12 +545,20 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                         icon="pencil"
                                         color={getColorByIconName("pencil")}
                                         buttonStyle="outline" />
-                                    {inRealSlot && p.state === 'wrongEpunch' && (
+                                    {inRealSlot && hasWrongEpunch(p) && (
                                         <ManagerActionButton
                                             action={() => void runWithUndo(`${p.name} marked Validated`, () => setStateValidated(p.id))}
                                             text="Mark e-punch validated"
                                             icon="check-badge"
                                             color={getColorByIconName("check-badge")}
+                                            buttonStyle="outline" />
+                                    )}
+                                    {inRealSlot && !hasWrongEpunch(p) && (
+                                        <ManagerActionButton
+                                            action={() => void runWithUndo(`${p.name} marked Wrong e-punch`, () => setStateWrongEpunch(p.id))}
+                                            text="Wrong e-punch"
+                                            icon="triangle-bang"
+                                            color="amber"
                                             buttonStyle="outline" />
                                     )}
                                     {p.isNonCompete ? (
@@ -451,6 +576,12 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                             color="purple"
                                             buttonStyle="outline" />
                                     )}
+                                    <ManagerActionButton
+                                        action={() => setGroupSizeEditOpen(true)}
+                                        text={p.groupSize > 1 ? `Group size (${p.groupSize})` : "Make group / Group size"}
+                                        icon="group"
+                                        color="emerald"
+                                        buttonStyle="outline" />
                                     <ManagerActionButton
                                         action={() =>
                                             setAddParticipantPrefill({
@@ -471,16 +602,24 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
 
                             <div className="border-t border-slate-200 pt-3">
                                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Attendance &amp; Queue
+                                    Attendance
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {inRealSlot && p.state !== 'noShow' && p.state !== 'wrongEpunch' && p.state !== 'validated' && (
+                                <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
+                                    {inRealSlot && !hasNoShow(p) && (
                                         <ManagerActionButton
                                             action={() => void runWithUndo(`${p.name} marked No show`, () => setStateNoShow(p.id))}
                                             text="No show"
                                             icon="question-circle"
                                             color={getColorByIconName("question-circle")}
                                             buttonStyle="outline" />
+                                    )}
+                                    {inRealSlot && hasNoShow(p) && (
+                                        <ManagerActionButton
+                                            action={() => void runWithUndo(`${p.name} no-show cleared`, () => clearStateNoShow(p.id))}
+                                            text="Clear no-show"
+                                            icon="question-circle"
+                                            color={getColorByIconName("question-circle")}
+                                            buttonStyle="solid" />
                                     )}
                                     {inRealSlot && p.state !== 'waiting' && (
                                         <ManagerActionButton
@@ -493,15 +632,15 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                     {e.time !== '_needsAssignment' && (
                                         <ManagerActionButton
                                             action={() => {
-                                                setTimePickerOpen(true)
-                                                void runWithUndo(`${p.name} moved to needs a new time`, () => setStateNeedsAssignment(p.id))
+                                                setTimePickerOpen(false)
+                                                void runWithUndo(`${p.name} placed in standby`, () => setStateNeedsAssignment(p.id))
                                             }}
-                                            text="Needs new time"
+                                            text="Put on standby"
                                             icon="hourglass"
                                             color={getColorByIconName("hourglass")}
                                             buttonStyle="outline" />
                                     )}
-                                    {e.time !== '_notAttending' && (
+                                    {p.state !== 'notAttending' && (
                                         <ManagerActionButton
                                             action={() => setConfirmNotAttending(true)}
                                             text="Not attending"
@@ -513,23 +652,25 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                             </div>
 
                             {confirmNotAttending && (
-                                <div className="flex flex-wrap items-center gap-3 border border-amber-600 bg-amber-50 px-3 py-2 text-amber-950">
-                                    <span className="flex-1 text-sm">Mark {p.name} as not attending? This frees their start slot.</span>
-                                    <button
-                                        type="button"
-                                        className="border border-amber-700 bg-amber-600 px-3 py-1 text-sm font-semibold text-white hover:bg-amber-700"
-                                        onClick={() => {
-                                            setConfirmNotAttending(false)
-                                            void runWithUndo(`${p.name} marked Not attending`, () => setStateNotAttending(p.id))
-                                        }}>
-                                        Yes, not attending
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="border border-slate-300 bg-white px-3 py-1 text-sm text-slate-800 hover:bg-slate-100"
-                                        onClick={() => setConfirmNotAttending(false)}>
-                                        Cancel
-                                    </button>
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 border border-amber-600 bg-amber-50 p-3 text-amber-950">
+                                    <span className="flex-1 text-sm font-medium">Mark {p.name} not attending? Frees start slot.</span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-amber-700 bg-amber-600 px-3 py-1.5 sm:py-1 text-xs font-bold text-white hover:bg-amber-700"
+                                            onClick={() => {
+                                                setConfirmNotAttending(false)
+                                                void runWithUndo(`${p.name} marked Not attending`, () => setStateNotAttending(p.id))
+                                            }}>
+                                            Confirm
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-slate-300 bg-white px-3 py-1.5 sm:py-1 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                                            onClick={() => setConfirmNotAttending(false)}>
+                                            Cancel
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -577,8 +718,8 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
         body = (
             <>
                 {selectedParticipantId !== '' && (
-                    <p className="text-slate-600">
-                        That participant isn't in the data yet. If you just selected them, changes may still be syncing.
+                    <p className="text-xs text-slate-500">
+                        Participant record syncing…
                     </p>
                 )}
                 <AttentionQueue
@@ -613,6 +754,33 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                     />
                 )}
 
+                {isGroupSizeEditOpen && entry !== undefined && (
+                    <Modal
+                        title={`Group size for ${entry.participant.name}`}
+                        close={() => setGroupSizeEditOpen(false)}
+                        content={
+                            <EditGroupSizeModal
+                                participant={entry}
+                                closeModal={() => setGroupSizeEditOpen(false)}
+                                onSaved={(oldSize, newSize) => {
+                                    if (oldSize === newSize) return
+                                    const pid = entry.participant.id
+                                    const name = entry.participant.name
+                                    setUndo({
+                                        message:
+                                            newSize === 1
+                                                ? `${name} set to Individual (1 person)`
+                                                : `${name} set to Group of ${newSize}`,
+                                        run: async () => {
+                                            await setGroupSize(pid, oldSize)
+                                        },
+                                    })
+                                }}
+                            />
+                        }
+                    />
+                )}
+
                 {addParticipantPrefill !== undefined && (
                     <Modal
                         title={
@@ -639,8 +807,8 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                 )}
 
                 {/* Top Command Bar */}
-                <div className="flex flex-wrap items-stretch gap-3">
-                    <div className="min-w-[16rem] flex-1">
+                <div className="flex flex-col sm:flex-row items-stretch gap-3">
+                    <div className="min-w-0 flex-1">
                         <ManagerSearchBox
                             participants={allParticipants}
                             slotsByParticipant={slotsByParticipant}
@@ -649,25 +817,28 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                             focusToken={focusToken} />
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={() => setAddParticipantPrefill(null)}
-                        className="flex shrink-0 items-center gap-2 border border-emerald-700 bg-emerald-600 px-4 py-3 text-base font-bold text-white transition hover:bg-emerald-700">
-                        <SvgIcon icon="plus" />
-                        <span>Add Participant</span>
-                    </button>
+                    {selectedParticipantId === '' && (
+                        <button
+                            type="button"
+                            onClick={() => setAddParticipantPrefill(null)}
+                            className="flex shrink-0 items-center justify-center gap-2 border border-emerald-700 bg-emerald-600 px-4 py-3 text-base font-bold text-white transition hover:bg-emerald-700">
+                            <SvgIcon icon="plus" />
+                            <span>Add Participant</span>
+                        </button>
+                    )}
 
                     {selectedParticipantId !== '' && (
                         <button
                             type="button"
                             onClick={clearSelection}
-                            className="flex shrink-0 items-center gap-2 border border-slate-900 bg-slate-900 px-6 py-3 text-lg font-bold text-white transition hover:bg-slate-800">
+                            className="flex shrink-0 items-center justify-center gap-2 border border-slate-900 bg-slate-900 px-6 py-3 text-lg font-bold text-white transition hover:bg-slate-800">
                             <SvgIcon icon="x" />
                             <span>Done</span>
                         </button>
                     )}
                 </div>
 
+                {standbyNotificationBanner}
                 {undoBanner}
                 {body}
             </div>

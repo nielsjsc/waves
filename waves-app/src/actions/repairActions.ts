@@ -1,5 +1,6 @@
 import { changesTanCollection, participantsTanCollection, slotsTanCollection } from "@/database"
 import type { SlotDocType } from "@/Schema"
+import { randomUUID } from "@/utils/cryptoHelpers"
 
 // Repairs for participants whose records break the "exactly one slot" rule.
 // These are deliberately separate from participantActions.ts: they work from
@@ -7,7 +8,7 @@ import type { SlotDocType } from "@/Schema"
 
 async function logRepair(participantId: string, description: string) {
     const tx = changesTanCollection.insert([{
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         participantId: participantId,
         changedAt: Date.now(),
         changeType: 'repair',
