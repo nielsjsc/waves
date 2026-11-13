@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ParticipantDocType, SlotDocType } from '@/Schema'
+import { CustomStartTimeForm } from './CustomStartTimeForm'
 import { courseShortLabel, evaluateStartTimesForSchool, formatSlotTime, isMagicTime } from '@/utils/slotLabels'
 
 interface Properties {
@@ -126,34 +127,29 @@ export function OpenTimesPicker({
                 </div>
             </div>
 
-            {/* Recommendation Banner (10-minute same-school spacing rule) */}
+            {/* Recommendation Banner (6-minute same-school spacing rule) */}
             {recommendation.recommendedSlot !== undefined && (
                 <div
-                    className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border px-3.5 py-2.5 ${
+                    className={`flex flex-wrap items-center justify-between gap-2.5 border px-3 py-2 ${
                         recommendation.recommendedSlot.isPreferred
                             ? 'border-emerald-600 bg-emerald-50 text-emerald-950'
                             : 'border-amber-600 bg-amber-50 text-amber-950'
                     }`}>
-                    <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                                {recommendation.recommendedSlot.isPreferred
-                                    ? 'Preferred Start Time'
-                                    : 'Closest to 10-min Spacing'}
-                            </span>
-                            <span className="bg-emerald-700 px-2 py-0.5 text-base font-bold tabular-nums text-white">
-                                {recommendation.recommendedSlot.slot.time}
-                            </span>
-                        </div>
-                        <p className="mt-1 text-xs leading-relaxed text-slate-700">
-                            {recommendation.reason}
-                        </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                            {recommendation.recommendedSlot.isPreferred
+                                ? 'Recommended'
+                                : 'Closest (<6 min school conflict)'}
+                        </span>
+                        <span className="bg-emerald-700 px-2.5 py-0.5 text-base font-bold tabular-nums text-white">
+                            {recommendation.recommendedSlot.slot.time}
+                        </span>
                     </div>
                     <button
                         type="button"
                         onClick={() => handlePick(recommendation.recommendedSlot!.slot)}
-                        className="shrink-0 w-full sm:w-auto min-h-10 border border-emerald-700 bg-emerald-600 px-3.5 py-2 text-sm font-bold text-white hover:bg-emerald-700">
-                        Assign recommended
+                        className="shrink-0 w-full sm:w-auto min-h-9 border border-emerald-700 bg-emerald-600 px-3.5 py-1.5 text-sm font-bold text-white hover:bg-emerald-700">
+                        Assign {recommendation.recommendedSlot.slot.time}
                     </button>
                 </div>
             )}
@@ -167,7 +163,7 @@ export function OpenTimesPicker({
                     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                         {hasAnyConflictSlots && (
                             <span className="text-amber-800">
-                                Dashed = &lt;10 min teammate spacing
+                                Dashed = &lt;6 min teammate spacing
                             </span>
                         )}
                         <span>
@@ -185,10 +181,10 @@ export function OpenTimesPicker({
                         {recommendation.evaluatedSlots.map(({ slot, isPreferred, closestConflict }) => {
                             const isRecommended = slot.id === recommendedId
                             const conflictTitle = closestConflict
-                                ? `Within 10 min of ${recommendation.school} teammate ${closestConflict.teammateName} (${closestConflict.teammateTime}, ${closestConflict.gapMinutes} min apart) — click to override`
+                                ? `Within 6 min of ${recommendation.school} teammate ${closestConflict.teammateName} (${closestConflict.teammateTime}, ${closestConflict.gapMinutes} min apart) — click to override`
                                 : isRecommended
-                                  ? 'Preferred start time (10+ min spacing from same-school teammates)'
-                                  : '10+ min spacing from same-school teammates'
+                                  ? 'Preferred start time (6+ min spacing from same-school teammates)'
+                                  : '6+ min spacing from same-school teammates'
 
                             let btnStyle = 'border-slate-300 bg-white text-slate-900 hover:bg-slate-900 hover:text-white'
                             if (isRecommended && isPreferred) {
@@ -223,6 +219,19 @@ export function OpenTimesPicker({
                     Include times already past call-up (before {cutoff})
                 </label>
             )}
+
+            <div>
+                <CustomStartTimeForm
+                    course={course}
+                    submitLabel="Assign"
+                    onCreated={(slot, normalizedTime) => {
+                        if (cutoff !== '' && normalizedTime < cutoff) {
+                            setShowEarlier(true)
+                        }
+                        handlePick(slot)
+                    }}
+                />
+            </div>
 
             {pending !== undefined && (
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 border border-amber-600 bg-amber-50 px-3 py-2.5 text-amber-950">

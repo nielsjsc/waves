@@ -3,22 +3,22 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { Head } from '@/components/Head'
 import { EVENT_ID, changesTanCollection, participantsTanCollection, slotsTanCollection } from '@/database'
 import type { SlotDocType } from '@/Schema'
-import { setAllChangesProcessed, setChangeProcessed } from '@/actions/participantActions'
+import { setAllChangesProcessed } from '@/actions/participantActions'
 import { hydrateChange } from '@/utils/hydrateChange'
 import type { PopulatedChange } from '@/utils/PopulatedChange'
 import { clockHHMM, courseShortLabel } from '@/utils/slotLabels'
+import {
+    extractCourseCode,
+    filterDownloadChanges,
+    isDownloadChange,
+    parseEpunchChangeValue,
+} from '@/utils/downloadChanges'
+
+export { isDownloadChange }
 
 type ViewMode = 'pending' | 'all' | 'cleared'
 type TypeFilter = 'all' | 'epunch' | 'course' | 'registration'
-
-export function isDownloadChange(changeType: string): boolean {
-    return (
-        changeType === 'epunch' ||
-        changeType === 'newCourse' ||
-        changeType === 'addedParticipant' ||
-        changeType === 'competitiveStatus'
-    )
-}
+type DownloadChangeRow = PopulatedChange & { sourceChangeIds: string[] }
 
 function matchesTypeFilter(changeType: string, filter: TypeFilter): boolean {
     if (filter === 'all') return true
@@ -31,24 +31,6 @@ function matchesTypeFilter(changeType: string, filter: TypeFilter): boolean {
     }
     if (filter === 'registration') return changeType === 'addedParticipant'
     return true
-}
-
-function parseEpunchChangeValue(raw: string): { epunch: string; isRental: boolean } {
-    const match = /^(.*),\s*Rental:(true|false)$/.exec(raw)
-    if (match !== null) {
-        return {
-            epunch: match[1]!.trim() || 'none',
-            isRental: match[2] === 'true',
-        }
-    }
-    return { epunch: raw.trim() || 'none', isRental: false }
-}
-
-function extractCourseCode(raw: string): string {
-    const trimmed = raw.trim()
-    if (trimmed === '') return ''
-    const token = trimmed.split(/\s+/)[0] ?? ''
-    return token
 }
 
 function formatCourseWithLabel(courseCode: string): string {
@@ -169,7 +151,7 @@ export function Download() {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
     const [confirmClearAll, setConfirmClearAll] = useState(false)
     const [copiedText, setCopiedText] = useState<string>('')
-    const [lastClearedId, setLastClearedId] = useState<string>('')
+    const [lastClearedIds, setLastClearedIds] = useState<string[]>([])
     const [lastClearedName, setLastClearedName] = useState<string>('')
 
     const { data: allParticipants } = useLiveQuery((q) =>
@@ -201,10 +183,20 @@ export function Download() {
     }
 
     // All changes relevant to the finish/download station (epunch, course, new registration, competitive status)
-    const downloadChanges = allChanges
-        .filter((c) => isDownloadChange(c.changeType))
-        .map((c) => hydrateChange(c.id, DATA))
-        .filter((c): c is PopulatedChange => c !== undefined)
+    // collapsed to net changes per participant + category.
+    const downloadChanges = filterDownloadChanges(allChanges)
+        .map((c): DownloadChangeRow | undefined => {
+            const hydrated = hydrateChange(c.id, DATA)
+            if (hydrated === undefined) return undefined
+            return {
+                ...hydrated,
+                old: c.old,
+                new: c.new,
+                changedAt: new Date(c.changedAt),
+                sourceChangeIds: c.sourceChangeIds,
+            }
+        })
+        .filter((c): c is DownloadChangeRow => c !== undefined)
 
     const pendingChanges = downloadChanges.filter((c) => !c.isProcessed)
     const clearedChanges = downloadChanges.filter((c) => c.isProcessed)
@@ -245,22 +237,22 @@ export function Download() {
             return sortOrder === 'asc' ? diff : -diff
         })
 
-    async function handleClearSingle(c: PopulatedChange) {
-        await setChangeProcessed(c.id, true)
-        setLastClearedId(c.id)
+    async function handleClearSingle(c: DownloadChangeRow) {
+        await setAllChangesProcessed(c.sourceChangeIds, true)
+        setLastClearedIds(c.sourceChangeIds)
         setLastClearedName(c.participant.name)
     }
 
-    async function handleRestoreSingle(c: PopulatedChange) {
-        await setChangeProcessed(c.id, false)
-        if (lastClearedId === c.id) {
-            setLastClearedId('')
+    async function handleRestoreSingle(c: DownloadChangeRow) {
+        await setAllChangesProcessed(c.sourceChangeIds, false)
+        if (lastClearedIds.some((id) => c.sourceChangeIds.includes(id))) {
+            setLastClearedIds([])
             setLastClearedName('')
         }
     }
 
     async function handleClearAllPending() {
-        const ids = pendingChanges.map((c) => c.id)
+        const ids = pendingChanges.flatMap((c) => c.sourceChangeIds)
         setConfirmClearAll(false)
         await setAllChangesProcessed(ids, true)
     }
@@ -578,7 +570,7 @@ export function Download() {
                 </div>
 
                 {/* Quick Undo Banner after clearing an item */}
-                {lastClearedId !== '' && (
+                {lastClearedIds.length > 0 && (
                     <div
                         role="status"
                         className="flex items-center justify-between gap-3 border border-slate-400 bg-slate-100 px-3 py-1.5 text-xs text-slate-900">
@@ -589,10 +581,10 @@ export function Download() {
                             <button
                                 type="button"
                                 onClick={async () => {
-                                    const id = lastClearedId
-                                    setLastClearedId('')
+                                    const ids = lastClearedIds
+                                    setLastClearedIds([])
                                     setLastClearedName('')
-                                    await setChangeProcessed(id, false)
+                                    await setAllChangesProcessed(ids, false)
                                 }}
                                 className="min-h-8 border border-slate-800 bg-white px-2.5 py-0.5 text-xs font-bold text-slate-900 hover:bg-slate-200">
                                 Undo
@@ -600,7 +592,7 @@ export function Download() {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setLastClearedId('')
+                                    setLastClearedIds([])
                                     setLastClearedName('')
                                 }}
                                 className="min-h-8 px-1.5 py-0.5 text-xs text-slate-500 hover:text-slate-800">

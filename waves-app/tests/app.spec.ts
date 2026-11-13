@@ -41,7 +41,10 @@ const TEST_STARTLIST_CSV = [
 	makeCsvRow('10:02:00', {
 		'ELEMENTARYBEGINNER.1': 'Katherine Johnson',
 		'ELEMENTARYBEGINNER.2': 'Lakeside School',
-		'ELEMENTARYBEGINNER.3': '100004 R NC',
+		'ELEMENTARYBEGINNER.3': '100004 - NC - N',
+		'ROOKIE MALE.1': 'Colton Boone',
+		'ROOKIE MALE.2': 'Oak Harbor',
+		'ROOKIE MALE.3': '2221885- Need $',
 	}),
 	makeCsvRow('10:04:00', {}),
 ].join('\r\n')
@@ -73,6 +76,9 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	// Wait for the startlist to finish auto-importing into IndexedDB
 	await expect(callupPage.getByText('Ada Lovelace')).toBeVisible({ timeout: 15000 })
 	await expect(callupPage.getByText('Group 12')).toBeVisible()
+	// Verify "N" and "Need $" badges appear on the Full Grid
+	await expect(callupPage.getByText('Need $').first()).toBeVisible()
+	await expect(callupPage.locator('[data-participant-id="e2etest01-participant-c1-10:02"]')).toContainText('N')
 
 	// Verify the app starts in locked mode until the volunteer PIN (9465) is entered
 	await expect(callupPage.getByRole('button', { name: '+ Add Participant' })).toHaveCount(0)
@@ -85,10 +91,11 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await expect(callupPage.getByRole('button', { name: '+ Add Participant' })).toBeVisible()
 
 	// -------------------------------------------------------------------------
-	// 1. STATION 1: CALL-UP
+	// 1. STATION 1: CALL-UP (+6 min wave offset)
 	// -------------------------------------------------------------------------
 	await navigateToStation(callupPage, 'Call-up')
 	await expect(callupPage.getByText('Calling now')).toBeVisible()
+	await expect(callupPage.getByRole('button', { name: '(+6)' })).toBeVisible()
 	await expect(callupPage.getByRole('rowheader', { name: /c1/i })).toBeInViewport()
 	await expect(callupPage.getByRole('rowheader', { name: /c9/i })).toBeInViewport()
 
@@ -109,12 +116,13 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await alanCardCallup.getByRole('button', { name: 'No Show' }).click()
 
 	// -------------------------------------------------------------------------
-	// 2. STATION 2: E-PUNCH CHECK (Opened in a 2nd tab to verify multi-tab sync)
+	// 2. STATION 2: E-PUNCH CHECK (+4 min wave offset & inline e-punch editing)
 	// -------------------------------------------------------------------------
 	const epunchPage = await context.newPage()
 	await epunchPage.goto('/')
 	await navigateToStation(epunchPage, 'Epunch Check')
 	await expect(epunchPage.getByText('Checking now')).toBeVisible()
+	await expect(epunchPage.getByRole('button', { name: '(+4)' })).toBeVisible()
 
 	const adaCardEpunch = epunchPage.locator('[data-participant-id="e2etest01-participant-c1-10:00"]')
 	const graceCardEpunch = epunchPage.locator('[data-participant-id="e2etest01-participant-c2-10:00"]')
@@ -135,41 +143,37 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await adaValidateBtn.click()
 	await expect(adaCardEpunch.getByRole('button', { name: 'Validated', exact: true })).toBeVisible()
 
-	// Flag Grace Hopper as having a Wrong E-punch
+	// Flag Grace Hopper as having a Wrong E-punch and update her e-punch inline right on the E-punch Check station!
 	await graceCardEpunch.getByRole('button', { name: 'Wrong E-punch' }).click()
 	await expect(graceCardEpunch).toContainText('Wrong E-punch')
+	await expect(graceCardEpunch.getByText('New e-punch #:')).toBeVisible()
+	await graceCardEpunch.locator('input[type="text"]').fill('9876543')
+	await graceCardEpunch.getByRole('button', { name: 'Rental', exact: true }).click()
+	await graceCardEpunch.getByRole('button', { name: 'Save e-punch' }).click()
+	await expect(graceCardEpunch).toContainText('Validated')
+	await expect(graceCardEpunch).toContainText('9876543')
 
 	// -------------------------------------------------------------------------
-	// 3. STATION 3: START MANAGER
+	// 3. STATION 3: START MANAGER (Ineligible racers queue, Standby priority, 2nd course)
 	// -------------------------------------------------------------------------
 	const managerPage = await context.newPage()
 	await managerPage.goto('/')
 	await navigateToStation(managerPage, 'Start Manager')
 
-	// Verify zero broken records, 2 Wrong e-punch (Grace Hopper + Alan Turing), 0 Standby, and 1 No-show (Alan Turing in BOTH!)
+	// Verify zero broken records, 1 Wrong e-punch (Alan Turing, since Grace Hopper was resolved at Epunch Check), 0 Standby, 1 No-show, and 2 Ineligible racers (Katherine Johnson N + Colton Boone Need $)
 	await expect(managerPage.getByText('Records needing repair')).toHaveCount(0)
-	await expect(managerPage.getByRole('heading', { name: /Wrong e-punch/i })).toContainText('(2)')
+	await expect(managerPage.getByRole('heading', { name: /Wrong e-punch/i })).toContainText('(1)')
 	await expect(managerPage.getByRole('heading', { name: /Standby/i })).toContainText('(0)')
 	await expect(managerPage.getByRole('heading', { name: /No-shows/i })).toContainText('(1)')
+	await expect(managerPage.getByRole('heading', { name: /Ineligible racers/i })).toContainText('(2)')
 
-	// Click Grace Hopper in the Wrong e-punch queue and update her e-punch to a rental
-	await managerPage.getByRole('button', { name: /Grace Hopper/i }).first().click()
-	// Verify "Add Participant" button is NOT shown when on a person's page
-	await expect(managerPage.getByRole('button', { name: 'Add Participant' })).toHaveCount(0)
-	await managerPage.getByRole('button', { name: 'Edit e-punch' }).click()
-
-	await managerPage.locator('#new-si').fill('9876543')
-	await managerPage.getByRole('button', { name: 'Rental' }).click()
-	await managerPage.getByRole('button', { name: 'Save' }).click()
-
-	// Verify Grace Hopper automatically resolved to Validated both in Start Manager and on the E-punch Check tab!
-	await expect(managerPage.getByText('Validated').first()).toBeVisible()
-	await expect(graceCardEpunch).toContainText('Validated')
-	await expect(graceCardEpunch).toContainText('9876543')
-
-	// Return to Start Manager queues and verify Wrong e-punch queue now has 1 (Alan Turing)
+	// Click Katherine Johnson in Ineligible racers, verify "Hasn't signed shadow waiver (N)" is highlighted, and click "Set as Eligible"
+	await managerPage.getByRole('button', { name: /Katherine Johnson/i }).first().click()
+	await expect(managerPage.getByText(/Hasn't signed shadow waiver \(N\)/i).first()).toBeVisible()
+	await managerPage.getByRole('button', { name: 'Set as Eligible' }).first().click()
+	await expect(managerPage.getByText(/Hasn't signed shadow waiver \(N\)/i)).toHaveCount(0)
 	await managerPage.getByRole('button', { name: 'Done' }).click()
-	await expect(managerPage.getByRole('heading', { name: /Wrong e-punch/i })).toContainText('(1)')
+	await expect(managerPage.getByRole('heading', { name: /Ineligible racers/i })).toContainText('(1)')
 
 	// Expand the Schools & Clubs directory (starts closed) to find Garfield High -> Alan Turing
 	await expect(managerPage.getByPlaceholder('Filter schools…')).toHaveCount(0)
@@ -202,19 +206,27 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await navigateToStation(managerPage, 'Start Manager')
 	await expect(managerPage.getByRole('button', { name: 'Done' })).toHaveCount(0)
 
-	// Add a new participant / 2nd-course runner from Start Manager
+	// Add a new participant / 2nd-course runner from Start Manager in Standby
 	await managerPage.getByRole('button', { name: 'Add Participant' }).click()
 	await managerPage.locator('#add-p-name').fill('Margaret Hamilton')
 	await managerPage.locator('#add-p-club').fill('Ingraham High')
 	await managerPage.locator('#add-p-epunch').fill('5551234')
+	await managerPage.getByLabel('2nd course').check()
+	await managerPage.getByRole('button', { name: 'Put on standby' }).click()
 	await managerPage.getByRole('button', { name: 'Add to Meet' }).click()
 	await expect(managerPage.getByRole('heading', { name: 'Margaret Hamilton', exact: true })).toBeVisible()
+	await expect(managerPage.getByText('2nd course').first()).toBeVisible()
 
 	// Change Margaret Hamilton from Individual (1) to a Group of 3
 	await managerPage.getByRole('button', { name: 'Make group / Group size' }).click()
 	await managerPage.getByRole('button', { name: 'Group (3)' }).click()
 	await managerPage.getByRole('button', { name: 'Save' }).click()
 	await expect(managerPage.getByText('Group 3')).toBeVisible()
+
+	// Return to Start Manager queues and verify "2nd course" appears in the Standby list
+	await managerPage.getByRole('button', { name: 'Done' }).click()
+	await expect(managerPage.getByRole('heading', { name: /Standby/i })).toContainText('(1)')
+	await expect(managerPage.getByText('2nd course').first()).toBeVisible()
 
 	// -------------------------------------------------------------------------
 	// 4. STATION 4: DOWNLOAD STATION (Finish Tent)

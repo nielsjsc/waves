@@ -28,7 +28,7 @@ import { SvgIconWithText } from "./SvgIconWithText"
 
 const STORAGE_PAGE_KEY = 'waves.appPage'
 const STORAGE_CLOCK_OFFSET_KEY = `waves.clockOffset.${EVENT_ID}`
-const STORAGE_WAVE_OFFSET_KEY = `waves.waveOffset.${EVENT_ID}`
+const STORAGE_WAVE_OFFSET_KEY = `waves.waveOffset.v2.${EVENT_ID}`
 const STORAGE_VOLUNTEER_UNLOCKED_KEY = 'waves.volunteerUnlocked'
 const VOLUNTEER_PIN = '9465'
 
@@ -58,11 +58,11 @@ function readSavedClockOffset(): { hours: number, minutes: number, seconds: numb
 function readSavedWaveOffset(): number {
     try {
         const raw = localStorage.getItem(STORAGE_WAVE_OFFSET_KEY)
-        if (raw === null) return 8
+        if (raw === null) return 6
         const num = Number(raw)
-        return Number.isFinite(num) && num >= 0 ? num : 8
+        return Number.isFinite(num) && num >= 0 ? num : 6
     } catch {
-        return 8
+        return 6
     }
 }
 
@@ -634,17 +634,19 @@ export function HeaderWithWaveTime() {
                         </div>
                     </div>
 
-                    {/* Wave Time & Offset Pill */}
-                    <div className="flex items-center gap-1.5 text-sm sm:text-base">
-                        <span className="font-black tabular-nums text-slate-900">{displayWaveTime()}</span>
-                        <button
-                            type="button"
-                            className="border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                            onClick={handleOffsetEditClick}
-                            title="Adjust wave offset">
-                            (+{activeWaveOffsetMinutes})
-                        </button>
-                    </div>
+                    {/* Wave Time & Offset Pill (Call-up and Epunch Check only) */}
+                    {isUnlocked && (appPage === 'call-up' || appPage === 'epunch') && (
+                        <div className="flex items-center gap-1.5 text-sm sm:text-base">
+                            <span className="font-black tabular-nums text-slate-900">{displayWaveTime()}</span>
+                            <button
+                                type="button"
+                                className="border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                onClick={handleOffsetEditClick}
+                                title="Adjust wave offset">
+                                (+{activeWaveOffsetMinutes})
+                            </button>
+                        </div>
+                    )}
 
                     {/* Desktop Navigation + Sync + Clock */}
                     <div className="hidden md:flex items-center gap-2">

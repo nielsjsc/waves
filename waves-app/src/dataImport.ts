@@ -192,24 +192,64 @@ export function participantFromStartListData(
     col2: string,
     col3: string
 ): Omit<ParticipantDocType, 'originalStartTime' | 'startChanged'> | undefined {
+    col1 = (col1 ?? '').trim()
+    col2 = (col2 ?? '').trim()
+    col3 = (col3 ?? '').trim()
+
+    // Support raw multiline cell passed in col1 (e.g. "Name\nSchool\n12345 - NC - N")
+    if (col1.includes('\n') && col2 === '' && col3 === '') {
+        const lines = col1
+            .replace(/_x000D_/g, '')
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter(Boolean)
+        if (lines.length === 2) {
+            col1 = lines[0]
+            col2 = lines[1]
+        } else if (lines.length >= 3) {
+            col1 = lines[0]
+            col2 = lines.slice(1, -1).join(' ')
+            col3 = lines[lines.length - 1]
+        }
+    }
+
     if (col1 === '') {
         return undefined
     }
-    const name = col1;
-    if (/^[0-9]+.*/.test(col2)) {
-        // move epunch value to col3 if its in col2
-        col3 = col2;
-        col2 = "";
-    }
-    const isGroup = col2.toLocaleLowerCase().includes("group")
-    const groupSize = isGroup ? parseInt(/\(([0-9]+)\)/.exec(col2)?.[1] ?? "1", 10) : 1
 
-    const hasClub = !(col2 === "" || isGroup)
-    const club = hasClub ? col2 : "unknown"
-    const isRental = col3.toLocaleLowerCase().includes("r")
-    const isNonCompete = col3.toLocaleLowerCase().includes("nc")
+    let name = col1
+    if (/^[0-9]+.*/.test(col2) && col3 === '') {
+        // move epunch value to col3 if its in col2
+        col3 = col2
+        col2 = ''
+    }
+
+    // Handle "Name Group (x)" on the first line when col2 had no school
+    const inlineGroupMatch = /^(.*\S)\s+(Group\s*\(\s*[0-9]+\s*\))$/i.exec(name)
+    if (inlineGroupMatch) {
+        name = inlineGroupMatch[1].trim()
+        if (col2 === '') {
+            col2 = inlineGroupMatch[2].trim()
+        }
+    }
+
+    const isGroup = col2.toLocaleLowerCase().includes('group')
+    const groupSize = isGroup ? parseInt(/\(\s*([0-9]+)\s*\)/.exec(col2)?.[1] ?? '1', 10) : 1
+
+    // Strip trailing "(NC)" from school if present and attach to col3
+    if (/\(nc\)\s*$/i.test(col2)) {
+        col2 = col2.replace(/\s*\(nc\)\s*$/i, '').trim()
+        col3 = col3 ? `${col3} - NC` : 'NC'
+    }
+
+    const hasClub = !(col2 === '' || isGroup)
+    const club = hasClub ? col2 : 'unknown'
+    const isRental = /(?:^|[\s\-([]|\d)r(?=[\s\-)\]]|$)/i.test(col3)
+    const isNonCompete = /(?:^|[\s\-([*])nc(?=[\s\-)\]*]|$)/i.test(col3)
+    const needsWaiver = /(?:^|[\s\-(])n(?=[\s\-)]|$)/i.test(col3)
+    const needsPayment = /need\s*\$/i.test(col3)
     const startsNumbers = /^[0-9]+/.test(col3)
-    const epunch = startsNumbers ? /^[0-9]+/.exec(col3)?.[0]! : ""
+    const epunch = startsNumbers ? /^[0-9]+/.exec(col3)?.[0]! : ''
 
     return {
         id: participantId,
@@ -218,10 +258,11 @@ export function participantFromStartListData(
         epunch: epunch,
         isRental: isRental,
         isNonCompete: isNonCompete,
-        state: "waiting",
+        needsWaiver: needsWaiver,
+        needsPayment: needsPayment,
+        state: 'waiting',
         groupSize: groupSize,
     }
-
 }
 
 const COURSE_COLUMNS = [

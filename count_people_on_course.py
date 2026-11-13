@@ -90,7 +90,9 @@ def compute_headcount(participants: list[dict], slots: list[dict]) -> dict:
 
         group_size = max(1, int(p.get("groupSize") or 1))
         is_nc = bool(p.get("isNonCompete"))
-        shadow = 1 if is_nc else 0
+        is_second_course = bool(p.get("isSecondCourse"))
+        # NC on original start list always has 1 shadow; 2nd-course entries cannot have a shadow
+        shadow = 1 if (is_nc and not is_second_course) else 0
         people_for_entry = group_size + shadow
 
         active_entries += 1

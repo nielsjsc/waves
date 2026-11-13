@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { type Slot as SlotType } from '@/api/slots'
 import type { ParticipantState, Participant as ParticipantType } from '@/api/participants'
-import { setNewStartTime } from '@/actions/participantActions'
+import { setNewEpunch, setNewStartTime } from '@/actions/participantActions'
 import type { PopulatedEntry } from '@/utils/PopulatedEntry'
 import { getDisplayStates, ParticipantStateStyles } from '@/utils/styleHelpers'
 import { ParticipantStateChangeButton } from './ParticipantStateChangeButton'
@@ -183,12 +183,20 @@ function ParticipantCard({
     onMoveParticipant?: (participantId: string, fromSlotId: string, toSlotId: string) => void
 }) {
     const [isDragging, setIsDragging] = useState(false)
+    const [inlineEpunch, setInlineEpunch] = useState('')
+    const [inlineIsRental, setInlineIsRental] = useState(Boolean(p.isRental))
     const sz = SIZES[size]
     const large = size === 'large'
     const displayStates = getDisplayStates(p)
     const notAttending = p.state === 'notAttending'
     const isClickable = onParticipantClick !== undefined
     const isDraggable = onMoveParticipant !== undefined
+    const showInlineEpunchEditor =
+        large && toStateButtons.includes('wrongEpunch') && displayStates.includes('wrongEpunch')
+
+    useEffect(() => {
+        setInlineIsRental(Boolean(p.isRental))
+    }, [p.isRental])
 
     const surface = selected
         ? 'border-pink-600 bg-pink-50 ring-2 ring-pink-600'
@@ -243,7 +251,7 @@ function ParticipantCard({
                 isClickable ? 'cursor-pointer hover:bg-slate-50' : ''
             } ${
                 large
-                    ? 'gap-1 lg:flex-row lg:items-center lg:justify-between lg:gap-4'
+                    ? 'gap-1 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-4'
                     : 'gap-0.5'
             }`}>
             <div className="min-w-0 flex-1 flex flex-col justify-center">
@@ -272,6 +280,27 @@ function ParticipantCard({
                     )}
                 </div>
                 <div className={`mt-0.5 flex flex-wrap items-center gap-1 sm:gap-1.5 text-slate-600 ${sz.detail}`}>
+                    {p.isSecondCourse && (
+                        <Badge
+                            className={`border-purple-600 bg-purple-50 text-purple-800 ${sz.badge}`}
+                            title="Running a second course">
+                            2nd course
+                        </Badge>
+                    )}
+                    {p.needsWaiver && (
+                        <Badge
+                            className={`border-red-700 bg-red-600 text-white font-extrabold ${sz.badge}`}
+                            title="Parent has not signed shadow waiver">
+                            N
+                        </Badge>
+                    )}
+                    {p.needsPayment && (
+                        <Badge
+                            className={`border-red-700 bg-red-600 text-white font-extrabold ${sz.badge}`}
+                            title="Needs payment">
+                            Need $
+                        </Badge>
+                    )}
                     {p.groupSize > 1 && (
                         <Badge
                             className={`border-emerald-600 bg-emerald-50 text-emerald-800 ${sz.badge}`}
@@ -340,6 +369,55 @@ function ParticipantCard({
                         </div>
                     )}
                 </div>
+            )}
+
+            {showInlineEpunchEditor && (
+                <form
+                    onClick={(e) => e.stopPropagation()}
+                    onSubmit={async (e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        const trimmed = inlineEpunch.trim()
+                        if (!trimmed) return
+                        await setNewEpunch(p.id, trimmed, inlineIsRental)
+                        setInlineEpunch('')
+                    }}
+                    className="mt-1.5 flex w-full flex-wrap items-center gap-2 border-t border-pink-200 bg-pink-50/70 px-2 py-1.5">
+                    <label className="text-xs font-bold text-pink-950">New e-punch #:</label>
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        autoFocus
+                        value={inlineEpunch}
+                        onChange={(e) => setInlineEpunch(e.target.value)}
+                        placeholder={p.epunch ? `Was ${p.epunch}` : 'Enter e-punch #'}
+                        className="min-w-[8rem] flex-1 border border-slate-400 bg-white px-2 py-1 text-sm font-bold tabular-nums text-slate-900 focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600"
+                    />
+                    <div className="flex shrink-0 items-center border border-slate-300 bg-white text-xs font-semibold">
+                        <button
+                            type="button"
+                            onClick={() => setInlineIsRental(false)}
+                            className={`px-2 py-1 ${
+                                !inlineIsRental ? 'bg-slate-800 text-white' : 'text-slate-700 hover:bg-slate-100'
+                            }`}>
+                            Own
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setInlineIsRental(true)}
+                            className={`border-l border-slate-300 px-2 py-1 ${
+                                inlineIsRental ? 'bg-orange-600 text-white' : 'text-slate-700 hover:bg-slate-100'
+                            }`}>
+                            Rental
+                        </button>
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={inlineEpunch.trim() === ''}
+                        className="shrink-0 bg-emerald-700 px-3 py-1 text-xs sm:text-sm font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500">
+                        Save e-punch
+                    </button>
+                </form>
             )}
         </div>
     )

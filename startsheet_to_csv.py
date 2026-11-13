@@ -49,7 +49,10 @@ STANDARD_COURSES = [
     "COLLEGE VARSITYLONG ADVANCED",
 ]
 
-EPUNCH_RE = re.compile(r"\d+(?: \(R\))?")
+EPUNCH_RE = re.compile(
+    r"\d+(?:\s*\(R\))?(?:\s*-\s*(?:NC|N|Need\s*\$|\(R\)))*",
+    re.IGNORECASE,
+)
 GROUP_RE = re.compile(r"^(?P<name>.+?)\s+Group\s*\((?P<n>\d+)\)$", re.IGNORECASE)
 NC_RE = re.compile(r"\s*\(NC\)\s*$", re.IGNORECASE)
 
@@ -164,9 +167,13 @@ def main():
         fail(f"{workbook.name} is locked. Close it in Excel and run this again.")
     except Exception as e:
         fail(f"{workbook.name} could not be opened as an Excel workbook ({e}).")
-    if args.sheet not in wb.sheetnames:
-        fail(f"The workbook has no tab named {args.sheet!r}. Tabs found: {', '.join(wb.sheetnames)}")
-    ws = wb[args.sheet]
+    sheet_name = args.sheet
+    if sheet_name not in wb.sheetnames:
+        if sheet_name == "StartSheet" and "Sheet1" in wb.sheetnames:
+            sheet_name = "Sheet1"
+        else:
+            fail(f"The workbook has no tab named {args.sheet!r}. Tabs found: {', '.join(wb.sheetnames)}")
+    ws = wb[sheet_name]
 
     try:
         courses = find_headers(ws)

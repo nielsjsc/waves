@@ -25,9 +25,12 @@ import {
     clearStateNoShow,
     setCompetitive,
     setGroupSize,
+    setNeedsPayment,
+    setNeedsWaiver,
     setNewEpunch,
     setNewStartTime,
     setNonCompetitive,
+    setParticipantEligible,
     setStateNeedsAssignment,
     setStateNoShow,
     setStateNotAttending,
@@ -286,7 +289,8 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
         })
     }
 
-    const standbyMatches = findStandbyMatches(allParticipants, allSlots, allChanges).filter(
+    const allStandbyMatches = findStandbyMatches(allParticipants, allSlots, allChanges)
+    const standbyMatches = allStandbyMatches.filter(
         (m) => !dismissedStandbyKeys.has(`${m.slot.id}|${m.noShowParticipant.id}`)
     )
 
@@ -306,6 +310,8 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                         const key = `${m.slot.id}|${m.noShowParticipant.id}`
                         const hint = courseShortLabel(m.course)
                         const courseLabel = hint !== '' ? `${m.course} (${hint})` : m.course
+                        const priorityRunner = m.priorityStandbyParticipant
+                        const conflict = m.conflictsByStandbyId[priorityRunner.id]
                         return (
                             <div
                                 key={key}
@@ -316,25 +322,27 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                     </div>
                                     <div className="text-xs text-slate-600">
                                         No-show: <strong>{m.noShowParticipant.name}</strong>
+                                        {conflict !== undefined && (
+                                            <span className="ml-2 font-semibold text-amber-800">
+                                                · &lt;6 min from {conflict.teammateName} ({conflict.teammateTime})
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex w-full sm:w-auto flex-wrap items-center gap-1.5">
-                                    {m.standbyParticipants.map((sp) => (
-                                        <button
-                                            key={sp.id}
-                                            type="button"
-                                            onClick={() =>
-                                                void handleSlotStandbyRunner(
-                                                    sp.id,
-                                                    sp.name,
-                                                    m.noShowParticipant.id,
-                                                    m.slot
-                                                )
-                                            }
-                                            className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-emerald-700 bg-emerald-600 px-3 py-1.5 sm:py-1 text-xs font-bold text-white hover:bg-emerald-700">
-                                            Assign {sp.name}
-                                        </button>
-                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            void handleSlotStandbyRunner(
+                                                priorityRunner.id,
+                                                priorityRunner.name,
+                                                m.noShowParticipant.id,
+                                                m.slot
+                                            )
+                                        }
+                                        className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-emerald-700 bg-emerald-600 px-3 py-1.5 sm:py-1 text-xs font-bold text-white hover:bg-emerald-700">
+                                        Assign {priorityRunner.name}
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() =>
@@ -456,6 +464,17 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                         <div className="border border-slate-300 bg-white p-4">
                             <div className="flex flex-wrap items-center gap-2">
                                 <h2 className="text-2xl font-bold text-slate-900">{p.name}</h2>
+                                {p.isSecondCourse && <Pill className="border-purple-600 bg-purple-50 text-purple-800">2nd course</Pill>}
+                                {p.needsWaiver && (
+                                    <span className="border-2 border-red-800 bg-red-600 px-3 py-1 text-sm sm:text-base font-extrabold text-white">
+                                        Hasn&apos;t signed shadow waiver (N)
+                                    </span>
+                                )}
+                                {p.needsPayment && (
+                                    <span className="border-2 border-red-800 bg-red-600 px-3 py-1 text-sm sm:text-base font-extrabold text-white">
+                                        Needs payment (Need $)
+                                    </span>
+                                )}
                                 {p.groupSize > 1 && <Pill className="border-emerald-600 bg-emerald-50 text-emerald-800">Group {p.groupSize}</Pill>}
                                 {p.isNonCompete && <Pill className="border-indigo-600 bg-indigo-50 text-indigo-800">Non-competitive</Pill>}
                                 {p.isRental && <Pill className="border-orange-600 bg-orange-50 text-orange-800">Rental e-punch</Pill>}
@@ -463,23 +482,78 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                     const stStyle = ParticipantStateStyles.get(st)
                                     if (!stStyle) return null
                                     return (
-                                        <Pill key={st} className={`border-transparent ${stStyle.bg} text-white`}>
+                                        <span key={st} className={`px-3 py-1 text-sm sm:text-base font-extrabold text-white ${stStyle.bg}`}>
                                             {stStyle.friendlyName}
-                                        </Pill>
+                                        </span>
                                     )
                                 })}
                             </div>
-                            <div className="mt-1.5 text-sm text-slate-600">
-                                {club !== '' ? club : 'Independent'} · E-punch{' '}
-                                <strong className="font-bold text-slate-900">
-                                    {p.epunch === '' ? 'none' : p.epunch}
-                                </strong>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                                <span>{club !== '' ? club : 'Independent'} ·</span>
+                                <span
+                                    className={
+                                        hasWrongEpunch(p)
+                                            ? 'border-2 border-pink-600 bg-pink-100 px-2.5 py-1 text-base font-extrabold text-pink-950'
+                                            : ''
+                                    }>
+                                    E-punch{' '}
+                                    <strong className="font-bold tabular-nums text-slate-900">
+                                        {p.epunch === '' ? 'none' : p.epunch}
+                                    </strong>
+                                </span>
                             </div>
-                            <div className="mt-3 border border-slate-300 bg-slate-50 px-3 py-2">
+                            <div
+                                className={`mt-3 px-3 py-2 ${
+                                    hasNoShow(p)
+                                        ? 'border-2 border-red-600 bg-red-50'
+                                        : p.state === 'needsAssignment'
+                                          ? 'border-2 border-orange-600 bg-orange-50'
+                                          : 'border border-slate-300 bg-slate-50'
+                                }`}>
                                 <div className="text-lg font-bold text-slate-900">{where}</div>
                                 {originally !== '' && <div className="text-sm font-medium text-amber-800">{originally}</div>}
                             </div>
                         </div>
+
+                        {p.state === 'needsAssignment' &&
+                            allStandbyMatches.filter((m) => m.course === e.course).length > 0 && (
+                                <div className="flex flex-col gap-1.5">
+                                    {allStandbyMatches
+                                        .filter((m) => m.course === e.course)
+                                        .map((m) => {
+                                            const conflict = m.conflictsByStandbyId[p.id]
+                                            return (
+                                                <div
+                                                    key={`${m.slot.id}|${m.noShowParticipant.id}`}
+                                                    className="flex flex-wrap items-center justify-between gap-2 border-2 border-orange-600 bg-orange-50 px-3 py-2">
+                                                    <div className="min-w-0">
+                                                        <div className="text-sm font-bold text-slate-900">
+                                                            Open Standby Slot: {m.course} · {m.slot.time} (No-show: {m.noShowParticipant.name})
+                                                        </div>
+                                                        {conflict !== undefined && (
+                                                            <div className="text-xs font-medium text-amber-800">
+                                                                &lt;6 min from {club} teammate {conflict.teammateName} ({conflict.teammateTime})
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            void handleSlotStandbyRunner(
+                                                                p.id,
+                                                                p.name,
+                                                                m.noShowParticipant.id,
+                                                                m.slot
+                                                            )
+                                                        }
+                                                        className="border border-emerald-700 bg-emerald-600 px-3.5 py-1.5 text-sm font-bold text-white hover:bg-emerald-700">
+                                                        Assign {p.name} to {m.slot.time}
+                                                    </button>
+                                                </div>
+                                            )
+                                        })}
+                                </div>
+                            )}
 
                         {(startDiffers || epunchDiffers) && (
                             <div className="flex flex-col gap-2 border border-slate-300 bg-slate-50 p-3">
@@ -531,26 +605,49 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Runner Actions
                                 </div>
-                                <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
+                                <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2">
+                                    {(p.needsWaiver || p.needsPayment) && (
+                                        <ManagerActionButton
+                                            action={() => {
+                                                const prevWaiver = Boolean(p.needsWaiver)
+                                                const prevPayment = Boolean(p.needsPayment)
+                                                void setParticipantEligible(p.id)
+                                                setUndo({
+                                                    message: `${p.name} marked as Eligible`,
+                                                    run: async () => {
+                                                        if (prevWaiver) await setNeedsWaiver(p.id, true)
+                                                        if (prevPayment) await setNeedsPayment(p.id, true)
+                                                    },
+                                                })
+                                            }}
+                                            text="Set as Eligible"
+                                            icon="check-circle"
+                                            color="emerald"
+                                            buttonStyle="solid"
+                                            className="px-4 py-2 text-base font-extrabold ring-2 ring-emerald-700 ring-offset-1" />
+                                    )}
                                     <ManagerActionButton
                                         action={() => setTimePickerOpen((open) => !open)}
                                         text="Change start time"
                                         icon="clock"
                                         color="sky"
-                                        buttonStyle={timePickerOpen ? "solid" : "outline"} />
+                                        buttonStyle={timePickerOpen || hasNoShow(p) || p.state === 'needsAssignment' ? "solid" : "outline"}
+                                        className={hasNoShow(p) || p.state === 'needsAssignment' ? "px-4 py-2 text-base font-extrabold ring-2 ring-sky-700 ring-offset-1" : ""} />
                                     <ManagerActionButton
                                         action={() => setEpunchEditOpen(true)}
                                         text="Edit e-punch"
                                         icon="pencil"
                                         color={getColorByIconName("pencil")}
-                                        buttonStyle="outline" />
+                                        buttonStyle={hasWrongEpunch(p) ? "solid" : "outline"}
+                                        className={hasWrongEpunch(p) ? "px-4 py-2 text-base font-extrabold ring-2 ring-pink-700 ring-offset-1" : ""} />
                                     {inRealSlot && hasWrongEpunch(p) && (
                                         <ManagerActionButton
                                             action={() => void runWithUndo(`${p.name} marked Validated`, () => setStateValidated(p.id))}
                                             text="Mark e-punch validated"
                                             icon="check-badge"
                                             color={getColorByIconName("check-badge")}
-                                            buttonStyle="outline" />
+                                            buttonStyle="solid"
+                                            className="px-4 py-2 text-base font-extrabold" />
                                     )}
                                     {inRealSlot && !hasWrongEpunch(p) && (
                                         <ManagerActionButton
@@ -590,6 +687,7 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                                 isRental: true,
                                                 isNonCompete: true,
                                                 suggestedCourse: nextHarderCourse(e.course, courses),
+                                                isSecondCourse: true,
                                             })
                                         }
                                         text="Add 2nd course"

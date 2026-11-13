@@ -31,6 +31,22 @@ export function addMinutesToClock(clock: string, minutes: number): string {
     return `${hh}:${mm}`
 }
 
+/**
+ * Validates and normalizes a typed start time ("9:38" -> "09:38"). Returns undefined if invalid.
+ */
+export function normalizeCustomStartTime(raw: string): string | undefined {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(raw.trim())
+    if (match === null) {
+        return undefined
+    }
+    const hours = Number(match[1])
+    const minutes = Number(match[2])
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        return undefined
+    }
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
 export function timeAgo(thenMs: number, nowMs: number = Date.now()): string {
     const mins = Math.floor((nowMs - thenMs) / 60000)
     if (mins < 1) {
@@ -140,9 +156,9 @@ export function courseHeaderColor(course: string): CourseColorSpec | undefined {
     return COURSE_COLORS[course]
 }
 
-//// 10-minute same-school spacing rule ////
+//// 6-minute same-school spacing rule ////
 
-export const SAME_SCHOOL_MIN_GAP_MINUTES = 10
+export const SAME_SCHOOL_MIN_GAP_MINUTES = 6
 
 export interface TeammateConflict {
     teammateName: string
@@ -297,7 +313,7 @@ export function evaluateStartTimesForSchool(params: {
                 recommendedSlot: recommended,
                 teammatesOnCourse,
                 skippedEarlierSlots,
-                reason: `Keeps at least 10 minutes between ${school} teammates on ${course} (${conflictNames}). Skipped ${skippedTimes} (<10 min apart), or click any time below to override.`,
+                reason: `Keeps at least 6 minutes between ${school} teammates on ${course} (${conflictNames}). Skipped ${skippedTimes} (<6 min apart), or click any time below to override.`,
             }
         }
 
@@ -308,11 +324,11 @@ export function evaluateStartTimesForSchool(params: {
             recommendedSlot: recommended,
             teammatesOnCourse,
             skippedEarlierSlots: [],
-            reason: `Soonest open time and 10+ minutes apart from ${school} teammates on ${course} (${teammateSummary}).`,
+            reason: `Soonest open time and 6+ minutes apart from ${school} teammates on ${course} (${teammateSummary}).`,
         }
     }
 
-    // Fallback when every open slot is within 10 minutes of a teammate: pick the one with the largest gap
+    // Fallback when every open slot is within 6 minutes of a teammate: pick the one with the largest gap
     let bestFallback = evaluatedSlots[0]!
     for (const candidate of evaluatedSlots) {
         const candGap = candidate.closestConflict?.gapMinutes ?? 0
@@ -328,7 +344,7 @@ export function evaluateStartTimesForSchool(params: {
         recommendedSlot: bestFallback,
         teammatesOnCourse,
         skippedEarlierSlots: evaluatedSlots,
-        reason: `No open times on ${course} have a full 10-minute gap from ${school} teammates. Closest to 10 min is ${bestFallback.slot.time} (${c.gapMinutes} min from ${c.teammateName} at ${c.teammateTime}). Click any time to override.`,
+        reason: `No open times on ${course} have a full 6-minute gap from ${school} teammates. Closest to 6 min is ${bestFallback.slot.time} (${c.gapMinutes} min from ${c.teammateName} at ${c.teammateTime}). Click any time to override.`,
     }
 }
 
@@ -339,6 +355,8 @@ export interface StandbyMatch {
     slot: SlotDocType
     noShowParticipant: ParticipantDocType
     standbyParticipants: ParticipantDocType[]
+    priorityStandbyParticipant: ParticipantDocType
+    conflictsByStandbyId: Record<string, TeammateConflict | undefined>
 }
 
 export function findStandbyMatches(
@@ -351,7 +369,7 @@ export function findStandbyMatches(
     // Track when each runner entered Standby so the Standby queue is ordered FIFO (longest waiting first)
     const standbyEnteredAt = new Map<string, number>()
     for (const c of allChanges) {
-        if (c.changeType === 'needsAssignment') {
+        if (c.changeType === 'needsAssignment' || c.changeType === 'addedParticipant') {
             const prev = standbyEnteredAt.get(c.participantId) ?? 0
             if (c.changedAt > prev) {
                 standbyEnteredAt.set(c.participantId, c.changedAt)
@@ -382,12 +400,46 @@ export function findStandbyMatches(
         }
     }
 
+    const fifoCompare = (a: ParticipantDocType, b: ParticipantDocType) =>
+        (standbyEnteredAt.get(a.id) ?? 0) - (standbyEnteredAt.get(b.id) ?? 0) ||
+        a.name.localeCompare(b.name)
+
     for (const list of standbyByCourse.values()) {
-        list.sort(
-            (a, b) =>
-                (standbyEnteredAt.get(a.id) ?? 0) - (standbyEnteredAt.get(b.id) ?? 0) ||
-                a.name.localeCompare(b.name)
-        )
+        list.sort(fifoCompare)
+    }
+
+    function findClosestTeammateConflictForSlot(
+        standbyRunner: ParticipantDocType,
+        targetSlot: SlotDocType,
+        noShowId: string
+    ): TeammateConflict | undefined {
+        const school = normalizeSchoolName(standbyRunner.club)
+        if (school === '') return undefined
+        const schoolLower = school.toLowerCase()
+        const slotMins = parseTimeToMinutes(targetSlot.time)
+        if (slotMins === undefined) return undefined
+
+        let closest: TeammateConflict | undefined
+        for (const s of allSlots) {
+            if (s.course !== targetSlot.course || isMagicTime(s.time)) continue
+            const tmMins = parseTimeToMinutes(s.time)
+            if (tmMins === undefined) continue
+            for (const pid of s.participants) {
+                if (pid === standbyRunner.id || pid === noShowId) continue
+                const tm = participantById.get(pid)
+                if (tm === undefined || tm.state === 'notAttending' || hasNoShow(tm)) continue
+                if (normalizeSchoolName(tm.club).toLowerCase() !== schoolLower) continue
+                const gap = Math.abs(slotMins - tmMins)
+                if (gap < SAME_SCHOOL_MIN_GAP_MINUTES && (closest === undefined || gap < closest.gapMinutes)) {
+                    closest = {
+                        teammateName: tm.name,
+                        teammateTime: s.time,
+                        gapMinutes: gap,
+                    }
+                }
+            }
+        }
+        return closest
     }
 
     // Find all real start slots on courses with Standby runners where a starter is marked No Show
@@ -400,11 +452,26 @@ export function findStandbyMatches(
         for (const pid of slot.participants) {
             const p = participantById.get(pid)
             if (p !== undefined && hasNoShow(p)) {
+                const conflictsByStandbyId: Record<string, TeammateConflict | undefined> = {}
+                for (const sp of standbyList) {
+                    conflictsByStandbyId[sp.id] = findClosestTeammateConflictForSlot(sp, slot, p.id)
+                }
+
+                // Prioritize Standby runners without a <6 min same-school conflict, preserving FIFO order within each group
+                const prioritizedStandby = [...standbyList].sort((a, b) => {
+                    const aConflict = conflictsByStandbyId[a.id] !== undefined ? 1 : 0
+                    const bConflict = conflictsByStandbyId[b.id] !== undefined ? 1 : 0
+                    if (aConflict !== bConflict) return aConflict - bConflict
+                    return fifoCompare(a, b)
+                })
+
                 matches.push({
                     course: slot.course,
                     slot,
                     noShowParticipant: p,
-                    standbyParticipants: standbyList,
+                    standbyParticipants: prioritizedStandby,
+                    priorityStandbyParticipant: prioritizedStandby[0]!,
+                    conflictsByStandbyId,
                 })
             }
         }
@@ -468,7 +535,8 @@ export function calculateCourseHeadcount(
         }
 
         const runners = Math.max(1, Math.round(Number(p.groupSize) || 1))
-        const shadows = p.isNonCompete ? 1 : 0
+        // NC on the original start list always has 1 shadow; 2nd-course entries (also marked NC) cannot have a shadow
+        const shadows = p.isNonCompete && !p.isSecondCourse ? 1 : 0
         const entryTotal = runners + shadows
 
         activeEntriesOnCourse += 1

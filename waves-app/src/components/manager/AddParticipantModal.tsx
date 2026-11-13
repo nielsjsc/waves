@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ParticipantDocType, SlotDocType } from '@/Schema'
 import { addNewParticipant } from '@/actions/participantActions'
+import { CustomStartTimeForm } from './CustomStartTimeForm'
 import { courseShortLabel, evaluateStartTimesForSchool, isMagicTime } from '@/utils/slotLabels'
 
 export interface AddParticipantPrefill {
@@ -12,6 +13,7 @@ export interface AddParticipantPrefill {
     suggestedCourse?: string
     targetSlotId?: string
     targetTime?: string
+    isSecondCourse?: boolean
 }
 
 interface Properties {
@@ -44,6 +46,7 @@ export function AddParticipantModal({
     const [epunch, setEpunch] = useState(prefill?.epunch ?? '')
     const [isRental, setIsRental] = useState(prefill?.isRental ?? (prefill?.isNonCompete ? true : false))
     const [isNonCompete, setIsNonCompete] = useState(prefill?.isNonCompete ?? false)
+    const [isSecondCourse, setIsSecondCourse] = useState(Boolean(prefill?.isSecondCourse))
     const [groupSize, setGroupSize] = useState(1)
     const [course, setCourse] = useState(defaultCourse)
     const [showEarlier, setShowEarlier] = useState(() => {
@@ -53,6 +56,7 @@ export function AddParticipantModal({
         return false
     })
     const [selectedSlotId, setSelectedSlotId] = useState<string>(prefill?.targetSlotId ?? '')
+    const [customSlotId, setCustomSlotId] = useState('')
     const [errorMsg, setErrorMsg] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -78,7 +82,7 @@ export function AddParticipantModal({
                 !isMagicTime(s.time) &&
                 s.isUsable !== false &&
                 s.participants.length === 0 &&
-                (showEarlier || cutoff === '' || s.time >= cutoff || s.id === prefill?.targetSlotId)
+                (showEarlier || cutoff === '' || s.time >= cutoff || s.id === prefill?.targetSlotId || s.id === customSlotId)
         )
         .sort((a, b) => a.time.localeCompare(b.time))
 
@@ -92,9 +96,11 @@ export function AddParticipantModal({
 
     const recommendedSlotId = recommendation.recommendedSlot?.slot.id
 
-    // Default to explicit targetSlotId (when clicked on FullGrid) or the recommended open slot
+    // Default to custom-created slot, explicit targetSlotId (when clicked on FullGrid), or recommended open slot
     useEffect(() => {
-        if (prefill?.targetSlotId && course === prefill.suggestedCourse && openSlots.some((s) => s.id === prefill.targetSlotId)) {
+        if (customSlotId !== '' && openSlots.some((s) => s.id === customSlotId)) {
+            setSelectedSlotId(customSlotId)
+        } else if (prefill?.targetSlotId && course === prefill.suggestedCourse && openSlots.some((s) => s.id === prefill.targetSlotId)) {
             setSelectedSlotId(prefill.targetSlotId)
         } else if (recommendedSlotId !== undefined) {
             setSelectedSlotId(recommendedSlotId)
@@ -103,7 +109,7 @@ export function AddParticipantModal({
         } else {
             setSelectedSlotId('QUEUE')
         }
-    }, [course, club, showEarlier, cutoff, recommendedSlotId, openSlots.length, prefill?.targetSlotId, prefill?.suggestedCourse])
+    }, [course, club, showEarlier, cutoff, recommendedSlotId, openSlots.length, customSlotId, prefill?.targetSlotId, prefill?.suggestedCourse])
 
     // Find existing participants matching the typed name so volunteers can 1-click copy
     // school & e-punch when a school racer finishes their first course and runs a second one.
@@ -122,6 +128,7 @@ export function AddParticipantModal({
         // Default to rental e-punch for a 2nd course
         setIsRental(true)
         setIsNonCompete(true)
+        setIsSecondCourse(true)
         setErrorMsg('')
     }
 
@@ -158,6 +165,7 @@ export function AddParticipantModal({
             isNonCompete,
             groupSize,
             targetSlotId,
+            isSecondCourse,
         })
 
         setIsSubmitting(false)
@@ -291,23 +299,37 @@ export function AddParticipantModal({
                 </div>
 
                 <div className="flex flex-col justify-end gap-2">
-                    <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-slate-800">
-                        <input
-                            type="checkbox"
-                            checked={isNonCompete}
-                            onChange={(e) => {
-                                const checked = e.target.checked
-                                setIsNonCompete(checked)
-                                if (checked) {
-                                    setIsRental(true)
-                                }
-                            }}
-                            className="size-4"
-                        />
-                        <span>
-                            <strong>Non-competitive (NC)</strong>
-                        </span>
-                    </label>
+                    <div className="flex flex-wrap items-center gap-4">
+                        <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-slate-800">
+                            <input
+                                type="checkbox"
+                                checked={isNonCompete}
+                                onChange={(e) => {
+                                    const checked = e.target.checked
+                                    setIsNonCompete(checked)
+                                    if (checked) {
+                                        setIsRental(true)
+                                    }
+                                }}
+                                className="size-4"
+                            />
+                            <span>
+                                <strong>Non-competitive (NC)</strong>
+                            </span>
+                        </label>
+
+                        <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-slate-800">
+                            <input
+                                type="checkbox"
+                                checked={isSecondCourse}
+                                onChange={(e) => setIsSecondCourse(e.target.checked)}
+                                className="size-4"
+                            />
+                            <span>
+                                <strong>2nd course</strong>
+                            </span>
+                        </label>
+                    </div>
 
                     <div className="flex min-h-10 items-center gap-2 text-sm text-slate-800">
                         <label htmlFor="add-p-groupsize" className="font-medium">
@@ -337,7 +359,7 @@ export function AddParticipantModal({
                             <button
                                 key={c}
                                 type="button"
-                                onClick={() => setCourse(c)}
+                                onClick={() => { setCustomSlotId(''); setCourse(c) }}
                                 className={`flex min-h-11 flex-col items-start border px-2.5 py-1.5 text-left transition ${
                                     active
                                         ? 'border-slate-900 bg-slate-900 text-white'
@@ -363,7 +385,7 @@ export function AddParticipantModal({
                     </span>
                     <button
                         type="button"
-                        onClick={() => setSelectedSlotId('QUEUE')}
+                        onClick={() => { setCustomSlotId(''); setSelectedSlotId('QUEUE') }}
                         className={`min-h-9 border px-2.5 py-1 text-xs font-semibold ${
                             selectedSlotId === 'QUEUE'
                                 ? 'border-orange-700 bg-orange-600 text-white'
@@ -374,9 +396,14 @@ export function AddParticipantModal({
                 </div>
 
                 {recommendation.recommendedSlot !== undefined && (
-                    <p className="mt-1.5 text-xs text-emerald-800">
-                        <strong>Preferred ({recommendation.recommendedSlot.slot.time}):</strong> {recommendation.reason}
-                    </p>
+                    <div className="mt-1.5 flex items-center gap-2 text-xs font-semibold text-emerald-800">
+                        <span>
+                            Recommended: <strong>{recommendation.recommendedSlot.slot.time}</strong>
+                        </span>
+                        {!recommendation.recommendedSlot.isPreferred && (
+                            <span className="text-amber-800">(&lt;6 min school conflict)</span>
+                        )}
+                    </div>
                 )}
 
                 {openSlots.length === 0 ? (
@@ -389,8 +416,8 @@ export function AddParticipantModal({
                             const picked = slot.id === selectedSlotId
                             const isRecommended = slot.id === recommendedSlotId
                             const conflictTitle = closestConflict
-                                ? `Within 10 min of ${recommendation.school} teammate ${closestConflict.teammateName} (${closestConflict.teammateTime}, ${closestConflict.gapMinutes} min apart) — click to override`
-                                : '10+ min spacing from same-school teammates'
+                                ? `Within 6 min of ${recommendation.school} teammate ${closestConflict.teammateName} (${closestConflict.teammateTime}, ${closestConflict.gapMinutes} min apart) — click to override`
+                                : '6+ min spacing from same-school teammates'
 
                             let btnClass = 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
                             if (picked) {
@@ -406,7 +433,7 @@ export function AddParticipantModal({
                                     key={slot.id}
                                     type="button"
                                     title={conflictTitle}
-                                    onClick={() => setSelectedSlotId(slot.id)}
+                                    onClick={() => { setCustomSlotId(''); setSelectedSlotId(slot.id) }}
                                     className={`min-h-10 min-w-[3.5rem] border px-2.5 py-1 text-sm font-semibold tabular-nums ${btnClass}`}>
                                     {slot.time}
                                 </button>
@@ -426,6 +453,20 @@ export function AddParticipantModal({
                         Include times already past call-up (before {cutoff})
                     </label>
                 )}
+
+                <div className="mt-2.5">
+                    <CustomStartTimeForm
+                        course={course}
+                        submitLabel="Use time"
+                        onCreated={(slot, normalizedTime) => {
+                            if (cutoff !== '' && normalizedTime < cutoff) {
+                                setShowEarlier(true)
+                            }
+                            setCustomSlotId(slot.id)
+                            setSelectedSlotId(slot.id)
+                        }}
+                    />
+                </div>
             </div>
 
             {errorMsg !== '' && (

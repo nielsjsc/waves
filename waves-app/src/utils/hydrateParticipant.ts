@@ -44,13 +44,17 @@ export function hydrateParticipant(participantId:string, DATA:AllData):Populated
             id: p.id,
             name: p.name,
             state: p.state as ParticipantState,
+            prevState: p.prevState as ParticipantState | undefined,
             club: p.club ?? '',
             epunch: p.epunch ?? '',
             isRental: p.isRental,
             isNonCompete: p.isNonCompete,
             groupSize: p.groupSize,
             originalStartTime: p.originalStartTime ?? '',
-            startChanged: p.startChanged ?? false
+            startChanged: p.startChanged ?? false,
+            needsWaiver: Boolean(p.needsWaiver),
+            needsPayment: Boolean(p.needsPayment),
+            isSecondCourse: Boolean(p.isSecondCourse),
         }
     })
 }

@@ -48,7 +48,10 @@ export const participantSchemaLiteral = {
         groupSize: {type: 'number' },
         // race_class: { type: 'string' },
         originalStartTime: {type: 'string'},
-        startChanged: {type: 'boolean'}
+        startChanged: {type: 'boolean'},
+        needsWaiver: { type: 'boolean' },
+        needsPayment: { type: 'boolean' },
+        isSecondCourse: { type: 'boolean' }
     }
 } as const;
 const participantSchemaTyped = toTypedRxJsonSchema(participantSchemaLiteral);

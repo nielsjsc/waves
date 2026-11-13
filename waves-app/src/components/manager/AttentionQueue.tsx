@@ -61,17 +61,36 @@ function TriageCard({
     )
 }
 
-function Row({ title, detail, aside, onClick }: { title: string; detail: string; aside: string; onClick: () => void }) {
+function Row({
+    title,
+    badge,
+    detail,
+    aside,
+    onClick,
+}: {
+    title: string
+    badge?: string
+    detail: string
+    aside: string
+    onClick: () => void
+}) {
     return (
         <button
             type="button"
             onClick={onClick}
             className="flex min-h-11 w-full items-center gap-3 border border-slate-300 bg-white px-3 py-2 text-left transition hover:border-slate-500 hover:bg-slate-50 active:bg-slate-100">
             <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold text-slate-900">{title}</span>
+                <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="truncate font-semibold text-slate-900">{title}</span>
+                    {badge && (
+                        <span className="shrink-0 border border-purple-600 bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-purple-800">
+                            {badge}
+                        </span>
+                    )}
+                </span>
                 <span className="block truncate text-xs text-slate-600">{detail}</span>
             </span>
-            <span className="shrink-0 text-xs text-slate-500">{aside}</span>
+            <span className="shrink-0 text-xs font-semibold text-slate-600">{aside}</span>
         </button>
     )
 }
@@ -86,7 +105,7 @@ interface SchoolSummary {
 }
 
 export function AttentionQueue({ participants, slotsByParticipant, changes, onSelect }: Properties) {
-    const [triageFilter, setTriageFilter] = useState<'all' | 'wrongEpunch' | 'standby' | 'noShows'>('all')
+    const [triageFilter, setTriageFilter] = useState<'all' | 'wrongEpunch' | 'standby' | 'noShows' | 'ineligible'>('all')
     const [schoolsExpanded, setSchoolsExpanded] = useState(false)
     const [selectedSchool, setSelectedSchool] = useState<string | undefined>(undefined)
     const [schoolFilter, setSchoolFilter] = useState('')
@@ -118,11 +137,14 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
     }
     const clubOf = (p: ParticipantDocType) => (p.club === undefined || p.club === 'unknown' || p.club === 'None' ? '' : p.club)
 
+    const standbyTimeOf = (id: string) =>
+        lastChange.get(`${id}|needsAssignment`) ?? lastChange.get(`${id}|addedParticipant`)
+
     const standbyRunners = participants
         .filter((p) => p.state === 'needsAssignment')
         .sort(
             (a, b) =>
-                (lastChange.get(`${a.id}|needsAssignment`) ?? 0) - (lastChange.get(`${b.id}|needsAssignment`) ?? 0) ||
+                (standbyTimeOf(a.id) ?? 0) - (standbyTimeOf(b.id) ?? 0) ||
                 courseOf(a.id).localeCompare(courseOf(b.id)) ||
                 a.name.localeCompare(b.name)
         )
@@ -137,6 +159,16 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
     const noShows = participants
         .filter((p) => hasNoShow(p))
         .sort((a, b) => dueTimeOf(a).localeCompare(dueTimeOf(b)) || courseOf(a.id).localeCompare(courseOf(b.id)))
+
+    // Racers flagged with "N" (missing parent shadow waiver) or "Need $" (owes payment)
+    const ineligibleRacers = participants
+        .filter((p) => (Boolean(p.needsWaiver) || Boolean(p.needsPayment)) && p.state !== 'notAttending')
+        .sort(
+            (a, b) =>
+                dueTimeOf(a).localeCompare(dueTimeOf(b)) ||
+                courseOf(a.id).localeCompare(courseOf(b.id)) ||
+                a.name.localeCompare(b.name)
+        )
 
     // Filter out superseded noShow / wrongEpunch change records that no longer match the participant's current state
     const activeChanges = changes.filter((c) => {
@@ -214,7 +246,7 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
         ? schools
         : schools.filter((s) => s.name.toLowerCase().includes(filterText))
 
-    const totalTriageCount = wrongEpunch.length + standbyRunners.length + noShows.length
+    const totalTriageCount = wrongEpunch.length + standbyRunners.length + noShows.length + ineligibleRacers.length
 
     return (
         <div className="flex flex-col gap-4 text-slate-900">
@@ -314,10 +346,20 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
                     }`}>
                     No-shows ({noShows.length})
                 </button>
+                <button
+                    type="button"
+                    onClick={() => setTriageFilter('ineligible')}
+                    className={`min-h-9 shrink-0 px-3 py-1.5 text-xs font-bold transition ${
+                        triageFilter === 'ineligible'
+                            ? 'border border-red-700 bg-red-700 text-white'
+                            : 'border border-red-300 bg-red-50 text-red-900'
+                    }`}>
+                    Ineligible ({ineligibleRacers.length})
+                </button>
             </div>
 
-            {/* 1. Three Actionable Triage Queues */}
-            <div className="grid gap-3 md:grid-cols-3">
+            {/* 1. Four Actionable Triage Queues */}
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div className={triageFilter === 'all' || triageFilter === 'wrongEpunch' ? 'block' : 'hidden md:block'}>
                     <TriageCard
                         title="Wrong e-punch"
@@ -331,6 +373,7 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
                                 <Row
                                     key={p.id}
                                     title={p.name}
+                                    badge={p.isSecondCourse ? '2nd course' : undefined}
                                     detail={[courseOf(p.id), `starts ${formatSlotTime(timeOf(p.id))}`, ep, clubOf(p)].filter((x) => x !== '').join(' · ')}
                                     aside={at === undefined ? '' : timeAgo(at)}
                                     onClick={() => onSelect(p.id)}
@@ -347,13 +390,14 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
                         empty="None"
                         accent="orange">
                         {standbyRunners.map((p) => {
-                            const at = lastChange.get(`${p.id}|needsAssignment`)
+                            const at = standbyTimeOf(p.id)
                             const was = p.startChanged && p.originalStartTime ? `was ${p.originalStartTime}` : ''
                             return (
                                 <Row
                                     key={p.id}
                                     title={p.name}
-                                    detail={[courseOf(p.id), clubOf(p), was].filter((x) => x !== '').join(' · ')}
+                                    badge={p.isSecondCourse ? '2nd course' : undefined}
+                                    detail={[courseOf(p.id), p.isSecondCourse ? '2nd course' : '', clubOf(p), was].filter((x) => x !== '').join(' · ')}
                                     aside={at === undefined ? 'in standby' : timeAgo(at)}
                                     onClick={() => onSelect(p.id, false)}
                                 />
@@ -377,8 +421,34 @@ export function AttentionQueue({ participants, slotsByParticipant, changes, onSe
                                 <Row
                                     key={p.id}
                                     title={p.name}
+                                    badge={p.isSecondCourse ? '2nd course' : undefined}
                                     detail={[courseOf(p.id), clubOf(p), dueLabel].filter((x) => x !== '').join(' · ')}
                                     aside={at === undefined ? '' : timeAgo(at)}
+                                    onClick={() => onSelect(p.id)}
+                                />
+                            )
+                        })}
+                    </TriageCard>
+                </div>
+
+                <div className={triageFilter === 'all' || triageFilter === 'ineligible' ? 'block' : 'hidden md:block'}>
+                    <TriageCard
+                        title="Ineligible racers"
+                        count={ineligibleRacers.length}
+                        empty="None"
+                        accent="red">
+                        {ineligibleRacers.map((p) => {
+                            const reasons = [
+                                p.needsWaiver ? 'N' : '',
+                                p.needsPayment ? 'Need $' : '',
+                            ].filter(Boolean).join(', ')
+                            return (
+                                <Row
+                                    key={p.id}
+                                    title={p.name}
+                                    badge={p.isSecondCourse ? '2nd course' : undefined}
+                                    detail={[courseOf(p.id), `starts ${formatSlotTime(timeOf(p.id))}`, clubOf(p)].filter((x) => x !== '').join(' · ')}
+                                    aside={reasons}
                                     onClick={() => onSelect(p.id)}
                                 />
                             )

@@ -15,8 +15,11 @@ import type { Slot as SlotType } from '@/api/slots'
 import type { SlotDocType } from '@/Schema'
 import {
     setCompetitive,
+    setNeedsPayment,
+    setNeedsWaiver,
     setNewStartTime,
     setNonCompetitive,
+    setParticipantEligible,
     setStateNeedsAssignment,
     setStateNotAttending,
 } from '@/actions/participantActions'
@@ -41,9 +44,8 @@ const GRID_STATE_BUTTONS: ParticipantState[] = [
     'noShow',
 ]
 
-export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = false, onRequestUnlock, onOpenInManager }: Properties) {
+export function FullGrid({ clockTime = '', waveOffsetMinutes = 6, readOnly = false, onRequestUnlock, onOpenInManager }: Properties) {
     const [activeParticipantId, setActiveParticipantId] = useState<string>('')
-    const [movingParticipantId, setMovingParticipantId] = useState<string>('')
     const [showTimePickerInModal, setShowTimePickerInModal] = useState(false)
     const [isEpunchModalOpen, setIsEpunchModalOpen] = useState(false)
     const [isGroupSizeModalOpen, setIsGroupSizeModalOpen] = useState(false)
@@ -69,8 +71,6 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = fal
 
     const activeHydrated =
         activeParticipantId !== '' ? hydrateParticipant(activeParticipantId, DATA) : undefined
-    const movingHydrated =
-        movingParticipantId !== '' ? hydrateParticipant(movingParticipantId, DATA) : undefined
 
     function showNotice(msg: string) {
         setBannerMessage(msg)
@@ -81,7 +81,6 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = fal
         const p = allParticipants.find((x) => x.id === participantId)
         const toSlot = allSlots.find((s) => s.id === toSlotId)
         await setNewStartTime(participantId, fromSlotId, toSlotId)
-        setMovingParticipantId('')
         if (p && toSlot) {
             showNotice(`Moved ${p.name} to ${toSlot.course} · ${toSlot.time}`)
         }
@@ -95,10 +94,6 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = fal
     }
 
     function handleOpenSlotClick(slot: SlotType) {
-        if (movingHydrated !== undefined) {
-            void handleMoveParticipant(movingHydrated.participant.id, movingHydrated.slotId, slot.id)
-            return
-        }
         setAddPrefill({
             name: '',
             club: '',
@@ -132,19 +127,6 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = fal
                 {/* Crisp Action & Status Bar */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
                     <div className="flex flex-wrap items-center gap-3">
-                        {!readOnly && movingHydrated !== undefined && (
-                            <div className="flex items-center gap-2 border border-pink-600 bg-pink-50 px-2.5 py-1 text-xs font-semibold text-pink-950">
-                                <span>
-                                    Moving <strong>{movingHydrated.participant.name}</strong> — click any Open slot on the grid
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setMovingParticipantId('')}
-                                    className="border border-pink-600 bg-white px-1.5 py-0.5 text-xs font-semibold text-pink-900 hover:bg-pink-100">
-                                    Cancel
-                                </button>
-                            </div>
-                        )}
                         {!readOnly && bannerMessage !== '' && (
                             <div
                                 role="status"
@@ -221,7 +203,7 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = fal
                 <StartGrid
                     data={displayData}
                     columns="course"
-                    selectedParticipantHydrated={readOnly ? undefined : (movingHydrated ?? activeHydrated)}
+                    selectedParticipantHydrated={readOnly ? undefined : activeHydrated}
                     toStateButtons={[]}
                     onParticipantClick={readOnly ? undefined : handleParticipantClick}
                     onOpenSlotClick={readOnly ? undefined : handleOpenSlotClick}
@@ -263,6 +245,21 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = fal
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
+                                    {activeHydrated.participant.isSecondCourse && (
+                                        <span className="border border-purple-600 bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-800">
+                                            2nd course
+                                        </span>
+                                    )}
+                                    {activeHydrated.participant.needsWaiver && (
+                                        <span className="border border-red-700 bg-red-600 px-2.5 py-1 text-xs font-extrabold text-white">
+                                            Hasn&apos;t signed shadow waiver (N)
+                                        </span>
+                                    )}
+                                    {activeHydrated.participant.needsPayment && (
+                                        <span className="border border-red-700 bg-red-600 px-2.5 py-1 text-xs font-extrabold text-white">
+                                            Need $
+                                        </span>
+                                    )}
                                     {getDisplayStates(activeHydrated.participant).map((st) => {
                                         const stStyle = ParticipantStateStyles.get(st)
                                         if (!stStyle) return null
@@ -298,23 +295,23 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = fal
                                 <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Actions
                                 </div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {(activeHydrated.participant.needsWaiver || activeHydrated.participant.needsPayment) && (
+                                        <ManagerActionButton
+                                            text="Set as Eligible"
+                                            icon="check-circle"
+                                            color="emerald"
+                                            buttonStyle="solid"
+                                            className="px-4 py-2 text-base font-extrabold ring-2 ring-emerald-700 ring-offset-1"
+                                            action={() => void setParticipantEligible(activeHydrated.participant.id)}
+                                        />
+                                    )}
                                     <ManagerActionButton
                                         text="Change start time"
                                         icon="clock"
                                         color="sky"
                                         buttonStyle={showTimePickerInModal ? 'solid' : 'outline'}
                                         action={() => setShowTimePickerInModal((v) => !v)}
-                                    />
-                                    <ManagerActionButton
-                                        text="Select to click open slot on grid"
-                                        icon="arrow-box"
-                                        color="orange"
-                                        buttonStyle="outline"
-                                        action={() => {
-                                            setMovingParticipantId(activeHydrated.participant.id)
-                                            setActiveParticipantId('')
-                                        }}
                                     />
                                     <ManagerActionButton
                                         text="Edit e-punch"
@@ -371,6 +368,7 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 8, readOnly = fal
                                                 isRental: true,
                                                 isNonCompete: true,
                                                 suggestedCourse: nextCourse,
+                                                isSecondCourse: true,
                                             })
                                         }}
                                     />

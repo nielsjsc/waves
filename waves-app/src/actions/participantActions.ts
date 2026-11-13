@@ -1,6 +1,8 @@
 import { EVENT_ID, slotsTanCollection, participantsTanCollection, changesTanCollection } from "@/database";
 import type { SlotDocType } from "@/Schema";
+import { slotIdFor } from "@/dataImport";
 import { randomUUID } from "@/utils/cryptoHelpers";
+import { normalizeCustomStartTime } from "@/utils/slotLabels";
 import { hasNoShow, hasWrongEpunch } from "@/utils/styleHelpers";
 import { eq, inArray, queryOnce } from "@tanstack/react-db";
 
@@ -533,6 +535,43 @@ export async function setGroupSize(participantId: string, newGroupSize: number):
     await t2.isPersisted.promise
 }
 
+export async function setNeedsWaiver(participantId: string, needsWaiver: boolean): Promise<void> {
+    const oldParticipant = await participantsTanCollection.get(participantId)
+    if (oldParticipant === undefined || Boolean(oldParticipant.needsWaiver) === needsWaiver) {
+        return
+    }
+    const t1 = participantsTanCollection.update(participantId, (p) => {
+        p.needsWaiver = needsWaiver
+    })
+    await t1.isPersisted.promise
+}
+
+export async function setNeedsPayment(participantId: string, needsPayment: boolean): Promise<void> {
+    const oldParticipant = await participantsTanCollection.get(participantId)
+    if (oldParticipant === undefined || Boolean(oldParticipant.needsPayment) === needsPayment) {
+        return
+    }
+    const t1 = participantsTanCollection.update(participantId, (p) => {
+        p.needsPayment = needsPayment
+    })
+    await t1.isPersisted.promise
+}
+
+export async function setParticipantEligible(participantId: string): Promise<void> {
+    const oldParticipant = await participantsTanCollection.get(participantId)
+    if (oldParticipant === undefined) {
+        return
+    }
+    if (!oldParticipant.needsWaiver && !oldParticipant.needsPayment) {
+        return
+    }
+    const t1 = participantsTanCollection.update(participantId, (p) => {
+        p.needsWaiver = false
+        p.needsPayment = false
+    })
+    await t1.isPersisted.promise
+}
+
 export interface NewParticipantInput {
     name: string
     course: string
@@ -542,6 +581,7 @@ export interface NewParticipantInput {
     isNonCompete: boolean
     groupSize: number
     targetSlotId?: string
+    isSecondCourse?: boolean
 }
 
 export async function addNewParticipant(input: NewParticipantInput): Promise<string | undefined> {
@@ -585,6 +625,7 @@ export async function addNewParticipant(input: NewParticipantInput): Promise<str
         state: inRealSlot ? 'waiting' : 'needsAssignment',
         originalStartTime: inRealSlot ? targetSlot.time : '',
         startChanged: false,
+        isSecondCourse: Boolean(input.isSecondCourse),
     }])
     await t1.isPersisted.promise
 
@@ -757,4 +798,68 @@ export async function setAllChangesProcessed(changeIds: string[], isProcessed: b
         })
         await tx.isPersisted.promise
     }
+}
+
+export type AddCustomStartTimeResult =
+    | { ok: true; time: string; slot: SlotDocType }
+    | { ok: false; error: string }
+
+/**
+ * Ensures a new start time slot exists across all courses and returns the usable slot for `preferredCourse`.
+ */
+export async function addCustomStartTime(
+    timeInput: string,
+    preferredCourse: string
+): Promise<AddCustomStartTimeResult> {
+    const normalizedTime = normalizeCustomStartTime(timeInput)
+    if (normalizedTime === undefined) {
+        return { ok: false, error: 'Enter a valid time like 9:38 or 10:15.' }
+    }
+    if (!preferredCourse) {
+        return { ok: false, error: 'Select a course first.' }
+    }
+
+    const allSlots = [...slotsTanCollection.values()]
+    const existingPreferred = allSlots.find(
+        (s) => s.course === preferredCourse && s.time === normalizedTime
+    )
+    if (existingPreferred !== undefined && existingPreferred.participants.length > 0) {
+        return {
+            ok: false,
+            error: `${normalizedTime} on ${preferredCourse} already has a runner.`,
+        }
+    }
+
+    const courses = [...new Set([...allSlots.map((s) => s.course), preferredCourse])].sort()
+    const toInsert: SlotDocType[] = []
+    for (const course of courses) {
+        const existing = allSlots.find((s) => s.course === course && s.time === normalizedTime)
+        if (existing === undefined) {
+            toInsert.push({
+                id: slotIdFor(course, normalizedTime),
+                course,
+                time: normalizedTime,
+                participants: [],
+                isUsable: true,
+            })
+        } else if (existing.participants.length === 0 && !existing.isUsable) {
+            const txEnable = slotsTanCollection.update(existing.id, (s) => {
+                s.isUsable = true
+            })
+            await txEnable.isPersisted.promise
+        }
+    }
+
+    if (toInsert.length > 0) {
+        const txInsert = slotsTanCollection.insert(toInsert)
+        await txInsert.isPersisted.promise
+    }
+
+    const targetSlot = [...slotsTanCollection.values()].find(
+        (s) => s.course === preferredCourse && s.time === normalizedTime
+    )
+    if (targetSlot === undefined) {
+        return { ok: false, error: `Could not create start time ${normalizedTime}.` }
+    }
+    return { ok: true, time: normalizedTime, slot: targetSlot }
 }

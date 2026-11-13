@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import Papa, { type ParseResult } from 'papaparse'
 import {
     changesTanCollection,
     cleanupLegacyDuplicateRecords,
@@ -18,10 +21,13 @@ import {
     type PdfStartListRecord,
 } from './dataImport'
 import {
+    addCustomStartTime,
     addNewParticipant,
     assignStandbyToNoShowSlot,
     clearStateNoShow,
     clearStateWrongEpunch,
+    setAllChangesProcessed,
+    setChangeProcessed,
     setCompetitive,
     setGroupSize,
     setNewEpunch,
@@ -37,7 +43,8 @@ import {
 } from './actions/participantActions'
 import { keepOnlyInSlot, putInNeedsAssignment } from './actions/repairActions'
 import { getOriginalEpunch, getOriginalStart } from './utils/originalValues'
-import { addMinutesToClock, calculateCourseHeadcount, changeTypeLabel, evaluateStartTimesForSchool, findStandbyMatches, formatSlotTime } from './utils/slotLabels'
+import { filterDownloadChanges } from './utils/downloadChanges'
+import { addMinutesToClock, calculateCourseHeadcount, changeTypeLabel, evaluateStartTimesForSchool, findStandbyMatches, formatSlotTime, normalizeCustomStartTime } from './utils/slotLabels'
 import { hasNoShow, hasWrongEpunch } from './utils/styleHelpers'
 
 function makeWaveRow(
@@ -125,7 +132,7 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             expect(getCourseForClass('9O')).toBe('c9')
         })
 
-        it('parses individual runners, multi-digit groups, rentals, and non-compete flags', () => {
+        it('parses individual runners, multi-digit groups, rentals, non-compete, N (waiver), and Need $ flags', () => {
             const normal = participantFromStartListData('p1', 'Alice Runner', 'Lakeside', '8654321')
             expect(normal).toEqual({
                 id: 'p1',
@@ -134,6 +141,8 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 epunch: '8654321',
                 isRental: false,
                 isNonCompete: false,
+                needsWaiver: false,
+                needsPayment: false,
                 state: 'waiting',
                 groupSize: 1,
             })
@@ -146,6 +155,8 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 epunch: '2091111',
                 isRental: true,
                 isNonCompete: true,
+                needsWaiver: false,
+                needsPayment: false,
                 state: 'waiting',
                 groupSize: 14,
             })
@@ -158,8 +169,52 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 epunch: '998877',
                 isRental: true,
                 isNonCompete: false,
+                needsWaiver: false,
+                needsPayment: false,
                 state: 'waiting',
                 groupSize: 1,
+            })
+
+            const missingWaiver = participantFromStartListData('p4', 'Carson Wright', 'Whatcom Middle', '2423692 - NC - N')
+            expect(missingWaiver).toEqual({
+                id: 'p4',
+                name: 'Carson Wright',
+                club: 'Whatcom Middle',
+                epunch: '2423692',
+                isRental: false,
+                isNonCompete: true,
+                needsWaiver: true,
+                needsPayment: false,
+                state: 'waiting',
+                groupSize: 1,
+            })
+
+            const needsMoney = participantFromStartListData('p5', 'Colton Boone', 'Oak Harbor', '2221885- Need $')
+            expect(needsMoney).toEqual({
+                id: 'p5',
+                name: 'Colton Boone',
+                club: 'Oak Harbor',
+                epunch: '2221885',
+                isRental: false,
+                isNonCompete: false,
+                needsWaiver: false,
+                needsPayment: true,
+                state: 'waiting',
+                groupSize: 1,
+            })
+
+            const inlineGroup = participantFromStartListData('p6', 'Marie-Josee Ledoux Group (2)', '7002107', '')
+            expect(inlineGroup).toEqual({
+                id: 'p6',
+                name: 'Marie-Josee Ledoux',
+                club: 'unknown',
+                epunch: '7002107',
+                isRental: false,
+                isNonCompete: false,
+                needsWaiver: false,
+                needsPayment: false,
+                state: 'waiting',
+                groupSize: 2,
             })
         })
 
@@ -196,6 +251,35 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             const grace = participantsTanCollection.get(participantIdFor('c1', '10:00'))
             expect(grace?.groupSize).toBe(11)
             expect(grace?.isNonCompete).toBe(true)
+        })
+
+        it('parses the full Woodland Park startlist.csv including all 563 starters, N flags, Need $ flags, and inline groups', async () => {
+            const csvPath = resolve(__dirname, '../public/startlist.csv')
+            const csvText = readFileSync(csvPath, 'utf-8')
+            const parsed: ParseResult<PdfStartListRecord> = Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true,
+                delimiter: ',',
+            })
+
+            await insertStartListCsv(parsed.data)
+            const allP = [...participantsTanCollection.values()]
+            expect(allP).toHaveLength(563)
+            assertEveryParticipantInExactlyOneSlot()
+
+            const waiverFlagged = allP.filter((p) => p.needsWaiver)
+            expect(waiverFlagged).toHaveLength(11)
+            expect(waiverFlagged.map((p) => p.name)).toContain('Carson Wright')
+            expect(waiverFlagged.map((p) => p.name)).toContain('Alex Panama')
+
+            const paymentFlagged = allP.filter((p) => p.needsPayment)
+            expect(paymentFlagged).toHaveLength(1)
+            expect(paymentFlagged[0]?.name).toBe('Colton Boone')
+            expect(paymentFlagged[0]?.epunch).toBe('2221885')
+
+            const inlineGroup = allP.find((p) => p.name === 'Marie-Josee Ledoux')
+            expect(inlineGroup?.groupSize).toBe(2)
+            expect(inlineGroup?.epunch).toBe('7002107')
         })
     })
 
@@ -476,7 +560,7 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 )
             ).toHaveLength(0)
         })
-        it('updates group size (individual <-> group) and computes total people on course including NC shadows, 2nd courses, and subtracting no-shows/not-attending', async () => {
+        it('updates group size (individual <-> group) and computes total people on course (+1 shadow for original NC, 0 shadows for 2nd-course NC, subtracting no-shows/not-attending)', async () => {
             const pAda = participantIdFor('c1', '10:00')
             const pAlan = participantIdFor('c7', '10:00')
 
@@ -485,6 +569,10 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             await setGroupSize(pAda, 4)
             expect(participantsTanCollection.get(pAda)?.groupSize).toBe(4)
 
+            // Mark Ada (original start list entry) as Non-Competitive -> counts +1 shadow
+            await setNonCompetitive(pAda)
+
+            // Add a 2nd-course entry (marked NC + isSecondCourse: true) -> CANNOT have a shadow (0 shadows)
             const secondCourseId = await addNewParticipant({
                 name: 'Ada Lovelace',
                 course: 'c2',
@@ -494,6 +582,7 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 isNonCompete: true,
                 groupSize: 1,
                 targetSlotId: slotIdFor('c2', '10:02'),
+                isSecondCourse: true,
             })
             expect(secondCourseId).toBeDefined()
 
@@ -529,7 +618,7 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             expect(changeTypeLabel('newCourse')).toBe('New course')
         })
 
-        it('recommends 10-minute spacing between teammates from the same school on the same course', () => {
+        it('recommends 6-minute spacing between teammates from the same school on the same course', () => {
             const allParticipants = [
                 { id: 'p-teammate', name: 'Ada Lovelace', club: 'Ingraham High' },
                 { id: 'p-late', name: 'Bob Smith', club: 'Ingraham High' },
@@ -541,8 +630,6 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 { id: 's-1004', course: 'c1', time: '10:04', participants: [], isUsable: true },
                 { id: 's-1006', course: 'c1', time: '10:06', participants: [], isUsable: true },
                 { id: 's-1008', course: 'c1', time: '10:08', participants: [], isUsable: true },
-                { id: 's-1010', course: 'c1', time: '10:10', participants: [], isUsable: true },
-                { id: 's-1012', course: 'c1', time: '10:12', participants: [], isUsable: true },
             ]
             const openSlots = allSlots.filter((s) => s.participants.length === 0)
 
@@ -555,15 +642,15 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 excludeParticipantId: 'p-late',
             })
 
-            // 10:04, 10:06, 10:08 are within < 10 minutes of Ada at 10:00; 10:10 is >= 10 minutes apart
-            expect(rec.recommendedSlot?.slot.time).toBe('10:10')
+            // 10:04 is within < 6 minutes of Ada at 10:00; 10:06 is >= 6 minutes apart
+            expect(rec.recommendedSlot?.slot.time).toBe('10:06')
             expect(rec.recommendedSlot?.isPreferred).toBe(true)
-            expect(rec.skippedEarlierSlots.map((s) => s.slot.time)).toEqual(['10:04', '10:06', '10:08'])
+            expect(rec.skippedEarlierSlots.map((s) => s.slot.time)).toEqual(['10:04'])
             expect(rec.reason).toContain('Ada Lovelace at 10:00')
-            expect(rec.reason).toContain('10 minutes')
+            expect(rec.reason).toContain('6 minutes')
 
-            // Fallback when only <10-min slots exist: picks the slot with the largest gap (10:08, 8 min apart)
-            const onlyCloseSlots = openSlots.filter((s) => s.time < '10:10')
+            // Fallback when only <6-min slots exist: picks the slot with the largest gap (10:04, 4 min apart)
+            const onlyCloseSlots = openSlots.filter((s) => s.time < '10:06')
             const fallbackRec = evaluateStartTimesForSchool({
                 openSlots: onlyCloseSlots,
                 allSlots,
@@ -572,9 +659,68 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 participantClub: 'Ingraham High',
                 excludeParticipantId: 'p-late',
             })
-            expect(fallbackRec.recommendedSlot?.slot.time).toBe('10:08')
+            expect(fallbackRec.recommendedSlot?.slot.time).toBe('10:04')
             expect(fallbackRec.recommendedSlot?.isPreferred).toBe(false)
-            expect(fallbackRec.reason).toContain('No open times on c1 have a full 10-minute gap')
+            expect(fallbackRec.reason).toContain('No open times on c1 have a full 6-minute gap')
+        })
+
+        it('prioritizes FIFO standby runners without a <6 min same-school conflict while keeping slot available for all standby runners', async () => {
+            await insertStartListCsv([
+                makeWaveRow('10:00:00', {
+                    'VARSITY.1': 'NoShow Starter',
+                    'VARSITY.2': 'Lakeside',
+                    'VARSITY.3': '111111',
+                }),
+                makeWaveRow('10:02:00', {
+                    'VARSITY.1': 'Active Ingraham Teammate',
+                    'VARSITY.2': 'Ingraham High',
+                    'VARSITY.3': '222222',
+                }),
+            ])
+
+            // 1st standby runner (entered first): from Ingraham High (has teammate at 10:02, within 2 min of 10:00)
+            const firstStandbyId = await addNewParticipant({
+                name: 'First Standby (Ingraham)',
+                course: 'c7',
+                club: 'Ingraham High',
+                epunch: '333333',
+                isRental: true,
+                isNonCompete: true,
+                groupSize: 1,
+                isSecondCourse: true,
+            })
+
+            // 2nd standby runner (entered second): from Garfield High (no conflict at 10:00)
+            const secondStandbyId = await addNewParticipant({
+                name: 'Second Standby (Garfield)',
+                course: 'c7',
+                club: 'Garfield High',
+                epunch: '444444',
+                isRental: true,
+                isNonCompete: false,
+                groupSize: 1,
+            })
+
+            expect(participantsTanCollection.get(firstStandbyId!)?.isSecondCourse).toBe(true)
+
+            // Mark 10:00 starter as No Show
+            const noShowId = participantIdFor('c7', '10:00')
+            await setStateNoShow(noShowId)
+
+            const matches = findStandbyMatches(
+                [...participantsTanCollection.values()],
+                [...slotsTanCollection.values()],
+                [...changesTanCollection.values()]
+            )
+            expect(matches).toHaveLength(1)
+            const match = matches[0]!
+
+            // Priority goes to Second Standby (Garfield) because First Standby (Ingraham) has a teammate at 10:02 (<6 min)
+            expect(match.priorityStandbyParticipant.id).toBe(secondStandbyId)
+            // Both runners are still in standbyParticipants so either can be assigned from their runner page
+            expect(match.standbyParticipants.map((p) => p.id)).toEqual([secondStandbyId!, firstStandbyId!])
+            expect(match.conflictsByStandbyId[firstStandbyId!]?.teammateName).toBe('Active Ingraham Teammate')
+            expect(match.conflictsByStandbyId[secondStandbyId!]).toBeUndefined()
         })
 
         it('removes legacy unprefixed p-* and s-* duplicate records when prefixed event records exist', async () => {
@@ -620,6 +766,153 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             expect(slotsTanCollection.has('s-c1-10:00')).toBe(false)
             expect(participantsTanCollection.has(participantIdFor('c1', '10:00'))).toBe(true)
             expect(slotsTanCollection.has(slotIdFor('c1', '10:00'))).toBe(true)
+        })
+
+        it('cancels round-trip course, epunch, and NC changes on Download while keeping unrelated changes and pending reverts after a clear', async () => {
+            await insertStartListCsv([
+                makeWaveRow('10:00:00', {
+                    'ELEMENTARYBEGINNER.1': 'Ada Lovelace',
+                    'ELEMENTARYBEGINNER.2': 'Ingraham High',
+                    'ELEMENTARYBEGINNER.3': '100001',
+                    'MIDDLE SCHOOL.1': '',
+                }),
+                makeWaveRow('10:02:00', {
+                    'ELEMENTARYBEGINNER.1': '',
+                    'MIDDLE SCHOOL.1': '',
+                }),
+            ])
+
+            const pAda = participantIdFor('c1', '10:00')
+            const slotC1_1000 = slotIdFor('c1', '10:00')
+            const slotC2_1000 = slotIdFor('c2', '10:00')
+            const slotC1_1002 = slotIdFor('c1', '10:02')
+
+            // Move c1 -> c2 -> c1 (returning to a different time on c1), plus an epunch change in between
+            await setNewStartTime(pAda, slotC1_1000, slotC2_1000)
+            await setNewEpunch(pAda, '777777', false)
+            await setNewStartTime(pAda, slotC2_1000, slotC1_1002)
+
+            // Audit trail keeps both newCourse records, but Download only keeps the epunch change
+            const rawCourseChanges = [...changesTanCollection.values()].filter(
+                (c) => c.participantId === pAda && c.changeType === 'newCourse'
+            )
+            expect(rawCourseChanges).toHaveLength(2)
+
+            let download = filterDownloadChanges([...changesTanCollection.values()])
+            expect(download.map((c) => c.changeType)).toEqual(['epunch'])
+
+            // Round-trip epunch back to original 100001 and toggle NC -> Competitive -> both cancel too
+            await setNewEpunch(pAda, '100001', false)
+            await setNonCompetitive(pAda)
+            await setCompetitive(pAda)
+            download = filterDownloadChanges([...changesTanCollection.values()])
+            expect(download).toEqual([])
+
+            // If Download already cleared c1 -> c2 BEFORE Start Manager moves back c2 -> c1,
+            // Download must still see c2 -> c1 in Pending until it is also cleared.
+            await setNewStartTime(pAda, slotC1_1002, slotC2_1000)
+            const firstMove = [...changesTanCollection.values()]
+                .filter((c) => c.participantId === pAda && c.changeType === 'newCourse')
+                .sort((a, b) => a.changedAt - b.changedAt)
+                .at(-1)!
+            await setChangeProcessed(firstMove.id, true)
+            await setNewStartTime(pAda, slotC2_1000, slotC1_1002)
+
+            download = filterDownloadChanges([...changesTanCollection.values()])
+            expect(download).toHaveLength(2)
+            expect(download.filter((c) => !c.isProcessed)).toHaveLength(1)
+            expect(download.find((c) => !c.isProcessed)?.new).toBe('c1 10:02')
+
+            const revertMove = download.find((c) => !c.isProcessed)!
+            await setChangeProcessed(revertMove.id, true)
+            download = filterDownloadChanges([...changesTanCollection.values()])
+            expect(download).toEqual([])
+        })
+
+        it('collapses multi-hop pending changes into one net Download row and clears all underlying hops together', async () => {
+            await insertStartListCsv([
+                makeWaveRow('10:00:00', {
+                    'JV FEMALECOLLEGIATE JVINTERMEDIATE.1': 'Kaellee Chavez',
+                    'JV FEMALECOLLEGIATE JVINTERMEDIATE.2': 'Marysville',
+                    'JV FEMALECOLLEGIATE JVINTERMEDIATE.3': '2049400',
+                }),
+            ])
+
+            const pKaellee = participantIdFor('c5', '10:00')
+            // C5 -> C4 -> C3 -> C2 -> C7 -> C6
+            await setNewStartTime(pKaellee, slotIdFor('c5', '10:00'), slotIdFor('c4', '10:00'))
+            await setNewStartTime(pKaellee, slotIdFor('c4', '10:00'), slotIdFor('c3', '10:00'))
+            await setNewStartTime(pKaellee, slotIdFor('c3', '10:00'), slotIdFor('c2', '10:00'))
+            await setNewStartTime(pKaellee, slotIdFor('c2', '10:00'), slotIdFor('c7', '10:00'))
+            await setNewStartTime(pKaellee, slotIdFor('c7', '10:00'), slotIdFor('c6', '10:00'))
+
+            // Change Log keeps all 5 moves, while Download collapses them to one C5 -> C6 row
+            const rawMoves = [...changesTanCollection.values()].filter(
+                (c) => c.participantId === pKaellee && c.changeType === 'newCourse'
+            )
+            expect(rawMoves).toHaveLength(5)
+
+            let download = filterDownloadChanges([...changesTanCollection.values()])
+            expect(download).toHaveLength(1)
+            expect(download[0]!.old).toBe('c5 10:00')
+            expect(download[0]!.new).toBe('c6 10:00')
+            expect(download[0]!.isProcessed).toBe(false)
+            expect(download[0]!.sourceChangeIds).toHaveLength(5)
+
+            // Clearing that single Download row marks all 5 underlying change records processed
+            await setAllChangesProcessed(download[0]!.sourceChangeIds, true)
+            download = filterDownloadChanges([...changesTanCollection.values()])
+            expect(download).toHaveLength(1)
+            expect(download[0]!.isProcessed).toBe(true)
+            expect(download[0]!.old).toBe('c5 10:00')
+            expect(download[0]!.new).toBe('c6 10:00')
+
+            // Moving later C6 -> C7 -> C4 stays one net Pending row starting from C6
+            await setNewStartTime(pKaellee, slotIdFor('c6', '10:00'), slotIdFor('c7', '10:00'))
+            await setNewStartTime(pKaellee, slotIdFor('c7', '10:00'), slotIdFor('c4', '10:00'))
+            download = filterDownloadChanges([...changesTanCollection.values()])
+            expect(download).toHaveLength(2)
+            const pending = download.filter((c) => !c.isProcessed)
+            expect(pending).toHaveLength(1)
+            expect(pending[0]!.old).toBe('c6 10:00')
+            expect(pending[0]!.new).toBe('c4 10:00')
+            expect(pending[0]!.sourceChangeIds).toHaveLength(2)
+        })
+
+        it('validates and creates a new custom start time (e.g. 9:38 -> 09:38) across all courses and allows assigning a runner to it', async () => {
+            expect(normalizeCustomStartTime('9:38')).toBe('09:38')
+            expect(normalizeCustomStartTime(' 12:04 ')).toBe('12:04')
+            expect(normalizeCustomStartTime('25:00')).toBeUndefined()
+            expect(normalizeCustomStartTime('10:60')).toBeUndefined()
+            expect(normalizeCustomStartTime('938')).toBeUndefined()
+
+            await insertStartListCsv([
+                makeWaveRow('10:00:00', {
+                    'ELEMENTARYBEGINNER.1': 'Ada Lovelace',
+                    'ELEMENTARYBEGINNER.2': 'Ingraham High',
+                    'ELEMENTARYBEGINNER.3': '100001',
+                }),
+            ])
+
+            const bad = await addCustomStartTime('bad', 'c1')
+            expect(bad.ok).toBe(false)
+
+            const created = await addCustomStartTime('9:38', 'c1')
+            expect(created.ok).toBe(true)
+            if (!created.ok) throw new Error('expected ok')
+            expect(created.time).toBe('09:38')
+            expect(created.slot.course).toBe('c1')
+            expect(slotsTanCollection.get(slotIdFor('c1', '09:38'))?.isUsable).toBe(true)
+            expect(slotsTanCollection.get(slotIdFor('c7', '09:38'))?.isUsable).toBe(true)
+
+            const pAda = participantIdFor('c1', '10:00')
+            await setNewStartTime(pAda, slotIdFor('c1', '10:00'), created.slot.id)
+            assertEveryParticipantInExactlyOneSlot()
+            expect(slotsTanCollection.get(created.slot.id)?.participants).toEqual([pAda])
+
+            // Attempting to add an already-occupied slot returns an error without double-booking
+            const dupOccupied = await addCustomStartTime('09:38', 'c1')
+            expect(dupOccupied.ok).toBe(false)
         })
     })
 })

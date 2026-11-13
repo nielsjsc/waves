@@ -11,7 +11,10 @@ export const Participant = v.object({
     isNonCompete:v.boolean(),
     groupSize:v.number(),
     originalStartTime:v.optional(v.string()),
-    startChanged:v.boolean()
+    startChanged:v.boolean(),
+    needsWaiver:v.optional(v.boolean()),
+    needsPayment:v.optional(v.boolean()),
+    isSecondCourse:v.optional(v.boolean()),
 })
 export type Participant = v.InferOutput<typeof Participant>
 
