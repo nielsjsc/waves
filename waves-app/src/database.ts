@@ -351,15 +351,41 @@ export function onStaleEvent(listener: () => void): () => void {
     }
 }
 
+let hostReachable = true
+const repHasError = new Map<object, boolean>()
+if (replications !== undefined) {
+    repHasError.set(replications.slots, false)
+    repHasError.set(replications.participants, false)
+    repHasError.set(replications.changes, false)
+}
+
+function updateSyncedIfAllHealthy() {
+    if (hostReachable && [...repHasError.values()].every((hasErr) => !hasErr)) {
+        setSyncStatus('synced')
+    }
+}
+
 let checkingEvent = false
-export async function checkIfEventChanged(): Promise<void> {
+export async function checkIfEventChanged(triggerResync = true): Promise<void> {
     if (staleEvent || checkingEvent) {
         return
     }
     checkingEvent = true
     try {
-        const response = await fetch('/event.json', { cache: 'no-store' })
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 3000)
+        let response: Response
+        try {
+            response = await fetch('/event.json', {
+                cache: 'no-store',
+                signal: controller.signal,
+            })
+        } finally {
+            clearTimeout(timer)
+        }
         if (!response.ok) {
+            hostReachable = false
+            setSyncStatus('offline')
             return
         }
         const info = (await response.json()) as Partial<EventInfo>
@@ -372,9 +398,17 @@ export async function checkIfEventChanged(): Promise<void> {
             for (const listener of staleListeners) {
                 listener()
             }
+            return
+        }
+        hostReachable = true
+        if (triggerResync && replications !== undefined) {
+            replications.slots.reSync()
+            replications.participants.reSync()
+            replications.changes.reSync()
         }
     } catch {
-        // Offline or server restarting; try again later.
+        hostReachable = false
+        setSyncStatus('offline')
     } finally {
         checkingEvent = false
     }
@@ -385,36 +419,44 @@ for (const rep of replications ? [replications.slots, replications.participants,
     let errorDuringCycle = false
     rep.error$.subscribe(() => {
         errorDuringCycle = true
+        repHasError.set(rep, true)
         setSyncStatus('offline')
-        void checkIfEventChanged()
+        void checkIfEventChanged(false)
     })
     rep.received$.subscribe(() => {
         errorDuringCycle = false
-        setSyncStatus('synced')
+        repHasError.set(rep, false)
+        updateSyncedIfAllHealthy()
     })
     rep.sent$.subscribe(() => {
         errorDuringCycle = false
-        setSyncStatus('synced')
+        repHasError.set(rep, false)
+        updateSyncedIfAllHealthy()
     })
     rep.active$.subscribe((active) => {
         if (active) {
             wasActive = true
             errorDuringCycle = false
         } else if (wasActive && !errorDuringCycle) {
-            setSyncStatus('synced')
+            repHasError.set(rep, false)
+            updateSyncedIfAllHealthy()
         }
     })
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-    window.addEventListener('focus', () => { void checkIfEventChanged() })
-    window.addEventListener('offline', () => { setSyncStatus('offline') })
+    window.addEventListener('focus', () => { void checkIfEventChanged(true) })
+    window.addEventListener('online', () => { void checkIfEventChanged(true) })
+    window.addEventListener('offline', () => {
+        hostReachable = false
+        setSyncStatus('offline')
+    })
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-            void checkIfEventChanged()
+            void checkIfEventChanged(true)
         }
     })
-    setInterval(() => { void checkIfEventChanged() }, 15000)
+    setInterval(() => { void checkIfEventChanged(true) }, 5000)
 }
 
 
