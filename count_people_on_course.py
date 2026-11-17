@@ -24,7 +24,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 EVENT_FILE = ROOT / "waves-app" / "public" / "event.json"
 STARTLIST_CSV = ROOT / "waves-app" / "public" / "startlist.csv"
-OUTPUT_FILE = ROOT / "data" / "people_on_course.txt"
 ARCHIVE_DIR = ROOT / "data" / "archive"
 MONGO_URL = "mongodb://127.0.0.1:27017/?directConnection=true"
 
