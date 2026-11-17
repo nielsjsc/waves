@@ -16,6 +16,7 @@ export const Participant = v.object({
     needsPayment:v.optional(v.boolean()),
     isSecondCourse:v.optional(v.boolean()),
     hasRentedCompass:v.optional(v.boolean()),
+    compassId:v.optional(v.string()),
 })
 export type Participant = v.InferOutput<typeof Participant>
 

@@ -8,6 +8,7 @@ import { Head } from "@/components/Head"
 import { Modal } from "@/components/Modal"
 import { EditEpunchModal } from "@/components/EditEpunchModal"
 import { EditGroupSizeModal } from "@/components/EditGroupSizeModal"
+import { RentCompassModal } from "@/components/RentCompassModal"
 import { ManagerActionButton } from "@/components/ManagerActionButton"
 import { StartGrid } from "@/components/grid/StartGrid"
 import { ManagerSearchBox } from "@/components/manager/ManagerSearchBox"
@@ -165,6 +166,7 @@ function RecordProblem({ name, slots, courses, onKeep, onPlace }: {
 export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, setSelectedParticipantId }: Properties) {
     const [isEpunchEditOpen, setEpunchEditOpen] = useState(false)
     const [isGroupSizeEditOpen, setGroupSizeEditOpen] = useState(false)
+    const [isRentCompassOpen, setRentCompassOpen] = useState(false)
     const [addParticipantPrefill, setAddParticipantPrefill] = useState<AddParticipantPrefill | null | undefined>(undefined)
     const [confirmNotAttending, setConfirmNotAttending] = useState(false)
     const [timePickerOpen, setTimePickerOpen] = useState(false)
@@ -479,7 +481,11 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                 {p.groupSize > 1 && <Pill className="border-emerald-600 bg-emerald-50 text-emerald-800">Group {p.groupSize}</Pill>}
                                 {p.isNonCompete && <Pill className="border-indigo-600 bg-indigo-50 text-indigo-800">Non-competitive</Pill>}
                                 {p.isRental && <Pill className="border-orange-600 bg-orange-50 text-orange-800">Rental e-punch</Pill>}
-                                {p.hasRentedCompass && <Pill className="border-amber-700 bg-amber-50 text-amber-900">Compass rented</Pill>}
+                                {p.hasRentedCompass && (
+                                    <Pill className="border-amber-700 bg-amber-100 text-amber-950 font-mono">
+                                        {p.compassId ? `Compass #${p.compassId}` : 'Compass rented'}
+                                    </Pill>
+                                )}
                                 {displayStates.map((st) => {
                                     const stStyle = ParticipantStateStyles.get(st)
                                     if (!stStyle) return null
@@ -680,23 +686,38 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                         icon="group"
                                         color="emerald"
                                         buttonStyle="outline" />
-                                    <ManagerActionButton
-                                        action={() => {
-                                            const next = !p.hasRentedCompass
-                                            void setHasRentedCompass(p.id, next)
-                                            setUndo({
-                                                message: next
-                                                    ? `${p.name} marked as renting a compass`
-                                                    : `${p.name} compass marked returned`,
-                                                run: async () => {
-                                                    await setHasRentedCompass(p.id, !next)
-                                                },
-                                            })
-                                        }}
-                                        text={p.hasRentedCompass ? "Compass Returned" : "Rent Compass"}
-                                        icon="pin"
-                                        color="amber"
-                                        buttonStyle={p.hasRentedCompass ? "solid" : "outline"} />
+                                    {p.hasRentedCompass ? (
+                                        <>
+                                            <ManagerActionButton
+                                                action={() => {
+                                                    const prevCompassId = p.compassId ?? ''
+                                                    void setHasRentedCompass(p.id, false)
+                                                    setUndo({
+                                                        message: `${p.name} compass marked returned`,
+                                                        run: async () => {
+                                                            await setHasRentedCompass(p.id, true, prevCompassId)
+                                                        },
+                                                    })
+                                                }}
+                                                text="Compass Returned"
+                                                icon="pin"
+                                                color="amber"
+                                                buttonStyle="solid" />
+                                            <ManagerActionButton
+                                                action={() => setRentCompassOpen(true)}
+                                                text={`Edit Compass (${p.compassId || 'ID'})`}
+                                                icon="pencil"
+                                                color="amber"
+                                                buttonStyle="outline" />
+                                        </>
+                                    ) : (
+                                        <ManagerActionButton
+                                            action={() => setRentCompassOpen(true)}
+                                            text="Rent Compass"
+                                            icon="pin"
+                                            color="amber"
+                                            buttonStyle="outline" />
+                                    )}
                                     <ManagerActionButton
                                         action={() =>
                                             setAddParticipantPrefill({
@@ -889,6 +910,33 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                                 : `${name} set to Group of ${newSize}`,
                                         run: async () => {
                                             await setGroupSize(pid, oldSize)
+                                        },
+                                    })
+                                }}
+                            />
+                        }
+                    />
+                )}
+
+                {isRentCompassOpen && entry !== undefined && (
+                    <Modal
+                        title={`Rent Compass for ${entry.participant.name}`}
+                        close={() => setRentCompassOpen(false)}
+                        content={
+                            <RentCompassModal
+                                participant={entry}
+                                closeModal={() => setRentCompassOpen(false)}
+                                onSaved={(compassId) => {
+                                    const pid = entry.participant.id
+                                    const name = entry.participant.name
+                                    const wasRented = entry.participant.hasRentedCompass
+                                    const prevId = entry.participant.compassId ?? ''
+                                    setUndo({
+                                        message: compassId
+                                            ? `${name} rented Compass #${compassId}`
+                                            : `${name} rented a compass (no ID)`,
+                                        run: async () => {
+                                            await setHasRentedCompass(pid, Boolean(wasRented), prevId)
                                         },
                                     })
                                 }}

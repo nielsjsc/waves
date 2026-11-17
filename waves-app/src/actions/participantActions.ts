@@ -572,15 +572,30 @@ export async function setParticipantEligible(participantId: string): Promise<voi
     await t1.isPersisted.promise
 }
 
-export async function setHasRentedCompass(participantId: string, rented: boolean): Promise<void> {
+export async function setHasRentedCompass(
+    participantId: string,
+    rented: boolean,
+    compassId?: string
+): Promise<void> {
     const oldParticipant = await participantsTanCollection.get(participantId)
-    if (oldParticipant === undefined || Boolean(oldParticipant.hasRentedCompass) === rented) {
+    if (oldParticipant === undefined) {
         return
     }
+    const cleanCompassId = rented ? (compassId ?? '').trim() : ''
+    const oldRented = Boolean(oldParticipant.hasRentedCompass)
+    const oldCompassId = (oldParticipant.compassId ?? '').trim()
+    if (oldRented === rented && oldCompassId === cleanCompassId) {
+        return
+    }
+
     const t1 = participantsTanCollection.update(participantId, (p) => {
         p.hasRentedCompass = rented
+        p.compassId = cleanCompassId
     })
     await t1.isPersisted.promise
+
+    const formatCompassState = (isRented: boolean, id: string) =>
+        isRented ? (id !== '' ? `rented (#${id})` : 'rented') : 'none'
 
     const t2 = changesTanCollection.insert([
         {
@@ -588,8 +603,8 @@ export async function setHasRentedCompass(participantId: string, rented: boolean
             participantId,
             changedAt: nextChangeTimestamp(),
             changeType: 'compassRental',
-            old: rented ? 'none' : 'rented',
-            new: rented ? 'rented' : 'returned',
+            old: formatCompassState(oldRented, oldCompassId),
+            new: rented ? formatCompassState(true, cleanCompassId) : 'returned',
             needsProcessing: false,
             isProcessed: true,
         },

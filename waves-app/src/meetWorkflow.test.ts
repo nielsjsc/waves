@@ -3,6 +3,11 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Papa, { type ParseResult } from 'papaparse'
 import {
+    changesSchemaLiteral,
+    participantSchemaLiteral,
+    slotSchemaLiteral,
+} from './Schema'
+import {
     changesTanCollection,
     cleanupLegacyDuplicateRecords,
     dropAllChanges,
@@ -928,19 +933,36 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             const pAda = participantIdFor('c1', '10:00')
             expect(Boolean(participantsTanCollection.get(pAda)?.hasRentedCompass)).toBe(false)
 
-            // Rent compass at Start Manager / Full Grid
-            await setHasRentedCompass(pAda, true)
+            // Rent compass with ID at Start Manager / Full Grid
+            await setHasRentedCompass(pAda, true, 'C-1042')
             expect(participantsTanCollection.get(pAda)?.hasRentedCompass).toBe(true)
+            expect(participantsTanCollection.get(pAda)?.compassId).toBe('C-1042')
 
             // Clear compass when returned at Download
             await setHasRentedCompass(pAda, false)
             expect(participantsTanCollection.get(pAda)?.hasRentedCompass).toBe(false)
+            expect(participantsTanCollection.get(pAda)?.compassId).toBe('')
 
             const compassLogs = [...changesTanCollection.values()]
                 .filter((c) => c.participantId === pAda && c.changeType === 'compassRental')
                 .sort((a, b) => a.changedAt - b.changedAt)
             expect(compassLogs).toHaveLength(2)
-            expect(compassLogs.map((c) => c.new)).toEqual(['rented', 'returned'])
+            expect(compassLogs.map((c) => c.new)).toEqual(['rented (#C-1042)', 'returned'])
+        })
+
+        it('keeps Schema.ts and waves-server/server.ts schema properties and versions in sync', () => {
+            const serverSrc = readFileSync(resolve(__dirname, '../../waves-server/server.ts'), 'utf8')
+            for (const propName of Object.keys(participantSchemaLiteral.properties)) {
+                expect(serverSrc).toContain(`${propName}:`)
+            }
+            for (const propName of Object.keys(slotSchemaLiteral.properties)) {
+                expect(serverSrc).toContain(`${propName}:`)
+            }
+            for (const propName of Object.keys(changesSchemaLiteral.properties)) {
+                expect(serverSrc).toContain(`${propName}:`)
+            }
+            expect(serverSrc).toContain(`version: ${participantSchemaLiteral.version}`)
+            expect(serverSrc).toContain(`autoMigrations(${participantSchemaLiteral.version})`)
         })
     })
 })

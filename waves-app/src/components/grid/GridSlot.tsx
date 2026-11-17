@@ -324,9 +324,9 @@ function ParticipantCard({
                     )}
                     {p.hasRentedCompass && (
                         <Badge
-                            className={`border-amber-700 bg-amber-50 text-amber-900 ${sz.badge}`}
-                            title="Rented compass">
-                            Compass
+                            className={`border-amber-700 bg-amber-100 text-amber-950 font-mono ${sz.badge}`}
+                            title={p.compassId ? `Rented compass #${p.compassId}` : 'Rented compass'}>
+                            {p.compassId ? `Compass #${p.compassId}` : 'Compass'}
                         </Badge>
                     )}
                     {club !== '' && (

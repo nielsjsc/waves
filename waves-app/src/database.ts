@@ -90,12 +90,24 @@ const IS_TEST_ENV = import.meta.env.MODE === 'test'
 export const EVENT_INFO: EventInfo = IS_TEST_ENV ? { eventId: 'testevent01' } : await fetchEventInfo()
 export const EVENT_ID: string = EVENT_INFO.eventId
 
+function autoMigrations(version: number): Record<number, (oldDoc: any) => any> {
+    const strategies: Record<number, (oldDoc: any) => any> = {}
+    for (let v = 1; v <= version; v++) {
+        strategies[v] = (oldDoc: any) => oldDoc
+    }
+    return strategies
+}
+
+async function createAppRxDb() {
+    return createRxDatabase<WavesDbCollections>({
+        name: `wavesAppDb_${EVENT_ID}`,
+        storage: wrappedValidateAjvStorage({ storage: IS_TEST_ENV ? getRxStorageMemory() : getRxStorageDexie() }),
+        hashFunction: sha256Hex,
+    });
+}
+
 console.log(`rxdb: Creating database for event ${EVENT_ID}...`)
-const db = await createRxDatabase<WavesDbCollections>({
-    name: `wavesAppDb_${EVENT_ID}`,
-    storage: wrappedValidateAjvStorage({ storage: IS_TEST_ENV ? getRxStorageMemory() : getRxStorageDexie() }),
-    hashFunction: sha256Hex,
-});
+let db = await createAppRxDb();
 console.log(`rxdb: Created database wavesAppDb_${EVENT_ID}.`)
 
 
@@ -130,35 +142,36 @@ const changesCollectionMethods: ChangesCollectionMethods  = {
 }
 
 async function createRxCollections() {
-    // create collections
     console.log('rxdb: create collections');
-    await db.addCollections({
+    const collectionsConfig = {
         slots: {
             schema: slotSchema,
             statics: slotCollectionMethods,
-            migrationStrategies: {
-                1: function(oldDoc) {
-                    return oldDoc;
-                }
-            }
+            migrationStrategies: autoMigrations(slotSchema.version)
         },
         participants: {
             schema: participantSchema,
             statics: participantCollectionMethods,
-            migrationStrategies: {
-                1: function(oldDoc) {
-                    return oldDoc;
-                },
-                2: function(oldDoc) {
-                    return oldDoc;
-                }
-            }
+            migrationStrategies: autoMigrations(participantSchema.version)
         },
         changes: {
             schema: changesSchema,
-            statics: changesCollectionMethods
+            statics: changesCollectionMethods,
+            migrationStrategies: autoMigrations(changesSchema.version)
         }
-    });
+    };
+    try {
+        await db.addCollections(collectionsConfig);
+    } catch (err: any) {
+        if (err?.code === 'DB6' || err?.code === 'DM4' || err?.code === 'DB1') {
+            console.warn(`rxdb: Schema change detected (${err.code}); resetting local IndexedDB cache and re-syncing...`)
+            await db.remove()
+            db = await createAppRxDb()
+            await db.addCollections(collectionsConfig)
+        } else {
+            throw err
+        }
+    }
 }
 
 await createRxCollections()

@@ -52,22 +52,30 @@ import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
 
 addRxPlugin(RxDBMigrationSchemaPlugin);
 
-const serverRxDb = await createRxDatabase({
-    name: `wavesServerDb_${EVENT_ID}`,
-    storage: getRxStorageMongoDB({
-        /**
-         * MongoDB connection string
-         * @link https://www.mongodb.com/docs/manual/reference/connection-string/
-         */
-        // connection: 'mongodb://localhost:27017,localhost:27018,localhost:27019'
-        connection: 'mongodb://localhost:27017'
+const SERVER_RX_DB_NAME = `wavesServerDb_${EVENT_ID}`
+
+function autoMigrations(version: number): Record<number, (oldDoc: any) => any> {
+    const strategies: Record<number, (oldDoc: any) => any> = {}
+    for (let v = 1; v <= version; v++) {
+        strategies[v] = (oldDoc: any) => oldDoc
+    }
+    return strategies
+}
+
+async function createServerRxDb() {
+    return createRxDatabase({
+        name: SERVER_RX_DB_NAME,
+        storage: getRxStorageMongoDB({
+            connection: 'mongodb://localhost:27017'
+        })
     })
-});
+}
+
+let serverRxDb = await createServerRxDb();
 
 console.log('created rxdb')
 
-// Add your collection schema
-await serverRxDb.addCollections({
+const serverCollectionsConfig = {
     // UPDATE IN APP>Schema.ts TO MATCH!!
     slots: {
         schema: {
@@ -83,15 +91,11 @@ await serverRxDb.addCollections({
                 isUsable: { type: 'boolean' }
             }
         },
-        migrationStrategies: {
-            1: function(oldDoc: any) {
-                return oldDoc;
-            }
-        }
+        migrationStrategies: autoMigrations(1)
     },
     participants: {
         schema: {
-            version: 2,
+            version: 3,
             primaryKey: 'id',
             type: 'object',
             required: ['id', 'name', 'state', 'isRental', 'isNonCompete', 'groupSize', 'startChanged' ],
@@ -111,17 +115,11 @@ await serverRxDb.addCollections({
                 needsWaiver: { type: 'boolean' },
                 needsPayment: { type: 'boolean' },
                 isSecondCourse: { type: 'boolean' },
-                hasRentedCompass: { type: 'boolean' }
+                hasRentedCompass: { type: 'boolean' },
+                compassId: { type: 'string' }
             }
         },
-        migrationStrategies: {
-            1: function(oldDoc: any) {
-                return oldDoc;
-            },
-            2: function(oldDoc: any) {
-                return oldDoc;
-            }
-        }
+        migrationStrategies: autoMigrations(3)
     },
     changes: {
         schema: {
@@ -139,9 +137,28 @@ await serverRxDb.addCollections({
                 needsProcessing: { type: 'boolean' },
                 isProcessed: { type: 'boolean' },
             }
-        }   
+        },
+        migrationStrategies: autoMigrations(0)
     }
-});
+}
+
+try {
+    await serverRxDb.addCollections(serverCollectionsConfig);
+} catch (err: any) {
+    if (err?.code === 'DB6' || err?.code === 'DM4' || err?.code === 'DB1') {
+        console.warn(`Schema change detected (${err.code}); resetting RxDB cache ${SERVER_RX_DB_NAME} and re-syncing from ${MONGO_DB_NAME}...`)
+        try {
+            await serverRxDb.remove()
+        } catch {
+            // ignore remove errors before dropping cache db
+        }
+        await mongoClient.db(SERVER_RX_DB_NAME).dropDatabase()
+        serverRxDb = await createServerRxDb()
+        await serverRxDb.addCollections(serverCollectionsConfig)
+    } else {
+        throw err
+    }
+}
 
 console.log('added collections to rxdb')
 

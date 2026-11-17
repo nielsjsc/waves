@@ -56,6 +56,7 @@ export function hydrateParticipant(participantId:string, DATA:AllData):Populated
             needsPayment: Boolean(p.needsPayment),
             isSecondCourse: Boolean(p.isSecondCourse),
             hasRentedCompass: Boolean(p.hasRentedCompass),
+            compassId: p.compassId ?? '',
         }
     })
 }

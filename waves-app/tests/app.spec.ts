@@ -1,5 +1,4 @@
 import { expect, test, type Page } from '@playwright/test'
-import fs from 'node:fs/promises'
 
 const TEST_EVENT_JSON = JSON.stringify({
 	eventId: 'e2etest01',
@@ -254,13 +253,14 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await expect(timingPage.getByRole('button', { name: 'Margaret Hamilton' }).first()).toBeVisible()
 	await expect(timingPage.getByText('CLEARED', { exact: true })).toBeVisible()
 	await expect(timingPage.getByText('PENDING', { exact: true }).first()).toBeVisible()
+	await expect(timingPage.getByRole('button', { name: /Export CSV/i })).toHaveCount(0)
 
 	// -------------------------------------------------------------------------
-	// 5. STATION 5: CHANGE LOG & CSV EXPORT
+	// 5. STATION 5: CHANGE LOG
 	// -------------------------------------------------------------------------
 	await navigateToStation(timingPage, 'Change Log')
 
-	// Verify the chronological change log and category filters
+	// Verify the chronological change log, category filters, and that manual CSV buttons are removed
 	await expect(timingPage.getByRole('button', { name: /All changes/i })).toBeVisible()
 	await expect(timingPage.getByText('Grace Hopper').first()).toBeVisible()
 	await expect(timingPage.getByText('9876543 (rental)')).toBeVisible()
@@ -269,25 +269,6 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await expect(timingPage.getByText('Alan Turing').first()).toBeVisible()
 	await timingPage.getByRole('button', { name: /^All changes/i }).click()
 
-	// Verify CSV exports download valid files with all expected records
-	const [changesDownload] = await Promise.all([
-		timingPage.waitForEvent('download'),
-		timingPage.getByRole('button', { name: 'Export Changes CSV' }).click(),
-	])
-	expect(changesDownload.suggestedFilename()).toBe('waves-changes-e2etest01.csv')
-	const changesCsvPath = await changesDownload.path()
-	const changesCsvText = await fs.readFile(changesCsvPath!, 'utf-8')
-	expect(changesCsvText).toContain('Grace Hopper')
-	expect(changesCsvText).toContain('9876543 (rental)')
-
-	const [rosterDownload] = await Promise.all([
-		timingPage.waitForEvent('download'),
-		timingPage.getByRole('button', { name: 'Export Full Roster CSV' }).click(),
-	])
-	expect(rosterDownload.suggestedFilename()).toBe('waves-roster-e2etest01.csv')
-	const rosterCsvPath = await rosterDownload.path()
-	const rosterCsvText = await fs.readFile(rosterCsvPath!, 'utf-8')
-	expect(rosterCsvText).toContain('Ada Lovelace')
-	expect(rosterCsvText).toContain('Alan Turing')
-	expect(rosterCsvText).toContain('10:04')
+	await expect(timingPage.getByRole('button', { name: /Export Changes CSV/i })).toHaveCount(0)
+	await expect(timingPage.getByRole('button', { name: /Export Full Roster CSV/i })).toHaveCount(0)
 })

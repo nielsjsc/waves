@@ -4,6 +4,7 @@ import { Head } from '@/components/Head'
 import { Modal } from '@/components/Modal'
 import { EditEpunchModal } from '@/components/EditEpunchModal'
 import { EditGroupSizeModal } from '@/components/EditGroupSizeModal'
+import { RentCompassModal } from '@/components/RentCompassModal'
 import { ManagerActionButton } from '@/components/ManagerActionButton'
 import { StartGrid } from '@/components/grid/StartGrid'
 import { ParticipantStateChangeButton } from '@/components/grid/ParticipantStateChangeButton'
@@ -50,6 +51,7 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 6, readOnly = fal
     const [showTimePickerInModal, setShowTimePickerInModal] = useState(false)
     const [isEpunchModalOpen, setIsEpunchModalOpen] = useState(false)
     const [isGroupSizeModalOpen, setIsGroupSizeModalOpen] = useState(false)
+    const [isRentCompassModalOpen, setIsRentCompassModalOpen] = useState(false)
     const [addPrefill, setAddPrefill] = useState<AddParticipantPrefill | undefined>(undefined)
     const [bannerMessage, setBannerMessage] = useState<string>('')
     const [mobileCourseFilter, setMobileCourseFilter] = useState<string>('all')
@@ -92,6 +94,7 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 6, readOnly = fal
         setShowTimePickerInModal(false)
         setIsEpunchModalOpen(false)
         setIsGroupSizeModalOpen(false)
+        setIsRentCompassModalOpen(false)
     }
 
     function handleOpenSlotClick(slot: SlotType) {
@@ -213,7 +216,7 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 6, readOnly = fal
             </div>
 
             {/* Participant Action Modal when clicking a runner on Full Grid */}
-            {activeHydrated !== undefined && !isEpunchModalOpen && !isGroupSizeModalOpen && (
+            {activeHydrated !== undefined && !isEpunchModalOpen && !isGroupSizeModalOpen && !isRentCompassModalOpen && (
                 <Modal
                     title={activeHydrated.participant.name}
                     close={() => {
@@ -262,8 +265,10 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 6, readOnly = fal
                                         </span>
                                     )}
                                     {activeHydrated.participant.hasRentedCompass && (
-                                        <span className="border border-amber-700 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">
-                                            Compass rented
+                                        <span className="border border-amber-700 bg-amber-100 px-2 py-0.5 font-mono text-xs font-bold text-amber-950">
+                                            {activeHydrated.participant.compassId
+                                                ? `Compass #${activeHydrated.participant.compassId}`
+                                                : 'Compass rented'}
                                         </span>
                                     )}
                                     {getDisplayStates(activeHydrated.participant).map((st) => {
@@ -354,22 +359,37 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 6, readOnly = fal
                                         buttonStyle="outline"
                                         action={() => setIsGroupSizeModalOpen(true)}
                                     />
-                                    <ManagerActionButton
-                                        text={
-                                            activeHydrated.participant.hasRentedCompass
-                                                ? 'Compass Returned'
-                                                : 'Rent Compass'
-                                        }
-                                        icon="pin"
-                                        color="amber"
-                                        buttonStyle={activeHydrated.participant.hasRentedCompass ? 'solid' : 'outline'}
-                                        action={() =>
-                                            void setHasRentedCompass(
-                                                activeHydrated.participant.id,
-                                                !activeHydrated.participant.hasRentedCompass
-                                            )
-                                        }
-                                    />
+                                    {activeHydrated.participant.hasRentedCompass ? (
+                                        <>
+                                            <ManagerActionButton
+                                                text="Compass Returned"
+                                                icon="pin"
+                                                color="amber"
+                                                buttonStyle="solid"
+                                                action={() =>
+                                                    void setHasRentedCompass(
+                                                        activeHydrated.participant.id,
+                                                        false
+                                                    )
+                                                }
+                                            />
+                                            <ManagerActionButton
+                                                text={`Edit Compass (${activeHydrated.participant.compassId || 'ID'})`}
+                                                icon="pencil"
+                                                color="amber"
+                                                buttonStyle="outline"
+                                                action={() => setIsRentCompassModalOpen(true)}
+                                            />
+                                        </>
+                                    ) : (
+                                        <ManagerActionButton
+                                            text="Rent Compass"
+                                            icon="pin"
+                                            color="amber"
+                                            buttonStyle="outline"
+                                            action={() => setIsRentCompassModalOpen(true)}
+                                        />
+                                    )}
                                     <ManagerActionButton
                                         text="Add 2nd course"
                                         icon="plus"
@@ -478,6 +498,27 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 6, readOnly = fal
                                     newSize === 1
                                         ? `${activeHydrated.participant.name} set to Individual (1 person)`
                                         : `${activeHydrated.participant.name} set to Group of ${newSize}`
+                                )
+                            }}
+                        />
+                    }
+                />
+            )}
+
+            {/* Rent Compass Modal */}
+            {activeHydrated !== undefined && isRentCompassModalOpen && (
+                <Modal
+                    title={`Rent Compass for ${activeHydrated.participant.name}`}
+                    close={() => setIsRentCompassModalOpen(false)}
+                    content={
+                        <RentCompassModal
+                            participant={activeHydrated}
+                            closeModal={() => setIsRentCompassModalOpen(false)}
+                            onSaved={(compassId) => {
+                                showNotice(
+                                    compassId
+                                        ? `${activeHydrated.participant.name} rented Compass #${compassId}`
+                                        : `${activeHydrated.participant.name} rented a compass (no ID)`
                                 )
                             }}
                         />

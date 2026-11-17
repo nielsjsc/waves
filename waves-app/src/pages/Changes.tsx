@@ -2,11 +2,10 @@ import { useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import { Head } from '@/components/Head'
 import { SvgIcon } from '@/components/SvgIcon'
-import { EVENT_ID, changesTanCollection, participantsTanCollection, slotsTanCollection } from '@/database'
+import { changesTanCollection, participantsTanCollection, slotsTanCollection } from '@/database'
 import type { SlotDocType } from '@/Schema'
 import { hydrateChange } from '@/utils/hydrateChange'
 import { changeTypeLabel, clockHHMM, formatSlotTime, timeAgo } from '@/utils/slotLabels'
-import { ParticipantStateStyles } from '@/utils/styleHelpers'
 
 type CategoryFilter = 'all' | 'epunch' | 'timeCourse' | 'attendance'
 
@@ -39,30 +38,6 @@ function formatChangeValue(changeType: string, value: string): string {
     }
     if (value === '') return 'none'
     return formatSlotTime(value)
-}
-
-function escapeCsvCell(value: string | number | boolean): string {
-    const str = String(value ?? '')
-    if (/[",\r\n]/.test(str)) {
-        return `"${str.replace(/"/g, '""')}"`
-    }
-    return str
-}
-
-function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number | boolean>>) {
-    const lines = [
-        headers.map(escapeCsvCell).join(','),
-        ...rows.map((r) => r.map(escapeCsvCell).join(',')),
-    ]
-    const blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset-utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
 }
 
 export function Changes() {
@@ -122,82 +97,6 @@ export function Changes() {
         return true
     })
 
-    function handleExportChangesCsv() {
-        const headers = [
-            'Changed At',
-            'Name',
-            'School / Club',
-            'Course',
-            'Current Start',
-            'Current E-punch',
-            'Rental',
-            'Non-Competitive',
-            'Change Type',
-            'Old Value',
-            'New Value',
-        ]
-        const rows = hydratedChanges.map((c) => {
-            const slot = slotsByParticipant.get(c.participant.id)?.[0]
-            const club = c.participant.club === 'unknown' || c.participant.club === 'None' ? '' : c.participant.club
-            return [
-                clockHHMM(c.changedAt.getTime()),
-                c.participant.name,
-                club,
-                slot?.course ?? '',
-                slot ? formatSlotTime(slot.time) : '',
-                c.participant.epunch,
-                c.participant.isRental,
-                c.participant.isNonCompete,
-                changeTypeLabel(c.changeType),
-                formatChangeValue(c.changeType, c.old),
-                formatChangeValue(c.changeType, c.new),
-            ]
-        })
-        downloadCsv(`waves-changes-${EVENT_ID}.csv`, headers, rows)
-    }
-
-    function handleExportRosterCsv() {
-        const headers = [
-            'Course',
-            'Current Start',
-            'Original Start',
-            'Name',
-            'School / Club',
-            'State',
-            'E-punch',
-            'Rental',
-            'Non-Competitive',
-            'Group Size',
-        ]
-        const sortedParticipants = [...allParticipants].sort((a, b) => {
-            const sa = slotsByParticipant.get(a.id)?.[0]
-            const sb = slotsByParticipant.get(b.id)?.[0]
-            return (
-                (sa?.course ?? '').localeCompare(sb?.course ?? '') ||
-                (sa?.time ?? '').localeCompare(sb?.time ?? '') ||
-                a.name.localeCompare(b.name)
-            )
-        })
-        const rows = sortedParticipants.map((p) => {
-            const slot = slotsByParticipant.get(p.id)?.[0]
-            const club = p.club === undefined || p.club === 'unknown' || p.club === 'None' ? '' : p.club
-            const stateLabel = ParticipantStateStyles.get(p.state)?.friendlyName ?? p.state
-            return [
-                slot?.course ?? '',
-                slot ? formatSlotTime(slot.time) : '',
-                p.originalStartTime ?? (slot ? formatSlotTime(slot.time) : ''),
-                p.name,
-                club,
-                stateLabel,
-                p.epunch ?? '',
-                p.isRental,
-                p.isNonCompete,
-                p.groupSize,
-            ]
-        })
-        downloadCsv(`waves-roster-${EVENT_ID}.csv`, headers, rows)
-    }
-
     const filterTabs: Array<{ id: CategoryFilter; label: string; count: number }> = [
         { id: 'all', label: 'All changes', count: hydratedChanges.length },
         { id: 'epunch', label: 'E-punch', count: epunchCount },
@@ -235,20 +134,6 @@ export function Changes() {
                             aria-label="Filter changes"
                             className="w-full sm:w-64 rounded-none border border-slate-300 bg-white px-3 py-2 sm:py-1.5 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-900 focus:outline-none"
                         />
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={handleExportChangesCsv}
-                                className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-sky-700 bg-white px-3 py-2 sm:py-1.5 text-xs sm:text-sm font-semibold text-sky-800 hover:bg-sky-700 hover:text-white">
-                                Export Changes CSV
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleExportRosterCsv}
-                                className="flex-1 sm:flex-initial min-h-10 sm:min-h-0 border border-emerald-700 bg-white px-3 py-2 sm:py-1.5 text-xs sm:text-sm font-semibold text-emerald-800 hover:bg-emerald-700 hover:text-white">
-                                Export Full Roster CSV
-                            </button>
-                        </div>
                     </div>
                 </div>
 

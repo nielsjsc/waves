@@ -12,11 +12,12 @@ call :kill_port 5173
 call :kill_port 3000
 taskkill /fi "windowtitle eq Waves - app*" /f >nul 2>nul
 taskkill /fi "windowtitle eq Waves - sync server*" /f >nul 2>nul
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='cmd.exe'\" | Where-Object { $_.CommandLine -match 'server\.ts|pnpm dev|waves-server|waves-app|start-waves\.cmd' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>nul
 
 echo Closing the web server...
 taskkill /im nginx.exe /f >nul 2>nul
 
-echo Calculating total people on the course...
+echo Saving meet archive files...
 where py >nul 2>nul
 if %errorlevel%==0 (
     py count_people_on_course.py

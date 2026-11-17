@@ -50,7 +50,7 @@ goto wait_primary
 
 :primary_up
 echo [3/5] Starting the sync server (this can take up to a minute)...
-start "Waves - sync server (leave open)" /d "%ROOT%waves-server" cmd /k npx ts-node server.ts
+start "Waves - sync server (leave open)" /d "%ROOT%waves-server" cmd /c "npx ts-node server.ts & exit 0"
 set /a tries=0
 :wait_server
 set /a tries+=1
@@ -65,7 +65,7 @@ echo [4/5] Starting the web server...
 start "" "%NGINX_DIR%\nginx.exe" -p "%NGINX_DIR%" -c "%ROOT%waves-server\nginx.conf"
 
 echo [5/5] Starting the app...
-start "Waves - app (leave open)" /d "%ROOT%waves-app" cmd /k pnpm dev
+start "Waves - app (leave open)" /d "%ROOT%waves-app" cmd /c "pnpm dev & exit 0"
 set /a tries=0
 :wait_app
 set /a tries+=1

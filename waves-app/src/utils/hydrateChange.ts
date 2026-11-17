@@ -50,6 +50,7 @@ export function hydrateChange(changeId:string, DATA:AllData):PopulatedChange|und
             needsPayment: Boolean(p.needsPayment),
             isSecondCourse: Boolean(p.isSecondCourse),
             hasRentedCompass: Boolean(p.hasRentedCompass),
+            compassId: p.compassId ?? '',
         },
         changedAt: new Date(c.changedAt),
         changeType: c.changeType,

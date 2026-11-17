@@ -237,17 +237,22 @@ def main():
     event_id = hashlib.sha1(tmp.read_bytes()).hexdigest()[:8]
     event_file = output.with_name("event.json")
 
-    archived = None
-    if output.exists():
-        ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    meet_name = re.sub(r"[\s_-]*start[\s_-]*list$", "", workbook.stem, flags=re.IGNORECASE).strip(" -_")
+    meet_name = re.sub(r'[<>:"/\\|?*]', "_", meet_name).strip() or workbook.stem or f"Meet_{event_id}"
+    meet_archive_dir = ARCHIVE_DIR / meet_name
+    meet_archive_dir.mkdir(parents=True, exist_ok=True)
+    orig_archive_csv = meet_archive_dir / "original_start_list.csv"
+    if orig_archive_csv.exists() and orig_archive_csv.read_bytes() != tmp.read_bytes():
         stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
-        archived = ARCHIVE_DIR / f"startlist_{stamp}.csv"
-        shutil.copy2(output, archived)
-        if event_file.exists():
-            shutil.copy2(event_file, ARCHIVE_DIR / f"event_{stamp}.json")
+        hist_dir = meet_archive_dir / "history" / stamp
+        hist_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(orig_archive_csv), str(hist_dir / "original_start_list.csv"))
+
     tmp.replace(output)
+    shutil.copy2(output, orig_archive_csv)
     event_file.write_text(json.dumps({
         "eventId": event_id,
+        "meetName": meet_name,
         "source": workbook.name,
         "createdAt": datetime.datetime.now().isoformat(timespec="seconds"),
         "starters": sum(1 for r in out_rows for i in range(len(courses)) if r[1 + 3 * i]),
@@ -257,9 +262,8 @@ def main():
     print()
     print(f"DONE: {len(out_rows)} start times, {people} starters.")
     print(f"Saved to: {output}")
+    print(f"Archived original start list to: {orig_archive_csv}")
     print(f"Event id: {event_id}  (Waves starts a fresh, empty event for each new id)")
-    if archived:
-        print(f"The previous list was kept in: {archived}")
     for n in notes:
         print("Note:", n)
     if warnings:
