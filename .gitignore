@@ -1,5 +1,3 @@
 security
-*.xlsx
-*.xlsm
 __pycache__/
 *.pyc

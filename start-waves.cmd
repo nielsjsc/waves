@@ -19,6 +19,7 @@ where mongosh >nul 2>nul
 if errorlevel 1 goto no_mongosh
 where pnpm >nul 2>nul
 if errorlevel 1 goto no_pnpm
+if not exist "%ROOT%waves-app\public\event.json" goto no_event
 
 tasklist /fi "imagename eq mongod.exe" 2>nul | find /i "mongod.exe" >nul
 if not errorlevel 1 goto already_running
@@ -63,7 +64,7 @@ goto wait_primary
 
 :primary_up
 echo [3/5] Starting the sync server (this can take up to a minute)...
-start "Waves - sync server (leave open)" /d "%ROOT%waves-server" cmd /c "npx ts-node server.ts & exit 0"
+start "Waves - sync server (leave open)" /d "%ROOT%waves-server" cmd /c "npx ts-node server.ts || pause"
 set /a tries=0
 :wait_server
 set /a tries+=1
@@ -78,7 +79,7 @@ echo [4/5] Starting the web server...
 start "" "%NGINX_DIR%\nginx.exe" -p "%NGINX_DIR%" -c "%ROOT%waves-server\nginx.conf"
 
 echo [5/5] Starting the app...
-start "Waves - app (leave open)" /d "%ROOT%waves-app" cmd /c "pnpm dev & exit 0"
+start "Waves - app (leave open)" /d "%ROOT%waves-app" cmd /c "pnpm dev || pause"
 set /a tries=0
 :wait_app
 set /a tries+=1
@@ -113,6 +114,10 @@ echo PROBLEM: the MongoDB shell ("mongosh") is not installed or not in the PATH.
 goto end
 :no_pnpm
 echo PROBLEM: "pnpm" is not installed or not in the PATH.
+goto end
+:no_event
+echo PROBLEM: No start list has been generated yet (waves-app\public\event.json is missing).
+echo Put your Excel start list in data\input\ and double-click make-start-list.cmd first.
 goto end
 :already_running
 echo Waves looks like it is already running (or was not shut down).
