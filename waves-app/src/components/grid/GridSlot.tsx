@@ -322,6 +322,13 @@ function ParticipantCard({
                             Rental
                         </Badge>
                     )}
+                    {p.hasRentedCompass && (
+                        <Badge
+                            className={`border-amber-700 bg-amber-50 text-amber-900 ${sz.badge}`}
+                            title="Rented compass">
+                            Compass
+                        </Badge>
+                    )}
                     {club !== '' && (
                         <span className={`min-w-0 truncate text-slate-600 ${large ? 'hidden sm:inline' : ''}`} title={club}>
                             {club}

@@ -15,6 +15,7 @@ import type { Slot as SlotType } from '@/api/slots'
 import type { SlotDocType } from '@/Schema'
 import {
     setCompetitive,
+    setHasRentedCompass,
     setNeedsPayment,
     setNeedsWaiver,
     setNewStartTime,
@@ -260,6 +261,11 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 6, readOnly = fal
                                             Need $
                                         </span>
                                     )}
+                                    {activeHydrated.participant.hasRentedCompass && (
+                                        <span className="border border-amber-700 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                                            Compass rented
+                                        </span>
+                                    )}
                                     {getDisplayStates(activeHydrated.participant).map((st) => {
                                         const stStyle = ParticipantStateStyles.get(st)
                                         if (!stStyle) return null
@@ -347,6 +353,22 @@ export function FullGrid({ clockTime = '', waveOffsetMinutes = 6, readOnly = fal
                                         color="emerald"
                                         buttonStyle="outline"
                                         action={() => setIsGroupSizeModalOpen(true)}
+                                    />
+                                    <ManagerActionButton
+                                        text={
+                                            activeHydrated.participant.hasRentedCompass
+                                                ? 'Compass Returned'
+                                                : 'Rent Compass'
+                                        }
+                                        icon="pin"
+                                        color="amber"
+                                        buttonStyle={activeHydrated.participant.hasRentedCompass ? 'solid' : 'outline'}
+                                        action={() =>
+                                            void setHasRentedCompass(
+                                                activeHydrated.participant.id,
+                                                !activeHydrated.participant.hasRentedCompass
+                                            )
+                                        }
                                     />
                                     <ManagerActionButton
                                         text="Add 2nd course"

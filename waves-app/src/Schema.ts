@@ -32,7 +32,7 @@ export type SlotCollectionMethods = {
 export const participantSchemaLiteral = {
     // UPDATE IN SERVER.TS TO MATCH!!
     title: 'participant schema',
-    version: 1,
+    version: 2,
     primaryKey: 'id',
     type: 'object',
     required: ['id', 'name', 'state', 'isRental', 'isNonCompete', 'groupSize', 'startChanged' ],
@@ -51,7 +51,8 @@ export const participantSchemaLiteral = {
         startChanged: {type: 'boolean'},
         needsWaiver: { type: 'boolean' },
         needsPayment: { type: 'boolean' },
-        isSecondCourse: { type: 'boolean' }
+        isSecondCourse: { type: 'boolean' },
+        hasRentedCompass: { type: 'boolean' }
     }
 } as const;
 const participantSchemaTyped = toTypedRxJsonSchema(participantSchemaLiteral);

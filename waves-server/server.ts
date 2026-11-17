@@ -91,7 +91,7 @@ await serverRxDb.addCollections({
     },
     participants: {
         schema: {
-            version: 1,
+            version: 2,
             primaryKey: 'id',
             type: 'object',
             required: ['id', 'name', 'state', 'isRental', 'isNonCompete', 'groupSize', 'startChanged' ],
@@ -110,11 +110,15 @@ await serverRxDb.addCollections({
                 startChanged: {type: 'boolean'},
                 needsWaiver: { type: 'boolean' },
                 needsPayment: { type: 'boolean' },
-                isSecondCourse: { type: 'boolean' }
+                isSecondCourse: { type: 'boolean' },
+                hasRentedCompass: { type: 'boolean' }
             }
         },
         migrationStrategies: {
             1: function(oldDoc: any) {
+                return oldDoc;
+            },
+            2: function(oldDoc: any) {
                 return oldDoc;
             }
         }

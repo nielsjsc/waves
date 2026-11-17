@@ -148,6 +148,9 @@ async function createRxCollections() {
             migrationStrategies: {
                 1: function(oldDoc) {
                     return oldDoc;
+                },
+                2: function(oldDoc) {
+                    return oldDoc;
                 }
             }
         },

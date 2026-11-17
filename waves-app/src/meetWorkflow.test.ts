@@ -30,6 +30,7 @@ import {
     setChangeProcessed,
     setCompetitive,
     setGroupSize,
+    setHasRentedCompass,
     setNewEpunch,
     setNewStartTime,
     setNonCompetitive,
@@ -913,6 +914,33 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             // Attempting to add an already-occupied slot returns an error without double-booking
             const dupOccupied = await addCustomStartTime('09:38', 'c1')
             expect(dupOccupied.ok).toBe(false)
+        })
+
+        it('tracks compass rentals (Rent Compass -> Compass Needs Return -> Cleared on return)', async () => {
+            await insertStartListCsv([
+                makeWaveRow('10:00:00', {
+                    'ELEMENTARYBEGINNER.1': 'Ada Lovelace',
+                    'ELEMENTARYBEGINNER.2': 'Ingraham High',
+                    'ELEMENTARYBEGINNER.3': '100001',
+                }),
+            ])
+
+            const pAda = participantIdFor('c1', '10:00')
+            expect(Boolean(participantsTanCollection.get(pAda)?.hasRentedCompass)).toBe(false)
+
+            // Rent compass at Start Manager / Full Grid
+            await setHasRentedCompass(pAda, true)
+            expect(participantsTanCollection.get(pAda)?.hasRentedCompass).toBe(true)
+
+            // Clear compass when returned at Download
+            await setHasRentedCompass(pAda, false)
+            expect(participantsTanCollection.get(pAda)?.hasRentedCompass).toBe(false)
+
+            const compassLogs = [...changesTanCollection.values()]
+                .filter((c) => c.participantId === pAda && c.changeType === 'compassRental')
+                .sort((a, b) => a.changedAt - b.changedAt)
+            expect(compassLogs).toHaveLength(2)
+            expect(compassLogs.map((c) => c.new)).toEqual(['rented', 'returned'])
         })
     })
 })

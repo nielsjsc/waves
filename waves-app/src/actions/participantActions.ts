@@ -572,6 +572,31 @@ export async function setParticipantEligible(participantId: string): Promise<voi
     await t1.isPersisted.promise
 }
 
+export async function setHasRentedCompass(participantId: string, rented: boolean): Promise<void> {
+    const oldParticipant = await participantsTanCollection.get(participantId)
+    if (oldParticipant === undefined || Boolean(oldParticipant.hasRentedCompass) === rented) {
+        return
+    }
+    const t1 = participantsTanCollection.update(participantId, (p) => {
+        p.hasRentedCompass = rented
+    })
+    await t1.isPersisted.promise
+
+    const t2 = changesTanCollection.insert([
+        {
+            id: randomUUID(),
+            participantId,
+            changedAt: nextChangeTimestamp(),
+            changeType: 'compassRental',
+            old: rented ? 'none' : 'rented',
+            new: rented ? 'rented' : 'returned',
+            needsProcessing: false,
+            isProcessed: true,
+        },
+    ])
+    await t2.isPersisted.promise
+}
+
 export interface NewParticipantInput {
     name: string
     course: string

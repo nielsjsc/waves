@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import { Head } from '@/components/Head'
 import { EVENT_ID, changesTanCollection, participantsTanCollection, slotsTanCollection } from '@/database'
-import type { SlotDocType } from '@/Schema'
-import { setAllChangesProcessed } from '@/actions/participantActions'
+import type { ParticipantDocType, SlotDocType } from '@/Schema'
+import { setAllChangesProcessed, setHasRentedCompass } from '@/actions/participantActions'
 import { hydrateChange } from '@/utils/hydrateChange'
 import type { PopulatedChange } from '@/utils/PopulatedChange'
-import { clockHHMM, courseShortLabel } from '@/utils/slotLabels'
+import { clockHHMM, courseShortLabel, formatSlotTime } from '@/utils/slotLabels'
 import {
     extractCourseCode,
     filterDownloadChanges,
@@ -153,6 +153,10 @@ export function Download() {
     const [copiedText, setCopiedText] = useState<string>('')
     const [lastClearedIds, setLastClearedIds] = useState<string[]>([])
     const [lastClearedName, setLastClearedName] = useState<string>('')
+    const [lastClearedCompassParticipant, setLastClearedCompassParticipant] = useState<{
+        id: string
+        name: string
+    } | null>(null)
 
     const { data: allParticipants } = useLiveQuery((q) =>
         q.from({ participant: participantsTanCollection })
@@ -213,6 +217,24 @@ export function Download() {
     const registrationCount = baseList.filter((c) => matchesTypeFilter(c.changeType, 'registration')).length
 
     const q = searchQuery.trim().toLowerCase()
+    const totalCompassRenters = allParticipants.filter((p) => Boolean(p.hasRentedCompass)).length
+    const compassRenters = allParticipants
+        .filter((p) => Boolean(p.hasRentedCompass))
+        .filter((p) => {
+            if (q === '') return true
+            const slot = slotsByParticipant.get(p.id)?.[0]
+            const haystack = [p.name, p.club ?? '', p.epunch ?? '', slot?.course ?? '']
+                .join(' ')
+                .toLowerCase()
+            return haystack.includes(q)
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+
+    async function handleClearCompass(p: ParticipantDocType) {
+        await setHasRentedCompass(p.id, false)
+        setLastClearedCompassParticipant({ id: p.id, name: p.name })
+    }
+
     const filteredChanges = baseList
         .filter((c) => {
             if (!matchesTypeFilter(c.changeType, typeFilter)) return false
@@ -436,8 +458,105 @@ export function Download() {
                                 {downloadChanges.length}
                             </span>
                         </div>
+
+                        <div
+                            className={`flex items-center gap-2 border px-3 py-1 ${
+                                totalCompassRenters > 0
+                                    ? 'border-amber-700 bg-amber-50 text-amber-950'
+                                    : 'border-slate-300 bg-slate-50 text-slate-800'
+                            }`}>
+                            <span className="text-xs font-bold uppercase tracking-wider">Compass Needs Return</span>
+                            <span className="font-mono text-lg font-bold tabular-nums leading-none">
+                                {totalCompassRenters}
+                            </span>
+                        </div>
                     </div>
                 </div>
+
+                {/* Compass Needs Return List */}
+                <section className="border border-slate-400 bg-white">
+                    <div className="flex items-center justify-between border-b border-slate-300 bg-amber-50 px-4 py-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-amber-950">
+                            Compass Needs Return ({totalCompassRenters})
+                        </h2>
+                    </div>
+
+                    {lastClearedCompassParticipant !== null && (
+                        <div
+                            role="status"
+                            className="flex items-center justify-between gap-3 border-b border-slate-300 bg-slate-100 px-3 py-1.5 text-xs text-slate-900">
+                            <span>
+                                Cleared compass for <strong>{lastClearedCompassParticipant.name}</strong>.
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        const target = lastClearedCompassParticipant
+                                        setLastClearedCompassParticipant(null)
+                                        if (target) {
+                                            await setHasRentedCompass(target.id, true)
+                                        }
+                                    }}
+                                    className="min-h-8 border border-slate-800 bg-white px-2.5 py-0.5 text-xs font-bold text-slate-900 hover:bg-slate-200">
+                                    Undo
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setLastClearedCompassParticipant(null)}
+                                    className="min-h-8 px-1.5 py-0.5 text-xs text-slate-500 hover:text-slate-800">
+                                    Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {compassRenters.length === 0 ? (
+                        <div className="px-4 py-3 text-xs text-slate-500">
+                            {totalCompassRenters === 0
+                                ? 'No rented compasses waiting to be returned.'
+                                : 'No rented compasses match the current search filter.'}
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-200">
+                            {compassRenters.map((p) => {
+                                const slot = slotsByParticipant.get(p.id)?.[0]
+                                const club =
+                                    !p.club || p.club === 'unknown' || p.club === 'None'
+                                        ? 'Independent'
+                                        : p.club
+                                return (
+                                    <div
+                                        key={p.id}
+                                        data-compass-participant-id={p.id}
+                                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="text-base font-bold text-slate-950">
+                                                    {p.name}
+                                                </span>
+                                                <span className="border border-amber-700 bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold uppercase text-amber-950">
+                                                    Compass Needs Return
+                                                </span>
+                                            </div>
+                                            <div className="mt-0.5 text-xs text-slate-600">
+                                                {club}
+                                                {slot ? ` · ${formatCourseWithLabel(slot.course)} (${formatSlotTime(slot.time)})` : ''}
+                                                {p.epunch ? ` · E-punch ${p.epunch}` : ''}
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleClearCompass(p)}
+                                            className="min-h-9 border border-slate-900 bg-slate-900 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-white transition hover:border-emerald-800 hover:bg-emerald-700">
+                                            Clear
+                                        </button>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </section>
 
                 {/* 2. View Mode Tabs, Category Filters, Search & Actions */}
                 <div className="flex flex-col gap-2.5 border border-slate-300 bg-slate-50 p-3">

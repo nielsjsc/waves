@@ -25,6 +25,7 @@ import {
     clearStateNoShow,
     setCompetitive,
     setGroupSize,
+    setHasRentedCompass,
     setNeedsPayment,
     setNeedsWaiver,
     setNewEpunch,
@@ -478,6 +479,7 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                 {p.groupSize > 1 && <Pill className="border-emerald-600 bg-emerald-50 text-emerald-800">Group {p.groupSize}</Pill>}
                                 {p.isNonCompete && <Pill className="border-indigo-600 bg-indigo-50 text-indigo-800">Non-competitive</Pill>}
                                 {p.isRental && <Pill className="border-orange-600 bg-orange-50 text-orange-800">Rental e-punch</Pill>}
+                                {p.hasRentedCompass && <Pill className="border-amber-700 bg-amber-50 text-amber-900">Compass rented</Pill>}
                                 {displayStates.map((st) => {
                                     const stStyle = ParticipantStateStyles.get(st)
                                     if (!stStyle) return null
@@ -678,6 +680,23 @@ export function Manager({ clockTime, waveOffsetMinutes, selectedParticipantId, s
                                         icon="group"
                                         color="emerald"
                                         buttonStyle="outline" />
+                                    <ManagerActionButton
+                                        action={() => {
+                                            const next = !p.hasRentedCompass
+                                            void setHasRentedCompass(p.id, next)
+                                            setUndo({
+                                                message: next
+                                                    ? `${p.name} marked as renting a compass`
+                                                    : `${p.name} compass marked returned`,
+                                                run: async () => {
+                                                    await setHasRentedCompass(p.id, !next)
+                                                },
+                                            })
+                                        }}
+                                        text={p.hasRentedCompass ? "Compass Returned" : "Rent Compass"}
+                                        icon="pin"
+                                        color="amber"
+                                        buttonStyle={p.hasRentedCompass ? "solid" : "outline"} />
                                     <ManagerActionButton
                                         action={() =>
                                             setAddParticipantPrefill({

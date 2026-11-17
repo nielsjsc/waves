@@ -75,6 +75,7 @@ const CHANGE_LABELS: Record<string, string> = {
     groupSize: 'Group size',
     repair: 'Record repaired',
     addedParticipant: 'Added participant',
+    compassRental: 'Compass rental',
 }
 
 export function changeTypeLabel(changeType: string): string {
