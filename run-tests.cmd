@@ -2,6 +2,11 @@
 setlocal
 cd /d "%~dp0waves-app"
 
+if not exist "node_modules" (
+    echo Installing test dependencies ^(first-time setup^)...
+    call pnpm install
+)
+
 echo ============================================================
 echo [1/3] Running Waves Unit ^& Data-Integrity Tests (Vitest)...
 echo ============================================================

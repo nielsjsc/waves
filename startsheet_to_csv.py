@@ -26,8 +26,10 @@ from pathlib import Path
 try:
     from openpyxl import load_workbook
 except ImportError:
-    sys.exit("PROBLEM: the 'openpyxl' add-on is not installed.\n"
-             "Fix: open a command window and run:  py -m pip install openpyxl")
+    import subprocess
+    print("Installing required 'openpyxl' package (first-time setup)...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
+    from openpyxl import load_workbook
 
 ROOT = Path(__file__).resolve().parent
 INPUT_DIR = ROOT / "data" / "input"

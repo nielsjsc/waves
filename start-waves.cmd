@@ -25,6 +25,19 @@ if not errorlevel 1 goto already_running
 
 if not exist "%MONGO_DATA%" mkdir "%MONGO_DATA%"
 
+if not exist "%ROOT%waves-server\node_modules" (
+    echo Installing sync server dependencies ^(first-time setup^)...
+    pushd "%ROOT%waves-server"
+    call npm install
+    popd
+)
+if not exist "%ROOT%waves-app\node_modules" (
+    echo Installing app dependencies ^(first-time setup^)...
+    pushd "%ROOT%waves-app"
+    call pnpm install
+    popd
+)
+
 echo [1/5] Starting the database...
 start "Waves - database (leave open)" "%MONGOD%" --dbpath="%MONGO_DATA%" --bind_ip=127.0.0.1 --port=27017 --replSet=rs0
 set /a tries=0
