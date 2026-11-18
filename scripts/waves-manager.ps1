@@ -24,8 +24,9 @@ function Add-PathIfPresent([string]$Dir) {
     }
 }
 
-Add-PathIfPresent "$env:APPDATA\npm"
+Add-PathIfPresent "$env:LOCALAPPDATA\Microsoft\WinGet\Links"
 Add-PathIfPresent "$env:LOCALAPPDATA\pnpm"
+Add-PathIfPresent "$env:APPDATA\npm"
 Add-PathIfPresent 'C:\Program Files\nodejs'
 
 function Find-Python {
@@ -97,6 +98,33 @@ function Find-Nginx {
     if ($cmd) { $candidates += Get-Item $cmd.Source -ErrorAction SilentlyContinue }
     $best = $candidates | Sort-Object FullName -Descending | Select-Object -First 1
     if ($best) { return $best.FullName }
+    return $null
+}
+
+function Find-Pnpm {
+    $candidates = @()
+    foreach ($fixed in @("$env:LOCALAPPDATA\pnpm\pnpm.exe", "$env:LOCALAPPDATA\Microsoft\WinGet\Links\pnpm.exe")) {
+        if (Test-Path -LiteralPath $fixed) { $candidates += $fixed }
+    }
+    $wgPkgDir = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages"
+    if (Test-Path -LiteralPath $wgPkgDir) {
+        $pkgHits = Get-ChildItem -Path $wgPkgDir -Filter 'pnpm.exe' -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending
+        foreach ($h in $pkgHits) { $candidates += $h.FullName }
+    }
+    foreach ($cmd in (Get-Command 'pnpm.exe', 'pnpm.cmd' -ErrorAction SilentlyContinue)) {
+        $candidates += $cmd.Source
+    }
+
+    foreach ($cand in ($candidates | Select-Object -Unique)) {
+        try {
+            & $cand --version 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Add-PathIfPresent (Split-Path -Parent $cand)
+                return $cand
+            }
+        } catch { }
+    }
     return $null
 }
 
@@ -222,13 +250,13 @@ function Start-WavesServices {
     $mongoshExe = Find-Mongosh
     $nginxExe = Find-Nginx
     $pyExe = Find-Python
-    $pnpmCmd = Get-Command 'pnpm' -ErrorAction SilentlyContinue
+    $pnpmExe = Find-Pnpm
     $npmCmd = Get-Command 'npm' -ErrorAction SilentlyContinue
 
     if (-not $mongodExe) { throw 'MongoDB (mongod.exe) was not found. Double-click setup.cmd to install dependencies automatically.' }
     if (-not $mongoshExe) { throw 'MongoDB Shell (mongosh.exe) was not found. Double-click setup.cmd to install dependencies automatically.' }
     if (-not $nginxExe) { throw 'nginx (nginx.exe) was not found. Double-click setup.cmd to install dependencies automatically.' }
-    if (-not $pnpmCmd) { throw '"pnpm" was not found on PATH. Double-click setup.cmd to install dependencies automatically.' }
+    if (-not $pnpmExe) { throw '"pnpm" was not found or is broken. Double-click setup.cmd to install dependencies automatically.' }
 
     $mongoRunning = $null -ne (Get-Process -Name 'mongod' -ErrorAction SilentlyContinue)
     if ($mongoRunning -and (Test-PortListening 3000) -and (Test-PortListening 5173)) {
@@ -249,14 +277,14 @@ function Start-WavesServices {
     if (-not (Test-Path -LiteralPath $serverModules)) {
         Write-Host 'Installing sync server packages (first-time setup)...'
         Push-Location (Join-Path $Root 'waves-server')
-        if ($npmCmd) { & npm.cmd install } else { & pnpm.cmd install }
+        if ($npmCmd) { & npm.cmd install } else { & $pnpmExe install }
         Pop-Location
     }
     $appModules = Join-Path $Root 'waves-app\node_modules'
     if (-not (Test-Path -LiteralPath $appModules)) {
         Write-Host 'Installing web app packages (first-time setup)...'
         Push-Location (Join-Path $Root 'waves-app')
-        & pnpm.cmd install
+        & $pnpmExe install
         Pop-Location
     }
 
@@ -321,7 +349,7 @@ function Start-WavesServices {
     $appOut = Join-Path $LogDir 'web-app.log'
     $appErr = Join-Path $LogDir 'web-app.err.log'
     Start-Process -FilePath 'cmd.exe' `
-        -ArgumentList '/c pnpm.cmd dev' `
+        -ArgumentList "/c `"`"$pnpmExe`" dev`"" `
         -WorkingDirectory (Join-Path $Root 'waves-app') `
         -RedirectStandardOutput $appOut `
         -RedirectStandardError $appErr `

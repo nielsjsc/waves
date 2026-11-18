@@ -10,7 +10,7 @@ function Refresh-EnvPath {
     $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     $env:Path = "$machinePath;$userPath"
-    foreach ($extra in @("$env:APPDATA\npm", "$env:LOCALAPPDATA\pnpm", 'C:\Program Files\nodejs')) {
+    foreach ($extra in @("$env:LOCALAPPDATA\Microsoft\WinGet\Links", "$env:LOCALAPPDATA\pnpm", "$env:APPDATA\npm", 'C:\Program Files\nodejs')) {
         if ((Test-Path -LiteralPath $extra) -and (($env:Path -split ';') -notcontains $extra)) {
             $env:Path = "$extra;$env:Path"
         }
@@ -66,6 +66,30 @@ function Find-NginxExe {
     if ($best) { return $best.FullName }
     $c = Get-Command 'nginx' -ErrorAction SilentlyContinue
     if ($c) { return $c.Source }
+    return $null
+}
+
+function Find-PnpmExe {
+    $candidates = @()
+    foreach ($fixed in @("$env:LOCALAPPDATA\pnpm\pnpm.exe", "$env:LOCALAPPDATA\Microsoft\WinGet\Links\pnpm.exe")) {
+        if (Test-Path -LiteralPath $fixed) { $candidates += $fixed }
+    }
+    $wgPkgDir = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages"
+    if (Test-Path -LiteralPath $wgPkgDir) {
+        $pkgHits = Get-ChildItem -Path $wgPkgDir -Filter 'pnpm.exe' -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending
+        foreach ($h in $pkgHits) { $candidates += $h.FullName }
+    }
+    foreach ($cmd in (Get-Command 'pnpm.exe', 'pnpm.cmd' -ErrorAction SilentlyContinue)) {
+        $candidates += $cmd.Source
+    }
+
+    foreach ($cand in ($candidates | Select-Object -Unique)) {
+        try {
+            & $cand --version 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { return $cand }
+        } catch { }
+    }
     return $null
 }
 
@@ -156,11 +180,26 @@ try {
     Write-Host "  Found nginx: $nginxExe"
 
     Write-Host '[6/6] Installing pnpm, Python openpyxl, app packages, folders, and Desktop shortcuts...'
-    if (-not (Get-Command 'pnpm' -ErrorAction SilentlyContinue)) {
-        & npm.cmd install -g pnpm
-        if ($LASTEXITCODE -ne 0) { throw 'Failed to install pnpm.' }
-        Refresh-EnvPath
+    $pnpmExe = Find-PnpmExe
+    if (-not $pnpmExe) {
+        # Remove any broken partial npm global pnpm shims left behind by failed npm installs
+        Remove-Item -Path "$env:APPDATA\npm\pnpm", "$env:APPDATA\npm\pnpm.cmd", "$env:APPDATA\npm\pnpm.ps1", "$env:APPDATA\npm\node_modules\pnpm" -Recurse -Force -ErrorAction SilentlyContinue
+        $wg = Get-Command 'winget' -ErrorAction SilentlyContinue
+        if ($wg) {
+            try {
+                Install-WithWinget -PackageId 'pnpm.pnpm' -FriendlyName 'pnpm'
+            } catch { }
+            $pnpmExe = Find-PnpmExe
+        }
+        if (-not $pnpmExe) {
+            Write-Host 'Installing pnpm via official standalone script...'
+            Invoke-RestMethod -Uri 'https://get.pnpm.io/install.ps1' | Invoke-Expression
+            Refresh-EnvPath
+            $pnpmExe = Find-PnpmExe
+        }
+        if (-not $pnpmExe) { throw 'Failed to install pnpm.' }
     }
+    Write-Host "  Found pnpm: $pnpmExe"
 
     & $pyExe -m pip install --upgrade openpyxl
     if ($LASTEXITCODE -ne 0) { throw 'Failed to install Python openpyxl.' }
@@ -171,7 +210,7 @@ try {
     Pop-Location
 
     Push-Location (Join-Path $Root 'waves-app')
-    & pnpm.cmd install
+    & $pnpmExe install
     if ($LASTEXITCODE -ne 0) { Pop-Location; throw 'Failed to install waves-app packages.' }
     Pop-Location
 
