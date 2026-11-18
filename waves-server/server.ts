@@ -296,10 +296,13 @@ if (existsSync(ARCHIVE_SCRIPT)) {
                 stdio: ['ignore', 'ignore', 'pipe'],
             })
             let stderr = ''
+            let handled = false
             child.stderr?.on('data', (chunk: Buffer) => {
                 stderr += chunk.toString()
             })
             child.on('error', (err: any) => {
+                if (handled) return
+                handled = true
                 if (allowFallback && err?.code === 'ENOENT') {
                     execPython('python', false)
                     return
@@ -308,6 +311,12 @@ if (existsSync(ARCHIVE_SCRIPT)) {
                 console.warn('Auto-archive skipped:', err?.message ?? err)
             })
             child.on('close', (code) => {
+                if (handled) return
+                handled = true
+                if (allowFallback && cmd === 'py' && code !== 0) {
+                    execPython('python', false)
+                    return
+                }
                 archiveRunning = false
                 if (code !== 0 && stderr.trim() !== '') {
                     console.warn('Auto-archive warning:', stderr.trim())

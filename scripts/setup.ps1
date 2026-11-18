@@ -24,13 +24,50 @@ function Ensure-PowerShellPolicy {
 }
 
 function Find-PythonExe {
-    foreach ($name in @('py', 'python')) {
-        $c = Get-Command $name -ErrorAction SilentlyContinue
-        if ($c) { return $c.Source }
+    $candidates = @()
+    foreach ($pattern in @(
+        "$env:LOCALAPPDATA\Programs\Python\Python*\python.exe",
+        "$env:LOCALAPPDATA\Python\pythoncore-*\python.exe",
+        "$env:LOCALAPPDATA\Python\bin\python.exe",
+        'C:\Program Files\Python*\python.exe',
+        'C:\Python*\python.exe'
+    )) {
+        $hits = Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue | Sort-Object FullName -Descending
+        foreach ($h in $hits) { $candidates += $h.FullName }
     }
-    $localPy = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs\Python\Python*\python.exe" -ErrorAction SilentlyContinue |
-        Sort-Object FullName -Descending | Select-Object -First 1
-    if ($localPy) { return $localPy.FullName }
+    $wgPkgDir = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages"
+    if (Test-Path -LiteralPath $wgPkgDir) {
+        $wgHits = Get-ChildItem -Path "$wgPkgDir\*Python*" -Filter 'python.exe' -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending
+        foreach ($h in $wgHits) { $candidates += $h.FullName }
+    }
+    foreach ($cmd in (Get-Command 'python.exe', 'py.exe' -All -ErrorAction SilentlyContinue)) {
+        $candidates += $cmd.Source
+    }
+
+    foreach ($cand in ($candidates | Select-Object -Unique)) {
+        if (-not $cand -or ($cand -like '*\Microsoft\WindowsApps\*')) { continue }
+        $ok = $false
+        $global:LASTEXITCODE = 1
+        try {
+            & $cand -c 'import sys' 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { $ok = $true }
+        } catch {
+            $ok = $false
+        }
+        if ($ok) {
+            $pyDir = Split-Path -Parent $cand
+            if ($pyDir -and ($pyDir -ne $env:SystemRoot)) {
+                $scriptsDir = Join-Path $pyDir 'Scripts'
+                if ((Test-Path -LiteralPath $scriptsDir) -and (($env:Path -split ';') -notcontains $scriptsDir)) {
+                    $env:Path = "$scriptsDir;$env:Path"
+                }
+                $other = ($env:Path -split ';') | Where-Object { $_ -and ($_ -ne $pyDir) }
+                $env:Path = (@($pyDir) + $other) -join ';'
+            }
+            return $cand
+        }
+    }
     return $null
 }
 
