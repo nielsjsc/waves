@@ -582,7 +582,7 @@ export function HeaderWithWaveTime() {
         </span>
     ) : syncStatus === 'offline' ? (
         <span
-            title="Cannot reach the Waves sync server. Changes are saved on this laptop and will sync when reconnected."
+            title="Cannot reach the meet network or Waves sync server. Changes are saved locally and will sync when reconnected."
             className="flex items-center gap-1.5 border border-amber-600 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900">
             <span className="h-2 w-2 bg-amber-600" />
             Offline (saved locally)

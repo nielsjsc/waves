@@ -283,7 +283,8 @@ export const firstSyncDone: Promise<void> = replications === undefined
               replications.changes.awaitInitialReplication(),
           ]).then(() => {
               console.log(`rxdb: Initial sync with server finished for event ${EVENT_ID}`)
-              setSyncStatus('synced')
+              updateSyncedIfAllHealthy()
+              void checkIfEventChanged(false)
               finish()
           })
           // Only allow the host machine to fall back to local offline startup if the sync server is unreachable.
@@ -352,6 +353,7 @@ export function onStaleEvent(listener: () => void): () => void {
 }
 
 let hostReachable = true
+let hostNetworkOnline = true
 const repHasError = new Map<object, boolean>()
 if (replications !== undefined) {
     repHasError.set(replications.slots, false)
@@ -359,8 +361,17 @@ if (replications !== undefined) {
     repHasError.set(replications.changes, false)
 }
 
+function isBrowserOnline(): boolean {
+    return typeof navigator === 'undefined' || navigator.onLine !== false
+}
+
 function updateSyncedIfAllHealthy() {
-    if (hostReachable && [...repHasError.values()].every((hasErr) => !hasErr)) {
+    if (
+        hostReachable &&
+        hostNetworkOnline &&
+        isBrowserOnline() &&
+        [...repHasError.values()].every((hasErr) => !hasErr)
+    ) {
         setSyncStatus('synced')
     }
 }
@@ -370,16 +381,31 @@ export async function checkIfEventChanged(triggerResync = true): Promise<void> {
     if (staleEvent || checkingEvent) {
         return
     }
+    if (!isBrowserOnline()) {
+        hostReachable = false
+        hostNetworkOnline = false
+        setSyncStatus('offline')
+        return
+    }
     checkingEvent = true
     try {
         const controller = new AbortController()
         const timer = setTimeout(() => controller.abort(), 3000)
         let response: Response
+        let hostNetResponse: Response | undefined
         try {
-            response = await fetch('/event.json', {
-                cache: 'no-store',
-                signal: controller.signal,
-            })
+            ;[response, hostNetResponse] = await Promise.all([
+                fetch('/event.json', {
+                    cache: 'no-store',
+                    signal: controller.signal,
+                }),
+                IS_HOST_CLIENT
+                    ? fetch('/api/host-network', {
+                          cache: 'no-store',
+                          signal: controller.signal,
+                      }).catch(() => undefined)
+                    : Promise.resolve(undefined),
+            ])
         } finally {
             clearTimeout(timer)
         }
@@ -401,11 +427,24 @@ export async function checkIfEventChanged(triggerResync = true): Promise<void> {
             return
         }
         hostReachable = true
+        if (IS_HOST_CLIENT && hostNetResponse?.ok) {
+            try {
+                const netInfo = (await hostNetResponse.json()) as { online?: unknown }
+                if (typeof netInfo.online === 'boolean') {
+                    hostNetworkOnline = netInfo.online
+                }
+            } catch { /* ignore malformed network probe */ }
+        }
+        if (!hostNetworkOnline || !isBrowserOnline()) {
+            setSyncStatus('offline')
+            return
+        }
         if (triggerResync && replications !== undefined) {
             replications.slots.reSync()
             replications.participants.reSync()
             replications.changes.reSync()
         }
+        updateSyncedIfAllHealthy()
     } catch {
         hostReachable = false
         setSyncStatus('offline')
