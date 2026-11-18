@@ -372,8 +372,11 @@ function Start-WavesServices {
     Write-Host '[3/5] Starting the sync server (this can take up to a minute)...'
     $syncOut = Join-Path $LogDir 'sync-server.log'
     $syncErr = Join-Path $LogDir 'sync-server.err.log'
+    $tsHookJs = 'import { readFileSync } from "node:fs"; import { createRequire } from "node:module"; import { fileURLToPath } from "node:url"; export async function load(url, ctx, next) { if (!url.endsWith(".ts")) return next(url, ctx); const ts = createRequire(url)("typescript"); const src = readFileSync(fileURLToPath(url), "utf8"); const { outputText } = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }); return { format: "module", shortCircuit: true, source: outputText }; }'
+    $tsHookB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($tsHookJs))
+    $syncEval = "import{register}from'node:module';register('data:text/javascript;base64,$tsHookB64');await import('./server.ts')"
     $syncProc = Start-Process -FilePath 'cmd.exe' `
-        -ArgumentList '/c npx ts-node server.ts' `
+        -ArgumentList "/c node --input-type=module -e `"$syncEval`"" `
         -WorkingDirectory (Join-Path $Root 'waves-server') `
         -RedirectStandardOutput $syncOut `
         -RedirectStandardError $syncErr `
