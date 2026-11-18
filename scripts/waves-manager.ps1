@@ -370,6 +370,8 @@ function Start-WavesServices {
     if (-not $primary) { throw 'Database replica set did not become ready.' }
 
     Write-Host '[3/5] Starting the sync server (this can take up to a minute)...'
+    $emptyIn = Join-Path $LogDir 'empty.in'
+    Set-Content -LiteralPath $emptyIn -Value '' -NoNewline
     $syncOut = Join-Path $LogDir 'sync-server.log'
     $syncErr = Join-Path $LogDir 'sync-server.err.log'
     $tsHookJs = 'import { readFileSync } from "node:fs"; import { createRequire } from "node:module"; import { fileURLToPath } from "node:url"; export async function load(url, ctx, next) { if (!url.endsWith(".ts")) return next(url, ctx); const ts = createRequire(url)("typescript"); const src = readFileSync(fileURLToPath(url), "utf8"); const { outputText } = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }); return { format: "module", shortCircuit: true, source: outputText }; }'
@@ -378,6 +380,7 @@ function Start-WavesServices {
     $syncProc = Start-Process -FilePath 'cmd.exe' `
         -ArgumentList "/c node --input-type=module -e `"$syncEval`"" `
         -WorkingDirectory (Join-Path $Root 'waves-server') `
+        -RedirectStandardInput $emptyIn `
         -RedirectStandardOutput $syncOut `
         -RedirectStandardError $syncErr `
         -PassThru `
@@ -413,6 +416,7 @@ function Start-WavesServices {
     $appProc = Start-Process -FilePath 'cmd.exe' `
         -ArgumentList "/c `"`"$pnpmExe`" dev`"" `
         -WorkingDirectory (Join-Path $Root 'waves-app') `
+        -RedirectStandardInput $emptyIn `
         -RedirectStandardOutput $appOut `
         -RedirectStandardError $appErr `
         -PassThru `
@@ -517,16 +521,18 @@ try {
 
     try {
         while ($true) {
-            if ([Console]::KeyAvailable) {
+            if (-not [Console]::IsInputRedirected -and [Console]::KeyAvailable) {
                 $key = [Console]::ReadKey($true)
                 if ($key.Key -eq 'Q' -or $key.Key -eq 'Enter' -or $key.Key -eq 'Escape') {
+                    Write-Host ''
+                    Write-Host 'Stopping Waves...'
                     break
                 }
             }
             if (-not (Get-Process -Name 'mongod' -ErrorAction SilentlyContinue)) {
                 break
             }
-            Start-Sleep -Milliseconds 400
+            Start-Sleep -Milliseconds 250
         }
     } finally {
         Set-Content -LiteralPath $cleanStopMarker -Value 'done' -ErrorAction SilentlyContinue
