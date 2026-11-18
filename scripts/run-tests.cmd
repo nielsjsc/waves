@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0waves-app"
+cd /d "%~dp0..\waves-app"
 
 if not exist "node_modules" (
     echo Installing test dependencies ^(first-time setup^)...

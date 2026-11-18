@@ -36,9 +36,9 @@ flowchart LR
 |---|---|---|
 | **Web App** | `waves-app/` | React 19 + TypeScript + Tailwind 4 single-page app. |
 | **Client Database** | `waves-app/src/database.ts` | RxDB (Dexie/IndexedDB) wrapped in TanStack DB collections for reactive UI queries. Uses pure-JS SHA-256 and UUID helpers (`cryptoHelpers.ts`) so it runs over plain HTTP on any LAN IP or domain. Automatically generates schema migrations and self-heals local IndexedDB cache on schema updates. |
-| **Sync Server** | `waves-server/server.ts` | Express `rxdb-server` on port `3000` syncing `slots`, `participants`, and `changes` with MongoDB (`wavesmongodb_<eventId>`). Automatically rebuilds its RxDB cache from MongoDB if the schema changes. |
+| **Sync Server** | `waves-server/server.ts` | Express `rxdb-server` on port `3000` syncing `slots`, `participants`, and `changes` with MongoDB (`wavesmongodb_<eventId>`). Automatically rebuilds its RxDB cache from MongoDB if the schema changes, and triggers debounced live CSV auto-archiving (`scripts/count_people_on_course.py --live`) on every change. |
 | **Reverse Proxy** | `waves-server/nginx.conf` | Listens on plain HTTP port `80` (web app) and port `5443` (RxDB replication stream) with `server_name _;`, allowing access via `localhost`, LAN IP, or local router DNS (`http://waves.cascadeoc.org`). |
-| **Meet Scripts** | `make-start-list.cmd`, `start-waves.cmd`, `stop-waves.cmd` | Convert the meet Excel workbook (`data/input/*.xlsx` or `*.xlsm`) into `startlist.csv` + `event.json`, launch/stop all services, and automatically export per-meet CSV archives into `data/archive/<Meet Name>/` (`count_people_on_course.py`). |
+| **Launcher & Setup** | `Waves.cmd`, `setup.cmd`, `scripts/` | One-click Desktop launcher (`Waves.cmd` -> `scripts/waves-manager.ps1`) that auto-discovers installed MongoDB, `mongosh`, and `nginx` versions, imports any updated Excel sheet from `data/input/`, runs background services quietly with a clean-shutdown watchdog, and provides one-click laptop setup (`setup.cmd` -> `scripts/setup.ps1`). |
 
 ---
 
@@ -73,4 +73,4 @@ Each event uses an isolated database namespace keyed by `eventId` (from `waves-a
   - **Timing Computer Queue**: Collapses multi-hop edits for the same participant and category (`newCourse`, `epunch`, `competitiveStatus`) into a single net change (`first.old → last.new`) and omits zero-net-change round trips.
   - **Compass Box**: Right-hand panel with **`Needs Return`** and **`Returned`** tabs displaying each rented compass's `#<compassId>` badge next to the racer's name with one-click **Clear** / **Restore**.
 - **Full Grid (`FullGrid.tsx`) & Change Log (`Changes.tsx`)**: Live meet overview (with course headcounts and runner action modal) and full chronological audit log.
-- **Automatic Per-Meet Archive (`data/archive/<Meet Name>/`)**: Running `stop-waves.cmd` automatically exports `original_start_list.csv`, `change_log.csv`, `final_participant_status.csv`, `download_log.csv`, and `people_on_course.csv` into the meet's folder (rotating any previous export from the same meet into `history/<timestamp>/`).
+- **Automatic Per-Meet Archive (`data/archive/<Meet Name>/`)**: Running `Waves.cmd` / `server.ts` rotates prior exports into `history/<timestamp>/` at startup and continuously updates `change_log.csv`, `final_participant_status.csv`, `download_log.csv`, and `people_on_course.csv` (alongside `original_start_list.csv`) on every meet change and on shutdown.

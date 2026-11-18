@@ -31,7 +31,7 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
     from openpyxl import load_workbook
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 INPUT_DIR = ROOT / "data" / "input"
 ARCHIVE_DIR = ROOT / "data" / "archive"
 OUTPUT_FILE = ROOT / "waves-app" / "public" / "startlist.csv"

@@ -12,16 +12,18 @@ If any of the 4 post-meet CSVs already exist in data/archive/<Meet Name>/ from a
 close during the same meet, the previous set is moved into data/archive/<Meet Name>/history/<timestamp>/
 before writing the latest files.
 """
+import argparse
 import csv
 import datetime
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 EVENT_FILE = ROOT / "waves-app" / "public" / "event.json"
 STARTLIST_CSV = ROOT / "waves-app" / "public" / "startlist.csv"
 ARCHIVE_DIR = ROOT / "data" / "archive"
@@ -183,6 +185,38 @@ def filter_download_changes(changes: list[dict]) -> list[dict]:
     return sorted(out, key=lambda c: float(c.get("changedAt", 0)))
 
 
+def find_mongosh() -> str:
+    found = shutil.which("mongosh")
+    if found:
+        return found
+
+    candidates: list[Path] = []
+    local_app = os.environ.get("LOCALAPPDATA", "")
+    search_patterns = [
+        (Path(r"C:\Program Files\mongosh"), ["mongosh.exe", "**/mongosh.exe"]),
+        (Path(r"C:\Program Files\MongoDB"), ["**/mongosh.exe"]),
+    ]
+    if local_app:
+        search_patterns.extend([
+            (Path(local_app) / "Programs" / "mongosh", ["mongosh.exe", "**/mongosh.exe"]),
+            (Path(local_app) / "Microsoft" / "WinGet" / "Links", ["mongosh.exe"]),
+            (Path(local_app) / "Microsoft" / "WinGet" / "Packages", ["*MongoDB.Shell*/**/mongosh.exe"]),
+        ])
+
+    for base, patterns in search_patterns:
+        if not base.exists():
+            continue
+        for pat in patterns:
+            for p in base.glob(pat):
+                if p.is_file():
+                    candidates.append(p)
+
+    if candidates:
+        candidates.sort(key=lambda p: str(p), reverse=True)
+        return str(candidates[0])
+    return "mongosh"
+
+
 def fetch_event_data(event_id: str) -> dict:
     db_name = f"wavesmongodb_{event_id}"
     eval_js = (
@@ -194,7 +228,7 @@ def fetch_event_data(event_id: str) -> dict:
         "})"
     )
     proc = subprocess.run(
-        ["mongosh", "--quiet", MONGO_URL, "--eval", eval_js],
+        [find_mongosh(), "--quiet", MONGO_URL, "--eval", eval_js],
         capture_output=True,
         text=True,
         timeout=15,
@@ -306,6 +340,7 @@ def export_meet_csvs(
     changes: list[dict],
     stats: dict,
     now: datetime.datetime,
+    rotate_existing: bool = True,
 ) -> Path | None:
     meet_dir.mkdir(parents=True, exist_ok=True)
 
@@ -314,7 +349,7 @@ def export_meet_csvs(
     if not orig_csv.exists() and STARTLIST_CSV.exists():
         shutil.copy2(STARTLIST_CSV, orig_csv)
 
-    rotated_dir = rotate_existing_exports_to_history(meet_dir, now)
+    rotated_dir = rotate_existing_exports_to_history(meet_dir, now) if rotate_existing else None
 
     participant_by_id = {p.get("id", ""): p for p in participants}
     slot_by_pid: dict[str, dict] = {}
@@ -520,16 +555,37 @@ def export_meet_csvs(
     return rotated_dir
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Export Waves meet CSV archives.")
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--live",
+        action="store_true",
+        help="Update CSV files in place without rotating existing files to history/",
+    )
+    mode_group.add_argument(
+        "--rotate-once",
+        action="store_true",
+        help="Rotate any pre-existing CSV files to history/ before writing the snapshot",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress informational stdout messages",
+    )
+    args = parser.parse_args(argv)
+
     if not EVENT_FILE.exists():
-        print("Archive export skipped: event.json not found.")
+        if not args.quiet:
+            print("Archive export skipped: event.json not found.")
         return 0
 
     try:
         event_info = json.loads(EVENT_FILE.read_text(encoding="utf-8"))
         event_id = event_info.get("eventId", "")
         if not event_id:
-            print("Archive export skipped: no eventId found in event.json.")
+            if not args.quiet:
+                print("Archive export skipped: no eventId found in event.json.")
             return 0
         data = fetch_event_data(event_id)
         participants = data.get("participants", [])
@@ -544,18 +600,28 @@ def main() -> int:
             event_id,
         )
         meet_dir = ARCHIVE_DIR / meet_name
-        rotated_dir = export_meet_csvs(meet_dir, participants, slots, changes, stats, now)
+        rotate_existing = not args.live
+        rotated_dir = export_meet_csvs(
+            meet_dir,
+            participants,
+            slots,
+            changes,
+            stats,
+            now,
+            rotate_existing=rotate_existing,
+        )
     except Exception as exc:
-        print(f"Archive export failed: {exc}")
+        print(f"Archive export failed: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Archive export successful: {meet_dir}")
-    if (meet_dir / "original_start_list.csv").exists():
-        print("  - original_start_list.csv")
-    for fname in EXPORT_FILENAMES:
-        print(f"  - {fname}")
-    if rotated_dir:
-        print(f"  (Previous export moved to: {rotated_dir})")
+    if not args.quiet:
+        print(f"Archive export successful: {meet_dir}")
+        if (meet_dir / "original_start_list.csv").exists():
+            print("  - original_start_list.csv")
+        for fname in EXPORT_FILENAMES:
+            print(f"  - {fname}")
+        if rotated_dir:
+            print(f"  (Previous export moved to: {rotated_dir})")
     return 0
 
 

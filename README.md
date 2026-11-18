@@ -4,30 +4,18 @@ Waves manages interval starts across **Call-up**, **E-punch Check**, **Start Man
 
 ---
 
-## 1. New Host Laptop Setup (One-Time)
+## 1. New Host Laptop Setup (One-Click)
 
-### A. Install Required Software
-1. **Node.js (v20+) & pnpm**
-   - Install Node.js from https://nodejs.org/
-   - Open PowerShell and enable `pnpm`:
-     ```powershell
-     corepack enable
-     ```
-2. **Python 3.10+** (for converting start-list spreadsheets and exporting archives)
-   - Install Python from https://www.python.org/downloads/ (check **"Add python.exe to PATH"**).
-   - *(Required Python and Node packages are installed automatically on first run by `make-start-list.cmd` and `start-waves.cmd`.)*
-3. **MongoDB Community Server (v8.x) & MongoDB Shell (`mongosh`)**
-   - Install MongoDB Server to `C:\Program Files\MongoDB\Server\8.3\` (you can disable the Windows service so `start-waves.cmd` controls it directly).
-   - Install `mongosh` and ensure it is on your system `PATH`.
-   - Create the data folder `C:\MongoDB`.
-4. **nginx for Windows**
-   - Extract nginx to `C:\nginx-1.30.5` (so `C:\nginx-1.30.5\nginx.exe` exists).
-   - *(If your MongoDB or nginx paths differ, update the path settings at the top of `start-waves.cmd` and `stop-waves.cmd`.)*
+1. Clone or unzip this repository onto the host Windows laptop.
+2. Double-click **`setup.cmd`**.
+   - Automatically installs any missing dependencies via `winget` / official installers (**Node.js LTS**, **Python 3.12**, **MongoDB Server**, **MongoDB Shell (`mongosh`)**, **nginx**, `pnpm`, Python `openpyxl`, and Node packages), regardless of version number.
+   - Creates `C:\MongoDB` and `data\input\`.
+   - Places two shortcuts right on your Desktop: **`Waves`** (one-click launcher) and **`Waves - Input Folder`**.
 
-### B. Optional: Configure Router Local DNS
+### Optional: Configure Router Local DNS
 Waves runs over plain HTTP (`http://`) and accepts any hostname or IP address—no SSL certificates or `hosts` file edits are required.
 - **Recommended (Router DNS)**: On the meet Wi-Fi router, set a static DHCP IP reservation for the Waves host laptop and map a local DNS name (for example, `waves.cascadeoc.org`) to that IP. Volunteers on any phone, tablet, or laptop can then open **`http://waves.cascadeoc.org`**.
-- **Direct IP fallback**: Without router DNS, volunteers can connect to **`http://<HOST-LAPTOP-IP>`** (find the host IP with `ipconfig`, e.g. `http://192.168.0.34`).
+- **Direct IP fallback**: Without router DNS, volunteers can connect to **`http://<HOST-LAPTOP-IP>`** (shown in the Waves window at startup, e.g. `http://192.168.0.34`).
 
 ---
 
@@ -41,45 +29,27 @@ All devices must be connected to the **same Wi-Fi network** as the host laptop:
 
 ---
 
-## 3. Handling Meet Data
+## 3. Running a Meet (One-Click Workflow)
 
-### Before the Meet: Importing the Start List
-1. Put **only** this meet's Excel workbook (`.xlsx` or `.xlsm`, e.g. `WIOL ^N1 - Woodland Park - Start List.xlsx`) inside `data/input/` and **close Excel**.
-2. Double-click **`make-start-list.cmd`**.
-   - Reads the `StartSheet` (or `Sheet1`) tab, generates `waves-app/public/startlist.csv`, and writes `waves-app/public/event.json`.
-   - Saves a copy of the pre-meet schedule to `data/archive/<Meet Name>/original_start_list.csv` (e.g. `data/archive/WIOL ^N1 - Woodland Park/original_start_list.csv`).
-   - Review the console summary for starter counts and any `CHECK THESE ITEM(S)` warnings.
-
-### After the Meet: Automatic Archive Exports
-When you close Waves using **`stop-waves.cmd`**, all meet data is automatically exported into `data/archive/<Meet Name>/`:
-- `original_start_list.csv` — the pre-meet schedule imported from Excel
-- `change_log.csv` — chronological log of every change made during the meet
-- `final_participant_status.csv` — every participant's final course, start time, original start time, status, e-punch, group size, `2nd course`, eligibility flags, and compass rental status
-- `download_log.csv` — net changes for the Download / timing computer (`PENDING` / `CLEARED`)
-- `people_on_course.csv` — per-course and total headcount breakdown (entries, runners, NC shadows, total people on course, no-shows, and not-attending counts)
-
-*(If `stop-waves.cmd` is run multiple times during the same meet, the top-level CSVs are updated with the latest data and the previous set is moved into `data/archive/<Meet Name>/history/<timestamp>/`.)*
+1. Put **only** this meet's Excel workbook (`.xlsx` or `.xlsm`, e.g. `WIOL ^N1 - Woodland Park - Start List.xlsx`) inside **`data/input/`** (**`Waves - Input Folder`** on Desktop) and **close Excel**.
+2. Double-click **`Waves`** on the Desktop (or `Waves.cmd`).
+   - Automatically converts the Excel start list on launch whenever the workbook is new or updated (`original_start_list.csv` is saved into `data/archive/<Meet Name>/`).
+   - Auto-discovers MongoDB, `mongosh`, and nginx across installed versions and starts everything quietly in the background with a single `Waves` control window.
+   - Opens `http://localhost` in your browser and prints the Wi-Fi device URL (`http://<LAN-IP>`).
+3. **Continuous Automatic Backups**: Every change during the meet is automatically exported in the background (~1.5s after edits) into `data/archive/<Meet Name>/`:
+   - `original_start_list.csv` — the pre-meet schedule imported from Excel
+   - `change_log.csv` — chronological log of every change made during the meet
+   - `final_participant_status.csv` — every participant's final course, start time, original start time, status, e-punch, group size, `2nd course`, eligibility flags, and compass rental status
+   - `download_log.csv` — net changes for the Download / timing computer (`PENDING` / `CLEARED`)
+   - `people_on_course.csv` — per-course and total headcount breakdown (entries, runners, NC shadows, total people on course, no-shows, and not-attending counts)
+4. **Closing Waves**: Close the `Waves` window (or press `Q` / `Enter`). A shutdown watchdog automatically saves the final CSVs and cleanly closes nginx, the sync server, the app, and MongoDB. *(If reopened and closed again for the same meet, the previous session's CSVs are preserved inside `data/archive/<Meet Name>/history/<timestamp>/`.)*
 
 ### Resetting / Re-importing the Current Meet *(Organizer Only)*
 - If you need to wipe test clicks before the meet begins and reload `startlist.csv` from scratch, visit `http://localhost/?organizer` on the host laptop and click **`Re-import start list`** in the top bar.
 
 ---
 
-## 4. Launching & Shutting Down
-
-### Launching Waves
-1. On the host laptop, double-click **`start-waves.cmd`**.
-2. It launches MongoDB, the sync server, nginx, and the web app in order, then opens `http://localhost`.
-3. Leave the command windows/tabs open while the meet is running (minimizing them is fine).
-4. Verify the green **`Synced`** badge appears in the top-right header.
-
-### Shutting Down Waves
-1. Double-click **`stop-waves.cmd`** on the host laptop.
-2. It closes the web app, sync server, and nginx (automatically closing their command tabs), exports all 5 meet CSVs to `data/archive/<Meet Name>/`, and shuts down MongoDB cleanly.
-
----
-
-## 5. Meet-Day Station Guide
+## 4. Meet-Day Station Guide
 
 ### Header Controls
 - **Clock Time (`HH:MM:SS`)**: On Call-up and E-punch Check, click the clock to add/subtract hours, minutes, or seconds so that device matches the official start clock.
@@ -108,12 +78,12 @@ When you close Waves using **`stop-waves.cmd`**, all meet data is automatically 
 
 ---
 
-## 6. Quick Troubleshooting
+## 5. Quick Troubleshooting
 
 | Issue | Solution |
 | :--- | :--- |
 | **Header says `Offline (saved locally)`** | Keep working—clicks are saved locally and sync automatically once Wi-Fi reconnects. |
 | **Red `Records needing repair` banner in Start Manager** | Happens if two offline devices moved the same runner before reconnecting. Click the runner's name in the banner and click **`Keep this one`** on the correct slot. |
 | **Phone/iPad says "Cannot open page"** | Verify the device is connected to the meet Wi-Fi and using `http://` (not `https://`), e.g. `http://waves.cascadeoc.org` or `http://<HOST-IP>`. |
-| **`start-waves.cmd` says Waves is already running** | Double-click `stop-waves.cmd` first, then run `start-waves.cmd` again. |
-| **Run automated health checks** | Double-click `run-tests.cmd` to run all unit tests, multi-station browser tests, and build checks. |
+| **Missing software on a new host laptop** | Double-click `setup.cmd` to auto-install dependencies and refresh Desktop shortcuts. |
+| **Run automated health checks** | Run `scripts\run-tests.cmd` to run all unit tests, multi-station browser tests, and build checks. |

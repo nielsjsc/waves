@@ -1,3 +1,7 @@
-security
+data/
+waves-app/public/startlist.csv
+waves-app/public/event.json
+*.xlsx
+*.xlsm
 __pycache__/
 *.pyc

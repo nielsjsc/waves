@@ -4,6 +4,7 @@
 // ESTABLISH MONGODB
 
 import { MongoClient } from 'mongodb';
+import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -272,3 +273,69 @@ console.log('Replication endpoint:', `${RX_SERVER_HOST}:${RX_SERVER_PORT}/${chan
 await server.start();
 
 console.log('started rx-server')
+
+// Continuously auto-archive the 4 post-meet CSVs so closing the laptop or app never loses work.
+const ARCHIVE_SCRIPT = resolve('..', 'scripts', 'count_people_on_course.py')
+const ROOT_DIR = resolve('..')
+if (existsSync(ARCHIVE_SCRIPT)) {
+    let archiveTimer: ReturnType<typeof setTimeout> | undefined
+    let archiveRunning = false
+    let archivePending = false
+    let pendingMode: '--rotate-once' | '--live' = '--live'
+
+    const runArchiveExport = (mode: '--rotate-once' | '--live') => {
+        if (archiveRunning) {
+            archivePending = true
+            pendingMode = mode === '--rotate-once' ? '--rotate-once' : pendingMode
+            return
+        }
+        archiveRunning = true
+        const execPython = (cmd: string, allowFallback: boolean) => {
+            const child = spawn(cmd, [ARCHIVE_SCRIPT, mode, '--quiet'], {
+                cwd: ROOT_DIR,
+                stdio: ['ignore', 'ignore', 'pipe'],
+            })
+            let stderr = ''
+            child.stderr?.on('data', (chunk: Buffer) => {
+                stderr += chunk.toString()
+            })
+            child.on('error', (err: any) => {
+                if (allowFallback && err?.code === 'ENOENT') {
+                    execPython('python', false)
+                    return
+                }
+                archiveRunning = false
+                console.warn('Auto-archive skipped:', err?.message ?? err)
+            })
+            child.on('close', (code) => {
+                archiveRunning = false
+                if (code !== 0 && stderr.trim() !== '') {
+                    console.warn('Auto-archive warning:', stderr.trim())
+                }
+                if (archivePending) {
+                    const nextMode = pendingMode
+                    archivePending = false
+                    pendingMode = '--live'
+                    runArchiveExport(nextMode)
+                }
+            })
+        }
+        execPython(process.platform === 'win32' ? 'py' : 'python3', true)
+    }
+
+    const scheduleLiveArchive = () => {
+        if (archiveTimer !== undefined) {
+            clearTimeout(archiveTimer)
+        }
+        archiveTimer = setTimeout(() => {
+            archiveTimer = undefined
+            runArchiveExport('--live')
+        }, 1500)
+    }
+
+    runArchiveExport('--rotate-once')
+    serverRxDb.participants.$.subscribe(scheduleLiveArchive)
+    serverRxDb.slots.$.subscribe(scheduleLiveArchive)
+    serverRxDb.changes.$.subscribe(scheduleLiveArchive)
+    console.log('continuous CSV auto-archiving enabled')
+}
