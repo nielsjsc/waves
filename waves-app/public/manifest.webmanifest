@@ -16,7 +16,7 @@
 	],
 	"id": "/",
 	"lang": "en",
-	"name": "Vitamin",
+	"name": "Waves",
 	"scope": "/",
 	"screenshots": [
 		{
@@ -44,7 +44,7 @@
 			"type": "image/png"
 		}
 	],
-	"short_name": "Vitamin",
+	"short_name": "Waves",
 	"start_url": "/",
-	"theme_color": "#BD34FE"
+	"theme_color": "#F26522"
 }

@@ -280,9 +280,13 @@ try {
     $desktop = [Environment]::GetFolderPath('Desktop')
     $shell = New-Object -ComObject WScript.Shell
 
+    $icoPath = Join-Path $Root 'scripts\waves.ico'
     $wavesLnk = $shell.CreateShortcut((Join-Path $desktop 'Waves.lnk'))
     $wavesLnk.TargetPath = Join-Path $Root 'Waves.cmd'
     $wavesLnk.WorkingDirectory = $Root
+    if (Test-Path -LiteralPath $icoPath) {
+        $wavesLnk.IconLocation = "$icoPath,0"
+    }
     $wavesLnk.Description = 'Launch Waves Orienteering Meet Manager'
     $wavesLnk.Save()
 

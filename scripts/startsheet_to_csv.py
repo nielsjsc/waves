@@ -227,7 +227,7 @@ def main():
     # Write to a temporary file first so a failure never damages the current CSV.
     output.parent.mkdir(parents=True, exist_ok=True)
     tmp = output.with_name(output.name + ".tmp")
-    with open(tmp, "w", newline="", encoding="utf-8") as f:
+    with open(tmp, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)  # default CRLF line endings, matching the template
         w.writerow(header)
         w.writerows(out_rows)
@@ -236,7 +236,10 @@ def main():
     # after it, so a new start list starts empty everywhere with no manual clean-up.
     # The id comes from the list itself: re-running with the same list keeps the same
     # event (and its check-in progress); a changed list is a new event.
-    event_id = hashlib.sha1(tmp.read_bytes()).hexdigest()[:8]
+    raw_bytes = tmp.read_bytes()
+    if raw_bytes.startswith(b"\xef\xbb\xbf"):
+        raw_bytes = raw_bytes[3:]
+    event_id = hashlib.sha1(raw_bytes).hexdigest()[:8]
     event_file = output.with_name("event.json")
 
     meet_name = re.sub(r"[\s_-]*start[\s_-]*list$", "", workbook.stem, flags=re.IGNORECASE).strip(" -_")

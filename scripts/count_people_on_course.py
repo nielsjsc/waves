@@ -231,6 +231,8 @@ def fetch_event_data(event_id: str) -> dict:
         [find_mongosh(), "--quiet", MONGO_URL, "--eval", eval_js],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=15,
     )
     if proc.returncode != 0:
@@ -327,7 +329,7 @@ def rotate_existing_exports_to_history(meet_dir: Path, now: datetime.datetime) -
 
 
 def write_csv(path: Path, headers: list[str], rows: list[list[object]]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as f:
+    with path.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
         writer.writerow(headers)
         writer.writerows(rows)
@@ -344,10 +346,11 @@ def export_meet_csvs(
 ) -> Path | None:
     meet_dir.mkdir(parents=True, exist_ok=True)
 
-    # Ensure original_start_list.csv is present in the meet folder
+    # Ensure original_start_list.csv is present in the meet folder with UTF-8 BOM for Excel
     orig_csv = meet_dir / "original_start_list.csv"
     if not orig_csv.exists() and STARTLIST_CSV.exists():
-        shutil.copy2(STARTLIST_CSV, orig_csv)
+        text = STARTLIST_CSV.read_text(encoding="utf-8-sig")
+        orig_csv.write_text(text, encoding="utf-8-sig")
 
     rotated_dir = rotate_existing_exports_to_history(meet_dir, now) if rotate_existing else None
 
