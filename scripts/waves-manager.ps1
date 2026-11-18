@@ -372,22 +372,19 @@ function Start-WavesServices {
     Write-Host '[3/5] Starting the sync server (this can take up to a minute)...'
     $syncOut = Join-Path $LogDir 'sync-server.log'
     $syncErr = Join-Path $LogDir 'sync-server.err.log'
-    Start-Process -FilePath 'cmd.exe' `
+    $syncProc = Start-Process -FilePath 'cmd.exe' `
         -ArgumentList '/c npx ts-node server.ts' `
         -WorkingDirectory (Join-Path $Root 'waves-server') `
         -RedirectStandardOutput $syncOut `
         -RedirectStandardError $syncErr `
+        -PassThru `
         -WindowStyle Hidden
 
     $serverUp = $false
     for ($i = 0; $i -lt 45; $i++) {
-        try {
-            $resp = Invoke-WebRequest -Uri 'http://127.0.0.1:3000/' -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
-            $serverUp = $true; break
-        } catch {
-            if ($_.Exception.Response) { $serverUp = $true; break }
-        }
-        Start-Sleep -Seconds 2
+        if (Test-PortListening 3000) { $serverUp = $true; break }
+        if ($syncProc.HasExited) { break }
+        Start-Sleep -Seconds 1
     }
     if (-not $serverUp) {
         $errTail = if (Test-Path $syncErr) { (Get-Content $syncErr -Tail 15) -join "`n" } else { '' }
@@ -410,22 +407,19 @@ function Start-WavesServices {
     Write-Host '[5/5] Starting the app...'
     $appOut = Join-Path $LogDir 'web-app.log'
     $appErr = Join-Path $LogDir 'web-app.err.log'
-    Start-Process -FilePath 'cmd.exe' `
+    $appProc = Start-Process -FilePath 'cmd.exe' `
         -ArgumentList "/c `"`"$pnpmExe`" dev`"" `
         -WorkingDirectory (Join-Path $Root 'waves-app') `
         -RedirectStandardOutput $appOut `
         -RedirectStandardError $appErr `
+        -PassThru `
         -WindowStyle Hidden
 
     $appUp = $false
     for ($i = 0; $i -lt 30; $i++) {
-        try {
-            $r = Invoke-WebRequest -Uri 'http://127.0.0.1:5173/' -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
-            $appUp = $true; break
-        } catch {
-            if ($_.Exception.Response) { $appUp = $true; break }
-        }
-        Start-Sleep -Seconds 2
+        if (Test-PortListening 5173) { $appUp = $true; break }
+        if ($appProc.HasExited) { break }
+        Start-Sleep -Seconds 1
     }
     if (-not $appUp) {
         $errTail = if (Test-Path $appErr) { (Get-Content $appErr -Tail 15) -join "`n" } else { '' }
