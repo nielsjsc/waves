@@ -15,6 +15,20 @@ $StartlistCsv = Join-Path $Root 'waves-app\public\startlist.csv'
 $InputDir = Join-Path $Root 'data\input'
 $LogDir = Join-Path $Root 'data\logs'
 
+function Invoke-Quiet([scriptblock]$Action) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $global:LASTEXITCODE = 1
+    try {
+        & $Action *> $null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 function Add-PathIfPresent([string]$Dir) {
     if ($Dir -and (Test-Path -LiteralPath $Dir)) {
         $parts = $env:Path -split ';'
@@ -53,14 +67,7 @@ function Find-Python {
 
     foreach ($cand in ($candidates | Select-Object -Unique)) {
         if (-not $cand -or ($cand -like '*\Microsoft\WindowsApps\*')) { continue }
-        $ok = $false
-        $global:LASTEXITCODE = 1
-        try {
-            & $cand -c 'import sys' 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) { $ok = $true }
-        } catch {
-            $ok = $false
-        }
+        $ok = Invoke-Quiet { & $cand -c 'import sys' }
         if ($ok) {
             $pyDir = Split-Path -Parent $cand
             if ($pyDir -and ($pyDir -ne $env:SystemRoot)) {
@@ -122,16 +129,19 @@ function Find-Nginx {
     $patterns = @(
         'C:\nginx\nginx.exe',
         'C:\nginx*\nginx.exe',
-        'C:\Program Files\nginx*\nginx.exe',
-        "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\*nginx*\**\nginx.exe"
+        'C:\Program Files\nginx*\nginx.exe'
     )
     foreach ($pat in $patterns) {
         $candidates += Get-ChildItem -Path $pat -ErrorAction SilentlyContinue
     }
-    $cmd = Get-Command 'nginx' -ErrorAction SilentlyContinue
-    if ($cmd) { $candidates += Get-Item $cmd.Source -ErrorAction SilentlyContinue }
+    $wgPkgDir = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages"
+    if (Test-Path -LiteralPath $wgPkgDir) {
+        $candidates += Get-ChildItem -Path "$wgPkgDir\*nginx*" -Filter 'nginx.exe' -Recurse -ErrorAction SilentlyContinue
+    }
     $best = $candidates | Sort-Object FullName -Descending | Select-Object -First 1
     if ($best) { return $best.FullName }
+    $cmd = Get-Command 'nginx' -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
     return $null
 }
 
@@ -151,13 +161,10 @@ function Find-Pnpm {
     }
 
     foreach ($cand in ($candidates | Select-Object -Unique)) {
-        try {
-            & $cand --version 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Add-PathIfPresent (Split-Path -Parent $cand)
-                return $cand
-            }
-        } catch { }
+        if (Invoke-Quiet { & $cand --version }) {
+            Add-PathIfPresent (Split-Path -Parent $cand)
+            return $cand
+        }
     }
     return $null
 }
@@ -187,7 +194,7 @@ function Stop-PortListener([int]$Port) {
     }
     foreach ($procId in ($pids | Sort-Object -Unique)) {
         if ($procId -le 4) { continue }
-        taskkill /PID $procId /T /F 2>$null | Out-Null
+        [void](Invoke-Quiet { taskkill /PID $procId /T /F })
     }
 }
 
@@ -201,22 +208,31 @@ function Stop-WavesServices {
     Stop-PortListener 3000
     Get-CimInstance Win32_Process -Filter "Name='cmd.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.CommandLine -match 'server\.ts|pnpm\.cmd dev|pnpm dev|waves-server|waves-app' } |
-        ForEach-Object { taskkill /PID $_.ProcessId /T /F 2>$null | Out-Null }
+        ForEach-Object {
+            $targetPid = $_.ProcessId
+            [void](Invoke-Quiet { taskkill /PID $targetPid /T /F })
+        }
 
     if (-not $Quiet) { Write-Host 'Closing the web server...' }
-    taskkill /im nginx.exe /f 2>$null | Out-Null
+    [void](Invoke-Quiet { taskkill /im nginx.exe /f })
 
-    if ($pyExe -and (Get-Process -Name 'mongod' -ErrorAction SilentlyContinue) -and (Test-Path (Join-Path $Root 'scripts\count_people_on_course.py'))) {
+    if ($pyExe -and (Test-Path -LiteralPath $EventFile) -and (Get-Process -Name 'mongod' -ErrorAction SilentlyContinue) -and (Test-Path (Join-Path $Root 'scripts\count_people_on_course.py'))) {
         if (-not $Quiet) { Write-Host 'Saving final meet archive files...' }
         $argsList = @((Join-Path $Root 'scripts\count_people_on_course.py'), '--live')
-        if ($Quiet) { $argsList += '--quiet' }
-        & $pyExe @argsList
+        if ($Quiet) {
+            $argsList += '--quiet'
+            [void](Invoke-Quiet { & $pyExe @argsList })
+        } else {
+            try {
+                & $pyExe @argsList
+            } catch { }
+        }
     }
 
     if (Get-Process -Name 'mongod' -ErrorAction SilentlyContinue) {
         if (-not $Quiet) { Write-Host 'Closing the database (this takes a few seconds)...' }
         if ($mongoshExe) {
-            & $mongoshExe --quiet $MongoUrl --eval "db.getSiblingDB('admin').shutdownServer()" 2>$null | Out-Null
+            [void](Invoke-Quiet { & $mongoshExe --quiet $MongoUrl --eval "db.adminCommand({ shutdown: 1, force: true })" })
         }
         $tries = 0
         while ((Get-Process -Name 'mongod' -ErrorAction SilentlyContinue) -and $tries -lt 15) {
@@ -225,7 +241,7 @@ function Stop-WavesServices {
         }
         if (Get-Process -Name 'mongod' -ErrorAction SilentlyContinue) {
             if (-not $Quiet) { Write-Host 'Forcing database shutdown...' }
-            taskkill /im mongod.exe /f 2>$null | Out-Null
+            [void](Invoke-Quiet { taskkill /im mongod.exe /f })
         }
     }
 
@@ -299,7 +315,11 @@ function Start-WavesServices {
         return $false
     }
     if ($mongoRunning) {
-        Write-Host 'Previous Waves session did not close cleanly. Resetting before launch...'
+        if ((Test-PortListening 3000) -or (Test-PortListening 5173)) {
+            Write-Host 'Previous Waves session did not close cleanly. Resetting before launch...'
+        } else {
+            Write-Host 'Resetting background database service before launch...'
+        }
         Stop-WavesServices -Quiet
         Start-Sleep -Seconds 1
     }
@@ -331,18 +351,20 @@ function Start-WavesServices {
 
     $ready = $false
     for ($i = 0; $i -lt 30; $i++) {
-        & $mongoshExe --quiet $MongoUrl --eval "db.runCommand({ping:1}).ok" 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+        if (Invoke-Quiet { & $mongoshExe --quiet $MongoUrl --eval "db.runCommand({ping:1}).ok" }) {
+            $ready = $true; break
+        }
         Start-Sleep -Seconds 2
     }
     if (-not $ready) { throw 'Database (mongod) did not respond in time.' }
 
     Write-Host '[2/5] Checking the database set-up...'
-    & $mongoshExe --quiet $MongoUrl --eval "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [ { _id: 0, host: 'localhost:27017' } ] }) }" 2>$null | Out-Null
+    [void](Invoke-Quiet { & $mongoshExe --quiet $MongoUrl --eval "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [ { _id: 0, host: 'localhost:27017' } ] }) }" })
     $primary = $false
     for ($i = 0; $i -lt 30; $i++) {
-        & $mongoshExe --quiet $MongoUrl --eval "if (!db.hello().isWritablePrimary) { quit(1) }" 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { $primary = $true; break }
+        if (Invoke-Quiet { & $mongoshExe --quiet $MongoUrl --eval "if (!db.hello().isWritablePrimary) { quit(1) }" }) {
+            $primary = $true; break
+        }
         Start-Sleep -Seconds 2
     }
     if (-not $primary) { throw 'Database replica set did not become ready.' }
@@ -374,6 +396,12 @@ function Start-WavesServices {
 
     Write-Host '[4/5] Starting the web server...'
     $nginxDir = Split-Path -Parent $nginxExe
+    foreach ($sub in @('logs', 'temp')) {
+        $subPath = Join-Path $nginxDir $sub
+        if (-not (Test-Path -LiteralPath $subPath)) {
+            New-Item -ItemType Directory -Path $subPath -Force | Out-Null
+        }
+    }
     $nginxConf = Join-Path $Root 'waves-server\nginx.conf'
     Start-Process -FilePath $nginxExe `
         -ArgumentList "-p `"$nginxDir`" -c `"$nginxConf`"" `

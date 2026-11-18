@@ -23,6 +23,20 @@ function Ensure-PowerShellPolicy {
     } catch { }
 }
 
+function Invoke-Quiet([scriptblock]$Action) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $global:LASTEXITCODE = 1
+    try {
+        & $Action *> $null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 function Find-PythonExe {
     $candidates = @()
     foreach ($pattern in @(
@@ -47,14 +61,7 @@ function Find-PythonExe {
 
     foreach ($cand in ($candidates | Select-Object -Unique)) {
         if (-not $cand -or ($cand -like '*\Microsoft\WindowsApps\*')) { continue }
-        $ok = $false
-        $global:LASTEXITCODE = 1
-        try {
-            & $cand -c 'import sys' 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) { $ok = $true }
-        } catch {
-            $ok = $false
-        }
+        $ok = Invoke-Quiet { & $cand -c 'import sys' }
         if ($ok) {
             $pyDir = Split-Path -Parent $cand
             if ($pyDir -and ($pyDir -ne $env:SystemRoot)) {
@@ -94,10 +101,14 @@ function Find-MongoshExe {
 }
 
 function Find-NginxExe {
-    $patterns = @('C:\nginx\nginx.exe', 'C:\nginx*\nginx.exe', 'C:\Program Files\nginx*\nginx.exe', "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\*nginx*\**\nginx.exe")
+    $patterns = @('C:\nginx\nginx.exe', 'C:\nginx*\nginx.exe', 'C:\Program Files\nginx*\nginx.exe')
     $hits = @()
     foreach ($pat in $patterns) {
         $hits += Get-ChildItem -Path $pat -ErrorAction SilentlyContinue
+    }
+    $wgPkgDir = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages"
+    if (Test-Path -LiteralPath $wgPkgDir) {
+        $hits += Get-ChildItem -Path "$wgPkgDir\*nginx*" -Filter 'nginx.exe' -Recurse -ErrorAction SilentlyContinue
     }
     $best = $hits | Sort-Object FullName -Descending | Select-Object -First 1
     if ($best) { return $best.FullName }
@@ -122,10 +133,7 @@ function Find-PnpmExe {
     }
 
     foreach ($cand in ($candidates | Select-Object -Unique)) {
-        try {
-            & $cand --version 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) { return $cand }
-        } catch { }
+        if (Invoke-Quiet { & $cand --version }) { return $cand }
     }
     return $null
 }
@@ -186,6 +194,16 @@ try {
         throw 'mongosh was installed but mongosh.exe could not be found yet. Restart your terminal and run setup.cmd again.'
     }
     Write-Host "  Found mongosh: $mongoshExe"
+    if (Get-Process -Name 'mongod' -ErrorAction SilentlyContinue) {
+        $wavesActive = $false
+        try {
+            $ports = Get-NetTCPConnection -LocalPort 3000, 5173 -State Listen -ErrorAction SilentlyContinue
+            if ($ports -and @($ports).Count -gt 0) { $wavesActive = $true }
+        } catch { }
+        if (-not $wavesActive) {
+            [void](Invoke-Quiet { & $mongoshExe --quiet 'mongodb://127.0.0.1:27017/?directConnection=true' --eval "db.adminCommand({ shutdown: 1, force: true })" })
+        }
+    }
 
     Write-Host '[5/6] Checking nginx...'
     $nginxExe = Find-NginxExe
