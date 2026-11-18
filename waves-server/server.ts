@@ -24,9 +24,8 @@ if (!/^[a-z0-9]+$/.test(EVENT_ID ?? '')) {
 const MONGO_DB_NAME = `wavesmongodb_${EVENT_ID}`
 console.log(`event: ${EVENT_ID}`)
 
-const mongoClient = new MongoClient(
-    'mongodb://localhost:27017/?directConnection=true'
-);
+const MONGO_URL = 'mongodb://127.0.0.1:27017/?directConnection=true'
+const mongoClient = new MongoClient(MONGO_URL);
 const mongoDatabase = mongoClient.db(MONGO_DB_NAME);
 console.log(`using Mongodb: ${MONGO_DB_NAME}`)
 
@@ -67,7 +66,7 @@ async function createServerRxDb() {
     return createRxDatabase({
         name: SERVER_RX_DB_NAME,
         storage: getRxStorageMongoDB({
-            connection: 'mongodb://localhost:27017'
+            connection: MONGO_URL
         })
     })
 }
@@ -170,7 +169,7 @@ import { replicateMongoDB } from 'rxdb/plugins/replication-mongodb';
 const replicationStateParticipants = replicateMongoDB({
   mongodb: {
     collectionName: 'participants',
-    connection: 'mongodb://localhost:27017',
+    connection: MONGO_URL,
     databaseName: MONGO_DB_NAME
   },
   collection: serverRxDb.participants,
@@ -190,7 +189,7 @@ await replicationStateParticipants.awaitInSync();
 const replicationStateSlots = replicateMongoDB({
   mongodb: {
     collectionName: 'slots',
-    connection: 'mongodb://localhost:27017',
+    connection: MONGO_URL,
     databaseName: MONGO_DB_NAME
   },
   collection: serverRxDb.slots,
@@ -210,7 +209,7 @@ await replicationStateSlots.awaitInSync();
 const replicationStateChanges = replicateMongoDB({
     mongodb: {
         collectionName: 'changes',
-        connection: 'mongodb://localhost:27017',
+        connection: MONGO_URL,
         databaseName: MONGO_DB_NAME
     },
     collection: serverRxDb.changes,
@@ -232,7 +231,7 @@ console.log('server rxdb synced with mongodb')
 
 // SET UP RX SERVER AS A REPLICATION ENDPOINT FOR REMOTE CLIENTS
 
-const RX_SERVER_HOST = 'localhost'
+const RX_SERVER_HOST = '127.0.0.1'
 const RX_SERVER_PORT = 3000
 const RX_SERVER_ALLOW_REMOTE = true
 

@@ -359,7 +359,7 @@ function Start-WavesServices {
     if (-not $ready) { throw 'Database (mongod) did not respond in time.' }
 
     Write-Host '[2/5] Checking the database set-up...'
-    [void](Invoke-Quiet { & $mongoshExe --quiet $MongoUrl --eval "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [ { _id: 0, host: 'localhost:27017' } ] }) }" })
+    [void](Invoke-Quiet { & $mongoshExe --quiet $MongoUrl --eval "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [ { _id: 0, host: '127.0.0.1:27017' } ] }) }" })
     $primary = $false
     for ($i = 0; $i -lt 30; $i++) {
         if (Invoke-Quiet { & $mongoshExe --quiet $MongoUrl --eval "if (!db.hello().isWritablePrimary) { quit(1) }" }) {
