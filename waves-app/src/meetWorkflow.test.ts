@@ -181,11 +181,11 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 groupSize: 1,
             })
 
-            const missingWaiver = participantFromStartListData('p4', 'Carson Wright', 'Whatcom Middle', '2423692 - NC - N')
+            const missingWaiver = participantFromStartListData('p4', 'Dorothy Vaughan', 'Northgate', '2423692 - NC - N')
             expect(missingWaiver).toEqual({
                 id: 'p4',
-                name: 'Carson Wright',
-                club: 'Whatcom Middle',
+                name: 'Dorothy Vaughan',
+                club: 'Northgate',
                 epunch: '2423692',
                 isRental: false,
                 isNonCompete: true,
@@ -195,11 +195,11 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 groupSize: 1,
             })
 
-            const needsMoney = participantFromStartListData('p5', 'Colton Boone', 'Oak Harbor', '2221885- Need $')
+            const needsMoney = participantFromStartListData('p5', 'Charles Babbage', 'Lakeside', '2221885- Need $')
             expect(needsMoney).toEqual({
                 id: 'p5',
-                name: 'Colton Boone',
-                club: 'Oak Harbor',
+                name: 'Charles Babbage',
+                club: 'Lakeside',
                 epunch: '2221885',
                 isRental: false,
                 isNonCompete: false,
@@ -209,10 +209,10 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
                 groupSize: 1,
             })
 
-            const inlineGroup = participantFromStartListData('p6', 'Marie-Josee Ledoux Group (2)', '7002107', '')
+            const inlineGroup = participantFromStartListData('p6', 'Radia Perlman Group (2)', '7002107', '')
             expect(inlineGroup).toEqual({
                 id: 'p6',
-                name: 'Marie-Josee Ledoux',
+                name: 'Radia Perlman',
                 club: 'unknown',
                 epunch: '7002107',
                 isRental: false,
@@ -259,36 +259,45 @@ describe('Waves Meet Data Integrity & Workflow Suite', () => {
             expect(grace?.isNonCompete).toBe(true)
         })
 
-        it('parses the full Woodland Park startlist.csv including all 563 starters, N flags, Need $ flags, and inline groups', async () => {
-            const csvPath = resolve(__dirname, '../public/startlist.csv')
-            if (!existsSync(csvPath)) {
-                return
-            }
-            const csvText = readFileSync(csvPath, 'utf-8')
-            const parsed: ParseResult<PdfStartListRecord> = Papa.parse(csvText, {
+        it('parses UTF-8 BOM CSV text with accented names, flags, and inline groups (and validates any local startlist.csv)', async () => {
+            const sampleCsv =
+                '\uFEFF' +
+                [
+                    'Time,ELEMENTARYBEGINNER.1,ELEMENTARYBEGINNER.2,ELEMENTARYBEGINNER.3,MIDDLE SCHOOL.1,MIDDLE SCHOOL.2,MIDDLE SCHOOL.3,ROOKIE FEMALEADV BEGINNER.1,ROOKIE FEMALEADV BEGINNER.2,ROOKIE FEMALEADV BEGINNER.3,ROOKIE MALE.1,ROOKIE MALE.2,ROOKIE MALE.3,JV FEMALECOLLEGIATE JVINTERMEDIATE.1,JV FEMALECOLLEGIATE JVINTERMEDIATE.2,JV FEMALECOLLEGIATE JVINTERMEDIATE.3,JV MALE.1,JV MALE.2,JV MALE.3,VARSITY.1,VARSITY.2,VARSITY.3,SHORT ADVANCED.1,SHORT ADVANCED.2,SHORT ADVANCED.3,COLLEGE VARSITYLONG ADVANCED.1,COLLEGE VARSITYLONG ADVANCED.2,COLLEGE VARSITYLONG ADVANCED.3',
+                    '10:00:00,Mateo Núñez,Northgate,2423692 - NC - N,Charles Babbage,Lakeside,2221885- Need $,Radia Perlman Group (2),7002107,,,,,,,,,,,,,,,,,,,,,',
+                ].join('\n')
+
+            const syntheticParsed: ParseResult<PdfStartListRecord> = Papa.parse(sampleCsv, {
                 header: true,
                 skipEmptyLines: true,
                 delimiter: ',',
             })
+            await insertStartListCsv(syntheticParsed.data)
 
-            await insertStartListCsv(parsed.data)
-            const allP = [...participantsTanCollection.values()]
-            expect(allP).toHaveLength(563)
+            const synthParticipants = [...participantsTanCollection.values()]
+            expect(synthParticipants).toHaveLength(3)
             assertEveryParticipantInExactlyOneSlot()
+            expect(synthParticipants.find((p) => p.name === 'Mateo Núñez')?.needsWaiver).toBe(true)
+            expect(synthParticipants.find((p) => p.name === 'Charles Babbage')?.needsPayment).toBe(true)
+            expect(synthParticipants.find((p) => p.name === 'Radia Perlman')?.groupSize).toBe(2)
 
-            const waiverFlagged = allP.filter((p) => p.needsWaiver)
-            expect(waiverFlagged).toHaveLength(11)
-            expect(waiverFlagged.map((p) => p.name)).toContain('Carson Wright')
-            expect(waiverFlagged.map((p) => p.name)).toContain('Alex Panama')
-
-            const paymentFlagged = allP.filter((p) => p.needsPayment)
-            expect(paymentFlagged).toHaveLength(1)
-            expect(paymentFlagged[0]?.name).toBe('Colton Boone')
-            expect(paymentFlagged[0]?.epunch).toBe('2221885')
-
-            const inlineGroup = allP.find((p) => p.name === 'Marie-Josee Ledoux')
-            expect(inlineGroup?.groupSize).toBe(2)
-            expect(inlineGroup?.epunch).toBe('7002107')
+            // If a local gitignored startlist.csv is present on disk, verify it imports cleanly too.
+            const csvPath = resolve(__dirname, '../public/startlist.csv')
+            if (existsSync(csvPath)) {
+                await dropAllParticipants()
+                await dropAllSlots()
+                const csvText = readFileSync(csvPath, 'utf-8')
+                const parsed: ParseResult<PdfStartListRecord> = Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    delimiter: ',',
+                })
+                await insertStartListCsv(parsed.data)
+                const allP = [...participantsTanCollection.values()]
+                expect(allP.length).toBeGreaterThan(0)
+                expect(allP.every((p) => p.name.trim().length > 0)).toBe(true)
+                assertEveryParticipantInExactlyOneSlot()
+            }
         })
     })
 

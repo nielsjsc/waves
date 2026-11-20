@@ -41,8 +41,8 @@ const TEST_STARTLIST_CSV = [
 		'ELEMENTARYBEGINNER.1': 'Katherine Johnson',
 		'ELEMENTARYBEGINNER.2': 'Lakeside School',
 		'ELEMENTARYBEGINNER.3': '100004 - NC - N',
-		'ROOKIE MALE.1': 'Colton Boone',
-		'ROOKIE MALE.2': 'Oak Harbor',
+		'ROOKIE MALE.1': 'Charles Babbage',
+		'ROOKIE MALE.2': 'Ingraham High',
 		'ROOKIE MALE.3': '2221885- Need $',
 	}),
 	makeCsvRow('10:04:00', {}),
@@ -159,7 +159,7 @@ test('Full multi-station orienteering meet simulation (Call-up -> E-punch Check 
 	await managerPage.goto('/')
 	await navigateToStation(managerPage, 'Start Manager')
 
-	// Verify zero broken records, 1 Wrong e-punch (Alan Turing, since Grace Hopper was resolved at Epunch Check), 0 Standby, 1 No-show, and 2 Ineligible racers (Katherine Johnson N + Colton Boone Need $)
+	// Verify zero broken records, 1 Wrong e-punch (Alan Turing, since Grace Hopper was resolved at Epunch Check), 0 Standby, 1 No-show, and 2 Ineligible racers (Katherine Johnson N + Charles Babbage Need $)
 	await expect(managerPage.getByText('Records needing repair')).toHaveCount(0)
 	await expect(managerPage.getByRole('heading', { name: /Wrong e-punch/i })).toContainText('(1)')
 	await expect(managerPage.getByRole('heading', { name: /Standby/i })).toContainText('(0)')
